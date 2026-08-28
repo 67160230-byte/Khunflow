@@ -18,11 +18,12 @@ def get_async_database_url() -> str:
     
     return url
 
-# Async Engine for high performance FastAPI endpoints
+# Async Engine with statement_cache_size=0 for Supabase connection pooler compatibility
 engine = create_async_engine(
     get_async_database_url(),
     echo=(settings.ENVIRONMENT == "development"),
-    future=True
+    future=True,
+    connect_args={"statement_cache_size": 0}
 )
 
 async_session_maker = sessionmaker(
