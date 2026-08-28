@@ -5,6 +5,7 @@ KhumFlow — Database Seed Script
 Run: python seed.py
 """
 
+import os
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -16,7 +17,17 @@ from app.models import (
 )
 from app.services.auth_service import get_password_hash
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+def get_async_url() -> str:
+    url = str(settings.DATABASE_URL or os.getenv("DATABASE_URL", "")).strip().strip("'\"")
+    if url.startswith("postgres://"):
+        url = "postgresql+asyncpg://" + url[len("postgres://"):]
+    elif url.startswith("postgresql://") and not url.startswith("postgresql+asyncpg://"):
+        url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+    if "sslmode=" in url:
+        url = url.replace("sslmode=require", "").replace("sslmode=prefer", "").replace("sslmode=disable", "").rstrip("?&")
+    return url
+
+engine = create_async_engine(get_async_url(), echo=False)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 async def seed():
@@ -166,27 +177,6 @@ async def seed():
         await session.commit()
 
         print("✅ Seed completed! สร้างข้อมูลเริ่มต้นสำเร็จ")
-        print()
-        print("="*50)
-        print("  🔑 บัญชีผู้ใช้งาน (User Accounts)")
-        print("="*50)
-        print()
-        print("  Role: เจ้าของร้าน (Owner) — สิทธิ์สูงสุด")
-        print("  Email   : admin@khumflow.app")
-        print("  Password: admin1234")
-        print()
-        print("  Role: ผู้จัดการ (Manager)")
-        print("  Email   : manager@khumflow.app")
-        print("  Password: manager1234")
-        print()
-        print("  Role: พนักงานคลังสินค้า (Inventory Staff)")
-        print("  Email   : stock@khumflow.app")
-        print("  Password: stock1234")
-        print()
-        print("  Role: แคชเชียร์ (Cashier)")
-        print("  Email   : cashier@khumflow.app")
-        print("  Password: cashier1234")
-        print("="*50)
 
 if __name__ == "__main__":
     asyncio.run(seed())
