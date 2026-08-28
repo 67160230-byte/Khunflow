@@ -291,8 +291,205 @@ async def delete_user(
     user = (await session.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail=f"ไม่พบ user id={user_id}")
-
     await session.delete(user)
     await session.commit()
     return {"message": f"ลบ user '{user.full_name}' ({user.email}) สำเร็จแล้ว ✅"}
 
+
+# ── In-Memory Reset Token Store (demo-safe, resets on server restart) ──
+import secrets
+from datetime import datetime, timedelta
+
+_reset_tokens: dict[str, dict] = {}   # { token: { email, expires_at } }
+
+
+# ── POST /auth/forgot-password ────────────────────────────────────
+@router.post("/forgot-password", summary="ขอ token สำหรับรีเซ็ตรหัสผ่าน")
+async def forgot_password(
+    body: dict,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    รับ email แล้วสร้าง reset token อายุ 15 นาที
+    (โหมด Demo: token จะถูกส่งกลับใน response โดยตรง)
+    """
+    email = str(body.get("email", "")).strip().lower()
+    if not email:
+        raise HTTPException(status_code=422, detail="กรุณาระบุ email")
+
+    user = (await session.execute(
+        select(User).where(User.email == email)
+    )).scalar_one_or_none()
+
+    # ไม่เปิดเผยว่า email นั้นมีในระบบหรือไม่ (security best practice)
+    # แต่สำหรับ Demo จะแสดง token เสมอถ้า user มีในระบบ
+    if not user:
+        return {
+            "message": "ถ้า email นี้มีในระบบ คุณจะได้รับ reset token",
+            "demo_note": "ไม่พบ email นี้ในระบบ กรุณาตรวจสอบ"
+        }
+
+    # สร้าง token 6 หลักสำหรับ demo (ในระบบ production ควรส่งทาง email จริง)
+    token = secrets.token_hex(3).upper()   # เช่น "A3F7C2"
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
+    _reset_tokens[token] = {"email": email, "expires_at": expires_at}
+
+    return {
+        "message": "สร้าง reset token สำเร็จ (อายุ 15 นาที)",
+        "reset_token": token,   # Demo mode: แสดง token บนหน้าจอ
+        "demo_note": "ในระบบ Production token นี้จะถูกส่งทาง Email แทน",
+        "expires_in_minutes": 15
+    }
+
+
+# ── POST /auth/reset-password ─────────────────────────────────────
+@router.post("/reset-password", summary="รีเซ็ตรหัสผ่านด้วย token")
+async def reset_password(
+    body: dict,
+    session: AsyncSession = Depends(get_session)
+):
+    token = str(body.get("token", "")).strip().upper()
+    new_password = str(body.get("new_password", "")).strip()
+
+    if not token or not new_password:
+        raise HTTPException(status_code=422, detail="กรุณาระบุ token และรหัสผ่านใหม่")
+
+    if len(new_password) < 6:
+        raise HTTPException(
+            status_code=422,
+            detail="รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร"
+        )
+
+    record = _reset_tokens.get(token)
+    if not record:
+        raise HTTPException(status_code=400, detail="Token ไม่ถูกต้องหรือไม่มีในระบบ")
+
+    if datetime.utcnow() > record["expires_at"]:
+        _reset_tokens.pop(token, None)
+        raise HTTPException(status_code=400, detail="Token หมดอายุแล้ว กรุณาขอ token ใหม่")
+
+    email = record["email"]
+    user = (await session.execute(
+        select(User).where(User.email == email)
+    )).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="ไม่พบผู้ใช้งานในระบบ")
+
+    user.hashed_password = get_password_hash(new_password)
+    session.add(user)
+    await session.commit()
+    _reset_tokens.pop(token, None)   # ใช้ token ได้ครั้งเดียว
+
+    return {"message": f"รีเซ็ตรหัสผ่านสำเร็จ! ✅ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่"}
+
+
+# ── Google OAuth ──────────────────────────────────────────────────
+import os
+from fastapi.responses import RedirectResponse
+import httpx
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://khunflow.onrender.com/api/auth/google/callback")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://khunflow.vercel.app")
+
+
+@router.get("/google", summary="เริ่มต้น Login ด้วย Google")
+async def google_login():
+    """Redirect ผู้ใช้ไปหน้า Google Consent Screen"""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=503,
+            detail="Google OAuth ยังไม่ได้ตั้งค่า กรุณาตั้งค่า GOOGLE_CLIENT_ID ใน Environment Variables"
+        )
+    scope = "openid email profile"
+    google_auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={GOOGLE_CLIENT_ID}"
+        f"&redirect_uri={GOOGLE_REDIRECT_URI}"
+        f"&response_type=code"
+        f"&scope={scope}"
+        f"&access_type=offline"
+        f"&prompt=select_account"
+    )
+    return RedirectResponse(url=google_auth_url)
+
+
+@router.get("/google/callback", summary="Google OAuth Callback")
+async def google_callback(
+    code: str,
+    session: AsyncSession = Depends(get_session)
+):
+    """รับ code จาก Google แล้วแลก token และ login/register user อัตโนมัติ"""
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(status_code=503, detail="Google OAuth ยังไม่ได้ตั้งค่า")
+
+    # Step 1: แลก code → access_token จาก Google
+    async with httpx.AsyncClient() as client:
+        token_resp = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code",
+            }
+        )
+        token_data = token_resp.json()
+        if "error" in token_data:
+            raise HTTPException(status_code=400, detail=f"Google error: {token_data.get('error_description', token_data['error'])}")
+
+        # Step 2: ดึงข้อมูล user จาก Google
+        userinfo_resp = await client.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {token_data['access_token']}"}
+        )
+        userinfo = userinfo_resp.json()
+
+    google_email = str(userinfo.get("email", "")).strip().lower()
+    google_name = str(userinfo.get("name", google_email))
+
+    if not google_email:
+        raise HTTPException(status_code=400, detail="ไม่สามารถดึง email จาก Google ได้")
+
+    # Step 3: หา user ในระบบ หรือสร้างใหม่
+    user = (await session.execute(
+        select(User).where(User.email == google_email)
+    )).scalar_one_or_none()
+
+    if not user:
+        # Auto-register จาก Google account
+        biz = (await session.execute(select(Business))).scalars().first()
+        if not biz:
+            biz = Business(name="KhumFlow Store", business_type="cafe", currency="THB")
+            session.add(biz)
+            await session.flush()
+
+        user = User(
+            email=google_email,
+            hashed_password=get_password_hash(secrets.token_hex(16)),  # random password
+            full_name=google_name,
+            role=UserRole.OWNER,
+            business_id=biz.id,
+            is_active=True
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+    if not user.is_active:
+        redirect_url = f"{FRONTEND_URL}/?error=account_suspended"
+        return RedirectResponse(url=redirect_url)
+
+    # Step 4: สร้าง JWT token แล้ว redirect กลับ frontend
+    role_val = str(user.role.value if hasattr(user.role, 'value') else user.role)
+    jwt_token = create_access_token({"sub": user.email, "role": role_val})
+
+    redirect_url = (
+        f"{FRONTEND_URL}/?token={jwt_token}"
+        f"&user_name={user.full_name}"
+        f"&role={role_val}"
+    )
+    return RedirectResponse(url=redirect_url)
