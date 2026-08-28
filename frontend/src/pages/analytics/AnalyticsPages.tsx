@@ -361,30 +361,31 @@ export function ExpirationPage() {
                 <tbody className="divide-y divide-gray-100">
                   {resolvedList.map((ing) => (
                     <tr key={ing.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900">{ing.name}</td>
+                      <td className="px-4 py-3 font-semibold text-gray-900">{ing.name}</td>
                       <td className="px-4 py-3 text-gray-500">{ing.expirationDate}</td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1 text-green-700 bg-green-50 px-2 py-0.5 rounded-full font-medium text-[11px]">
-                          <CheckCircle2 size={12} /> เคลียร์รายการแล้ว
+                        <span className="inline-flex items-center gap-1 text-green-700 bg-green-50 px-2.5 py-1 rounded-full font-medium text-xs border border-green-200">
+                          <CheckCircle2 size={13} /> เคลียร์รายการแล้ว
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => handleRestoreToActive(ing.id, ing.name)}
-                            className="text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 font-medium"
+                            className="text-xs py-1.5 px-3 text-blue-600 hover:text-blue-800 hover:bg-blue-50 border-blue-200 flex items-center gap-1 font-medium"
                           >
-                            <RotateCcw size={12} /> ย้ายกลับไปตรวจสอบ
-                          </button>
-                          <button
-                            type="button"
+                            <RotateCcw size={13} /> ย้ายกลับไปตรวจสอบ
+                          </Button>
+                          <Button
+                            size="sm"
                             onClick={() => handlePermanentDelete(ing.id, ing.name)}
-                            className="text-xs text-red-600 hover:text-red-800 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 font-semibold border border-red-200"
-                            title="ลบทิ้งถาวร"
+                            className="text-xs py-1.5 px-3 bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-1 shadow-sm"
+                            title="ลบรายการนี้ทิ้งถาวร ไม่ให้แสดงอีก"
                           >
-                            <Trash2 size={12} /> ลบทิ้งถาวร
-                          </button>
+                            <Trash2 size={13} /> ลบออกถาวร
+                          </Button>
                         </div>
                       </td>
                     </tr>
