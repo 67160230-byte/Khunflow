@@ -2,10 +2,18 @@ import { useState, useEffect } from 'react'
 import { ordersService, productsService } from '@/services'
 import type { Order, Product, ProductCategory } from '@/types'
 import { Card, Button, Badge, LoadingSpinner, SectionHeader, KPICard, EmptyState } from '@/components/ui'
-import { Plus, ShoppingBag, Clock, CheckCircle2, X, PlusCircle, ShieldAlert } from 'lucide-react'
+import { Plus, ShoppingBag, Clock, CheckCircle2, X, Sparkles, LayoutGrid, ShieldAlert, Check } from 'lucide-react'
 
 function formatBaht(n: number) {
   return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+interface OrderCartItem {
+  id: string
+  name: string
+  price: number
+  quantity: number
+  isCustom?: boolean
 }
 
 export default function OrdersPage() {
@@ -13,13 +21,18 @@ export default function OrdersPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
-  const [selectedItems, setSelectedItems] = useState<{ productId: string; quantity: number }[]>([])
+  const [cartItems, setCartItems] = useState<OrderCartItem[]>([])
 
-  // Quick Add Menu for Owner / Manager
-  const [showAddMenu, setShowAddMenu] = useState(false)
-  const [newMenuName, setNewMenuName] = useState('')
-  const [newMenuPrice, setNewMenuPrice] = useState('')
-  const [newMenuCategory, setNewMenuCategory] = useState<ProductCategory>('beverage')
+  // Mode tab in POS Modal: 'preset' or 'custom'
+  const [posTab, setPosTab] = useState<'preset' | 'custom'>('preset')
+
+  // Custom Item Form State
+  const [customName, setCustomName] = useState('')
+  const [customPrice, setCustomPrice] = useState('')
+  const [customQty, setCustomQty] = useState('1')
+  const [saveToCatalog, setSaveToCatalog] = useState(true)
+  const [customCategory, setCustomCategory] = useState<ProductCategory>('beverage')
+  const [toastMessage, setToastMessage] = useState('')
 
   // Get current user role from localStorage
   const currentUser = (() => {
@@ -32,7 +45,7 @@ export default function OrdersPage() {
   })()
 
   const userRole = currentUser?.role?.toLowerCase() || 'owner'
-  const canAddMenu = userRole.includes('owner') || userRole.includes('manager') || userRole === 'admin'
+  const canAddCustomMenu = userRole.includes('owner') || userRole.includes('manager') || userRole === 'admin'
 
   useEffect(() => {
     Promise.all([ordersService.getAll(), productsService.getAll()]).then(([o, p]) => {
@@ -42,78 +55,86 @@ export default function OrdersPage() {
     })
   }, [])
 
-  const handleAddItem = (productId: string) => {
-    setSelectedItems((prev) => {
-      const existing = prev.find((item) => item.productId === productId)
+  const handleAddPresetItem = (p: Product) => {
+    setCartItems((prev) => {
+      const existing = prev.find((item) => item.id === p.id)
       if (existing) {
         return prev.map((item) =>
-          item.productId === productId ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === p.id ? { ...item, quantity: item.quantity + 1 } : item
         )
       }
-      return [...prev, { productId, quantity: 1 }]
+      return [...prev, { id: p.id, name: p.name, price: p.sellingPrice, quantity: 1 }]
     })
   }
 
-  const handleRemoveItem = (productId: string) => {
-    setSelectedItems((prev) => prev.filter((item) => item.productId !== productId))
-  }
-
-  const handleQuickAddMenu = (e: React.FormEvent) => {
+  const handleAddCustomItem = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMenuName || !newMenuPrice) return
+    if (!customName || !customPrice) return
 
-    const price = parseFloat(newMenuPrice) || 0
-    const foodCost = price * 0.3 // default estimated 30% cost
+    const price = parseFloat(customPrice) || 0
+    const qty = parseInt(customQty, 10) || 1
 
-    const newProd: Product = {
-      id: `p${Date.now()}`,
-      name: newMenuName,
-      category: newMenuCategory,
-      sellingPrice: price,
-      foodCost,
-      grossProfit: price - foodCost,
-      grossMargin: 70,
-      status: 'active',
-      createdAt: new Date().toISOString(),
+    const newCartItem: OrderCartItem = {
+      id: `custom_${Date.now()}`,
+      name: customName,
+      price,
+      quantity: qty,
+      isCustom: true,
     }
 
-    setProducts([...products, newProd])
-    setNewMenuName('')
-    setNewMenuPrice('')
-    setShowAddMenu(false)
-    // Auto select the new item
-    handleAddItem(newProd.id)
+    setCartItems((prev) => [...prev, newCartItem])
+
+    // If Admin/Manager wants to also save it permanently to products catalog
+    if (saveToCatalog && canAddCustomMenu) {
+      const foodCost = price * 0.3
+      const newProd: Product = {
+        id: `p${Date.now()}`,
+        name: customName,
+        category: customCategory,
+        sellingPrice: price,
+        foodCost,
+        grossProfit: price - foodCost,
+        grossMargin: 70,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      }
+      setProducts((prev) => [...prev, newProd])
+      setToastMessage(`เพิ่มเมนู "${customName}" เข้าเมนูร้านแล้ว`)
+      setTimeout(() => setToastMessage(''), 3000)
+    }
+
+    setCustomName('')
+    setCustomPrice('')
+    setCustomQty('1')
+  }
+
+  const handleRemoveCartItem = (id: string) => {
+    setCartItems((prev) => prev.filter((item) => item.id !== id))
   }
 
   const calculateTotal = () => {
-    return selectedItems.reduce((sum, item) => {
-      const prod = products.find((p) => p.id === item.productId)
-      return sum + (prod ? prod.sellingPrice * item.quantity : 0)
-    }, 0)
+    return cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
   }
 
   const handleCreateOrder = () => {
-    if (selectedItems.length === 0) return
+    if (cartItems.length === 0) return
     const newOrder: Order = {
       id: `o${orders.length + 1}`,
       date: new Date().toISOString(),
-      items: selectedItems.map((it) => {
-        const p = products.find((prod) => prod.id === it.productId)!
-        return {
-          productId: p.id,
-          productName: p.name,
-          quantity: it.quantity,
-          unitPrice: p.sellingPrice,
-          subtotal: p.sellingPrice * it.quantity,
-        }
-      }),
+      items: cartItems.map((it) => ({
+        productId: it.id,
+        productName: it.name,
+        quantity: it.quantity,
+        unitPrice: it.price,
+        subtotal: it.price * it.quantity,
+      })),
       total: calculateTotal(),
       status: 'completed',
       staffId: 'u1',
       staffName: currentUser?.user_name || 'สมชาย เจ้าของร้าน',
     }
     setOrders([newOrder, ...orders])
-    setSelectedItems([])
+    setCartItems([])
     setModalOpen(false)
   }
 
@@ -127,8 +148,8 @@ export default function OrdersPage() {
         title="คำสั่งซื้อ (Orders)"
         subtitle="บันทึกยอดขายหน้าร้าน ระบบจะตัด Expected Usage ตามสูตรอาหารอัตโนมัติ"
         action={
-          <Button size="sm" onClick={() => setModalOpen(true)}>
-            <Plus size={16} /> สร้างออเดอร์ใหม่
+          <Button size="sm" onClick={() => { setModalOpen(true); setCartItems([]); }}>
+            <Plus size={16} /> สร้างออเดอร์ใหม่ (POS)
           </Button>
         }
       />
@@ -207,110 +228,165 @@ export default function OrdersPage() {
       {/* New Order POS Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-lg font-bold text-gray-900">สร้างคำสั่งซื้อใหม่ (POS)</h3>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">สร้างคำสั่งซื้อใหม่ (POS)</h3>
+                <p className="text-xs text-gray-400">เลือกเมนู หรือเพิ่มชื่อเมนูและราคาตามต้องการ</p>
+              </div>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
             </div>
 
-            {/* Menu Selection Header + Quick Add Button */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-semibold text-gray-500 uppercase">เลือกเมนูสินค้า</label>
-                {canAddMenu ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowAddMenu(!showAddMenu)}
-                    className="text-xs font-semibold text-green-700 hover:text-green-800 flex items-center gap-1 bg-green-50 px-2.5 py-1 rounded-lg border border-green-200 transition-colors"
-                  >
-                    <PlusCircle size={14} /> {showAddMenu ? 'ซ่อนฟอร์ม' : '+ เพิ่มเมนูใหม่ (Admin/Manager)'}
-                  </button>
-                ) : (
-                  <span className="text-[11px] text-gray-400 flex items-center gap-1">
-                    <ShieldAlert size={12} /> สิทธิ์แคชเชียร์เลือกเมนูเท่านั้น
-                  </span>
-                )}
+            {toastMessage && (
+              <div className="bg-green-50 border border-green-200 text-green-700 p-2 rounded-xl text-xs flex items-center gap-1.5 font-medium animate-in fade-in">
+                <Check size={14} /> {toastMessage}
               </div>
+            )}
 
-              {/* Quick Add Menu Form (Only for Owner / Manager) */}
-              {showAddMenu && canAddMenu && (
-                <form onSubmit={handleQuickAddMenu} className="mb-3 p-3 bg-green-50/60 rounded-xl border border-green-200 text-xs space-y-2 animate-in fade-in">
-                  <p className="font-bold text-green-900">เพิ่มเมนูเครื่องดื่ม / อาหารใหม่เข้าระบบ:</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      required
-                      placeholder="ชื่อเมนู เช่น มอคค่าเย็น"
-                      value={newMenuName}
-                      onChange={(e) => setNewMenuName(e.target.value)}
-                      className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
-                    />
-                    <input
-                      type="number"
-                      step="0.5"
-                      required
-                      placeholder="ราคาขาย (฿) เช่น 85"
-                      value={newMenuPrice}
-                      onChange={(e) => setNewMenuPrice(e.target.value)}
-                      className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between pt-1">
-                    <select
-                      value={newMenuCategory}
-                      onChange={(e) => setNewMenuCategory(e.target.value as ProductCategory)}
-                      className="px-2 py-1 rounded-lg border border-gray-200 bg-white text-xs"
-                    >
-                      <option value="beverage">เครื่องดื่ม</option>
-                      <option value="food">อาหาร</option>
-                      <option value="dessert">เบเกอรี่</option>
-                    </select>
-                    <Button type="submit" size="sm" className="text-xs py-1">
-                      บันทึกเมนูนี้
-                    </Button>
-                  </div>
-                </form>
-              )}
-
-              {/* Products Grid */}
-              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                {products.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => handleAddItem(p.id)}
-                    className="flex flex-col items-start p-2.5 rounded-xl border border-gray-200 hover:border-green-600 hover:bg-green-50 transition-all text-left"
-                  >
-                    <span className="font-medium text-gray-900 text-xs">{p.name}</span>
-                    <span className="text-xs text-green-700 font-semibold mt-1">{formatBaht(p.sellingPrice)}</span>
-                  </button>
-                ))}
-              </div>
+            {/* Switch Mode: Preset vs Custom */}
+            <div className="flex bg-gray-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setPosTab('preset')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                  posTab === 'preset' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <LayoutGrid size={15} /> เมนูในร้าน ({products.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setPosTab('custom')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                  posTab === 'custom' ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Sparkles size={15} className="text-amber-500" /> + ระบุชื่อเมนูและราคาเอง
+              </button>
             </div>
 
-            {/* Selected Items */}
+            {/* TAB 1: PRESET MENU GRID */}
+            {posTab === 'preset' && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">คลิกเพื่อเลือกเมนู</label>
+                <div className="grid grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
+                  {products.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleAddPresetItem(p)}
+                      className="flex flex-col items-start p-2.5 rounded-xl border border-gray-200 hover:border-green-600 hover:bg-green-50 transition-all text-left group"
+                    >
+                      <span className="font-medium text-gray-900 text-xs group-hover:text-green-800">{p.name}</span>
+                      <span className="text-xs text-green-700 font-semibold mt-1">{formatBaht(p.sellingPrice)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: CUSTOM MENU AND PRICE (Role Restricted) */}
+            {posTab === 'custom' && (
+              <div>
+                {canAddCustomMenu ? (
+                  <form onSubmit={handleAddCustomItem} className="p-4 bg-green-50/70 border border-green-200 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-green-900 flex items-center gap-1.5">
+                        <Sparkles size={15} className="text-green-700" /> กำหนดชื่อเมนูและราคาเอง (Admin/Manager):
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-gray-700 mb-1">ชื่อเมนู / รายการสินค้า</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="เช่น ชาเขียวมัทฉะเกรดพรีเมียม, เค้กส้มวันเกิด"
+                        value={customName}
+                        onChange={(e) => setCustomName(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs focus:ring-2 focus:ring-green-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-700 mb-1">ราคาขายต่อหน่วย (฿)</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          required
+                          placeholder="เช่น 120"
+                          value={customPrice}
+                          onChange={(e) => setCustomPrice(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-700 mb-1">จำนวนที่สั่ง</label>
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          value={customQty}
+                          onChange={(e) => setCustomQty(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={saveToCatalog}
+                          onChange={(e) => setSaveToCatalog(e.target.checked)}
+                          className="rounded text-green-600 focus:ring-green-500"
+                        />
+                        <span>บันทึกเป็นเมนูถาวรในร้านด้วย</span>
+                      </label>
+                      <Button type="submit" size="sm" className="text-xs py-1.5">
+                        + เพิ่มลงออเดอร์
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-2 text-xs text-amber-800">
+                    <ShieldAlert size={24} className="mx-auto text-amber-600" />
+                    <p className="font-bold">จำกัดสิทธิ์การใช้งาน</p>
+                    <p>เฉพาะ <strong>เจ้าของร้าน (Owner)</strong> หรือ <strong>ผู้จัดการ (Manager)</strong> เท่านั้นที่สามารถระบุชื่อเมนูและราคาใหม่ได้</p>
+                    <p className="text-gray-500 text-[11px]">พนักงานแคชเชียร์กรุณาเลือกเมนูจากแท็บ "เมนูในร้าน"</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Selected Items Cart */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">รายการที่เลือก</label>
-              {selectedItems.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-4 bg-gray-50 rounded-xl">ยังไม่ได้เลือกรายการ</p>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">
+                รายการในออเดอร์ ({cartItems.length} รายการ)
+              </label>
+              {cartItems.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  ยังไม่ได้เลือกรายการ กรุณาคลิกเลือกเมนูด้านบน
+                </p>
               ) : (
                 <div className="space-y-2 max-h-36 overflow-y-auto">
-                  {selectedItems.map((item) => {
-                    const prod = products.find((p) => p.id === item.productId)!
-                    return (
-                      <div key={item.productId} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-lg text-xs">
-                        <span className="font-medium text-gray-800">{prod?.name || 'สินค้า'} × {item.quantity}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="font-bold text-gray-900">{formatBaht((prod?.sellingPrice || 0) * item.quantity)}</span>
-                          <button onClick={() => handleRemoveItem(item.productId)} className="text-red-500 hover:text-red-700">
-                            <X size={14} />
-                          </button>
-                        </div>
+                  {cartItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-lg text-xs border border-gray-100">
+                      <span className="font-medium text-gray-800 flex items-center gap-1.5">
+                        {item.isCustom && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">พิเศษ</span>}
+                        {item.name} × {item.quantity}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-gray-900">{formatBaht(item.price * item.quantity)}</span>
+                        <button onClick={() => handleRemoveCartItem(item.id)} className="text-red-500 hover:text-red-700">
+                          <X size={14} />
+                        </button>
                       </div>
-                    )
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -325,8 +401,8 @@ export default function OrdersPage() {
                 <Button variant="outline" size="sm" onClick={() => setModalOpen(false)}>
                   ยกเลิก
                 </Button>
-                <Button size="sm" onClick={handleCreateOrder} disabled={selectedItems.length === 0}>
-                  ยืนยันออเดอร์
+                <Button size="sm" onClick={handleCreateOrder} disabled={cartItems.length === 0}>
+                  ยืนยันออเดอร์ (฿{calculateTotal().toFixed(2)})
                 </Button>
               </div>
             </div>
