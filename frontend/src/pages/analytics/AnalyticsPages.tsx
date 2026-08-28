@@ -25,8 +25,30 @@ function shortDate(dateStr: string) {
 
 // ── Expiration Page ──────────────────────────────────────────
 export function ExpirationPage() {
-  const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [allData, setAllData] = useState<Ingredient[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // 1. Resolved / Checked IDs
+  const [resolvedIds, setResolvedIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('khumflow_resolved_expirations')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+
+  // 2. Permanently Deleted IDs (never show anywhere)
+  const [deletedIds, setDeletedIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('khumflow_permanently_deleted_expirations')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+
+  const [activeTab, setActiveTab] = useState<'active' | 'resolved'>('active')
   const [toast, setToast] = useState<string | null>(null)
 
   // Edit Date Modal
@@ -42,21 +64,10 @@ export function ExpirationPage() {
 
   useEffect(() => {
     inventoryService.getAll().then((data) => {
-      // Get saved deleted IDs from localStorage
-      let deletedIds: string[] = []
-      try {
-        const saved = localStorage.getItem('khumflow_removed_expirations')
-        deletedIds = saved ? JSON.parse(saved) : []
-      } catch {
-        deletedIds = []
-      }
-
-      // Sort by expiration date (soonest first) and filter out deleted items
       const sorted = [...data]
-        .filter((i) => i.expirationDate && !deletedIds.includes(i.id))
+        .filter((i) => i.expirationDate)
         .sort((a, b) => new Date(a.expirationDate!).getTime() - new Date(b.expirationDate!).getTime())
-
-      setIngredients(sorted)
+      setAllData(sorted)
       setLoading(false)
     })
   }, [])
@@ -66,6 +77,16 @@ export function ExpirationPage() {
   const showToast = (msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3500)
+  }
+
+  const saveResolved = (list: string[]) => {
+    setResolvedIds(list)
+    localStorage.setItem('khumflow_resolved_expirations', JSON.stringify(list))
+  }
+
+  const saveDeleted = (list: string[]) => {
+    setDeletedIds(list)
+    localStorage.setItem('khumflow_permanently_deleted_expirations', JSON.stringify(list))
   }
 
   const getUrgency = (dateStr?: string) => {
@@ -80,42 +101,55 @@ export function ExpirationPage() {
     return { label: `ปกติ (อีก ${diffDays} วัน)`, variant: 'success' as const, days: diffDays }
   }
 
-  // Permanently Delete / Remove Item from Expiration List
-  const handleRemoveItem = (id: string, name: string) => {
-    // 1. Immediately remove from React state
-    setIngredients((prev) => prev.filter((i) => i.id !== id))
-
-    // 2. Save into localStorage so it never comes back
-    try {
-      const saved = localStorage.getItem('khumflow_removed_expirations')
-      const deletedIds: string[] = saved ? JSON.parse(saved) : []
-      if (!deletedIds.includes(id)) {
-        deletedIds.push(id)
-        localStorage.setItem('khumflow_removed_expirations', JSON.stringify(deletedIds))
-      }
-    } catch (e) {
-      console.error(e)
-    }
-
-    showToast(`🗑️ นำ "${name}" ออกจากรายการเรียบร้อยแล้ว`)
+  // Action 1: Move from Active to Resolved
+  const handleCheckAndResolve = (ing: Ingredient) => {
+    const updated = [...resolvedIds, ing.id]
+    saveResolved(updated)
+    showToast(`✅ ย้าย "${ing.name}" ไปยังประวัติที่เคลียร์แล้ว`)
   }
 
-  // Update Expiration Date
+  // Action 2: Permanent Delete (Wipes from both active and resolved completely)
+  const handlePermanentDelete = (id: string, name: string) => {
+    const updatedDeleted = [...deletedIds, id]
+    saveDeleted(updatedDeleted)
+    const updatedResolved = resolvedIds.filter((i) => i !== id)
+    saveResolved(updatedResolved)
+    showToast(`🗑️ ลบ "${name}" ทิ้งถาวรเรียบร้อยแล้ว`)
+  }
+
+  // Action 3: Clear All Resolved History Permanently
+  const handleClearAllResolved = () => {
+    const newlyDeleted = [...deletedIds, ...resolvedIds]
+    saveDeleted(newlyDeleted)
+    saveResolved([])
+    showToast(`🧹 ล้างประวัติที่เคลียร์แล้วทั้งหมดถาวรเรียบร้อย!`)
+  }
+
+  // Action 4: Restore from Resolved back to Active
+  const handleRestoreToActive = (id: string, name: string) => {
+    const updated = resolvedIds.filter((i) => i !== id)
+    saveResolved(updated)
+    showToast(`↩️ ย้าย "${name}" กลับมาในรายการต้องตรวจสอบแล้ว`)
+  }
+
+  // Action 5: Update Expiration Date
   const handleUpdateDate = (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingItem || !newExpDate) return
 
-    setIngredients((prev) =>
+    setAllData((prev) =>
       prev.map((item) =>
         item.id === editingItem.id ? { ...item, expirationDate: newExpDate } : item
       )
     )
+    const updatedResolved = resolvedIds.filter((i) => i !== editingItem.id)
+    saveResolved(updatedResolved)
     showToast(`📅 อัปเดตวันหมดอายุของ "${editingItem.name}" เป็น ${newExpDate} เรียบร้อย`)
     setEditingItem(null)
     setNewExpDate('')
   }
 
-  // Add New Expiration Item
+  // Action 6: Add New Expiration Item
   const handleAddNewItem = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newIngName || !newIngDate) return
@@ -135,7 +169,7 @@ export function ExpirationPage() {
       createdAt: new Date().toISOString(),
     }
 
-    setIngredients([newIng, ...ingredients])
+    setAllData([newIng, ...allData])
     setAddModalOpen(false)
     setNewIngName('')
     setNewIngStock('')
@@ -143,27 +177,35 @@ export function ExpirationPage() {
     showToast(`✨ เพิ่ม "${newIngName}" เข้าสู่ระบบติดตามวันหมดอายุแล้ว`)
   }
 
-  // Reset to restore initial demo items
+  // Action 7: Reset All (Restore Demo Data)
   const handleResetAll = () => {
-    localStorage.removeItem('khumflow_removed_expirations')
+    localStorage.removeItem('khumflow_resolved_expirations')
+    localStorage.removeItem('khumflow_permanently_deleted_expirations')
+    setResolvedIds([])
+    setDeletedIds([])
     inventoryService.getAll().then((data) => {
       const sorted = [...data]
         .filter((i) => i.expirationDate)
         .sort((a, b) => new Date(a.expirationDate!).getTime() - new Date(b.expirationDate!).getTime())
-      setIngredients(sorted)
+      setAllData(sorted)
     })
-    showToast(`🔄 คืนค่ารายการวัตถุดิบทั้งหมดกลับมาแล้ว`)
+    showToast(`🔄 รีเซ็ตและกู้คืนรายการทั้งหมดกลับมาเริ่มต้นแล้ว`)
   }
+
+  // Filter Lists
+  const nonDeleted = allData.filter((i) => !deletedIds.includes(i.id))
+  const activeList = nonDeleted.filter((i) => !resolvedIds.includes(i.id))
+  const resolvedList = nonDeleted.filter((i) => resolvedIds.includes(i.id))
 
   return (
     <div className="space-y-6">
       <SectionHeader
         title="ติดตามวันหมดอายุวัตถุดิบ (Expiration Tracking)"
-        subtitle={`วัตถุดิบที่กำลังติดตาม ${ingredients.length} รายการ (กด 'เช็คแล้ว/เอาออก' เพื่อลบออกจากรายการทันที)`}
+        subtitle="ระบบเตือนภัยล่วงหน้า สามารถตรวจสอบ เคลียร์รายการ หรือลบสินค้าทิ้งถาวรได้ตามต้องการ"
         action={
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={handleResetAll}>
-              <RotateCcw size={14} /> รีเซ็ตรายการทั้งหมด
+              <RotateCcw size={14} /> รีเซ็ตค่าเริ่มต้น
             </Button>
             <Button size="sm" onClick={() => setAddModalOpen(true)}>
               <Plus size={16} /> + เพิ่มวัตถุดิบติดตาม
@@ -179,87 +221,178 @@ export function ExpirationPage() {
         </div>
       )}
 
-      {ingredients.length === 0 ? (
-        <div className="p-12 text-center bg-white rounded-2xl border border-gray-200 shadow-sm space-y-3">
-          <CheckCircle2 size={44} className="text-green-500 mx-auto" />
-          <h3 className="font-bold text-gray-900 text-base">ไม่มีวัตถุดิบคงค้างในรายการแล้ว!</h3>
-          <p className="text-xs text-gray-500">
-            วัตถุดิบทั้งหมดได้รับการตรวจสอบและนำออกจากระบบเรียบร้อยแล้ว
-          </p>
-          <div className="pt-2">
-            <Button size="sm" variant="outline" onClick={handleResetAll} className="text-xs">
-              <RotateCcw size={14} /> โหลดรายการเริ่มต้นกลับมาใหม่
-            </Button>
-          </div>
+      {/* Tabs */}
+      <div className="flex items-center justify-between">
+        <div className="flex bg-gray-100 p-1 rounded-xl max-w-sm w-full">
+          <button
+            type="button"
+            onClick={() => setActiveTab('active')}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              activeTab === 'active' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            ต้องตรวจสอบ ({activeList.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('resolved')}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              activeTab === 'resolved' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            เอาออก/เคลียร์แล้ว ({resolvedList.length})
+          </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {ingredients.map((ing) => {
-            const urgency = getUrgency(ing.expirationDate)
-            return (
-              <Card
-                key={ing.id}
-                className="p-5 flex flex-col justify-between space-y-4 border border-gray-200 shadow-sm relative group hover:border-green-300 transition-all"
-              >
-                {/* One-click Close Button Top Right */}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveItem(ing.id, ing.name)}
-                  className="absolute right-3 top-3 p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                  title="ลบรายการนี้ออกทันที"
-                >
-                  <X size={17} />
-                </button>
 
-                <div>
-                  <div className="flex items-center justify-between mb-2 pr-7">
-                    <h4 className="font-bold text-gray-900 text-sm">{ing.name}</h4>
-                    <Badge variant={urgency.variant}>{urgency.label}</Badge>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    คงเหลือ: <span className="font-semibold text-gray-800">{ing.currentStock} {ing.unit}</span> (มูลค่า {formatBaht(ing.stockValue)})
-                  </p>
-                  <div className="mt-3 p-2.5 rounded-lg bg-gray-50 text-xs flex items-center gap-2 border border-gray-100">
-                    <CalendarClock size={15} className="text-gray-400 flex-shrink-0" />
-                    <span>วันหมดอายุ: <strong className="text-gray-800">{ing.expirationDate}</strong></span>
-                  </div>
-                </div>
+        {activeTab === 'resolved' && resolvedList.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleClearAllResolved}
+            className="text-xs text-red-600 hover:bg-red-50 hover:border-red-200 flex items-center gap-1"
+          >
+            <Trash2 size={14} /> ล้างประวัติทั้งหมดถาวร
+          </Button>
+        )}
+      </div>
 
-                {/* Primary Action Button: Remove Completely */}
-                <div className="pt-3 border-t border-gray-100 flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => handleRemoveItem(ing.id, ing.name)}
-                    className="flex-1 text-xs py-2 bg-green-600 hover:bg-green-700 text-white font-medium flex items-center justify-center gap-1.5 shadow-sm"
+      {/* TAB 1: ACTIVE ALERTS */}
+      {activeTab === 'active' && (
+        <div>
+          {activeList.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-2xl border border-gray-200 shadow-sm space-y-3">
+              <CheckCircle2 size={44} className="text-green-500 mx-auto" />
+              <h3 className="font-bold text-gray-900 text-base">ไม่มีวัตถุดิบคงค้างในรายการแล้ว!</h3>
+              <p className="text-xs text-gray-500">
+                วัตถุดิบทั้งหมดได้รับการตรวจสอบและนำออกจากระบบเรียบร้อยแล้ว
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {activeList.map((ing) => {
+                const urgency = getUrgency(ing.expirationDate)
+                return (
+                  <Card
+                    key={ing.id}
+                    className="p-5 flex flex-col justify-between space-y-4 border border-gray-200 shadow-sm relative group hover:border-green-300 transition-all"
                   >
-                    <Check size={14} /> เช็คแล้ว / ลบออก
-                  </Button>
+                    {/* Quick Permanent Delete Button Top Right */}
+                    <button
+                      type="button"
+                      onClick={() => handlePermanentDelete(ing.id, ing.name)}
+                      className="absolute right-3 top-3 p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      title="ลบทิ้งถาวร"
+                    >
+                      <X size={17} />
+                    </button>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setEditingItem(ing)
-                      setNewExpDate(ing.expirationDate || '')
-                    }}
-                    className="text-xs py-2 px-3 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    title="เปลี่ยนวันหมดอายุใหม่"
-                  >
-                    <RefreshCw size={13} />
-                  </Button>
+                    <div>
+                      <div className="flex items-center justify-between mb-2 pr-7">
+                        <h4 className="font-bold text-gray-900 text-sm">{ing.name}</h4>
+                        <Badge variant={urgency.variant}>{urgency.label}</Badge>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        คงเหลือ: <span className="font-semibold text-gray-800">{ing.currentStock} {ing.unit}</span> (มูลค่า {formatBaht(ing.stockValue)})
+                      </p>
+                      <div className="mt-3 p-2.5 rounded-lg bg-gray-50 text-xs flex items-center gap-2 border border-gray-100">
+                        <CalendarClock size={15} className="text-gray-400 flex-shrink-0" />
+                        <span>วันหมดอายุ: <strong className="text-gray-800">{ing.expirationDate}</strong></span>
+                      </div>
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveItem(ing.id, ing.name)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="ทิ้ง / ลบรายการ"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </Card>
-            )
-          })}
+                    {/* Action Buttons */}
+                    <div className="pt-3 border-t border-gray-100 flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handleCheckAndResolve(ing)}
+                        className="flex-1 text-xs py-2 bg-green-600 hover:bg-green-700 text-white font-medium flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <Check size={14} /> เช็คแล้ว / เอาออก
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingItem(ing)
+                          setNewExpDate(ing.expirationDate || '')
+                        }}
+                        className="text-xs py-2 px-3 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        title="เปลี่ยนวันหมดอายุใหม่"
+                      >
+                        <RefreshCw size={13} />
+                      </Button>
+
+                      <button
+                        type="button"
+                        onClick={() => handlePermanentDelete(ing.id, ing.name)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="ลบทิ้งถาวร"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: RESOLVED / REMOVED (With Permanent Delete Button) */}
+      {activeTab === 'resolved' && (
+        <div>
+          {resolvedList.length === 0 ? (
+            <div className="p-10 text-center bg-white rounded-2xl border border-gray-200 text-xs text-gray-400">
+              ไม่มีประวัติสินค้าที่เคลียร์แล้ว (ว่างเปล่า)
+            </div>
+          ) : (
+            <Card className="overflow-hidden border border-gray-200 shadow-sm">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-gray-600 uppercase tracking-wide">
+                    <th className="text-left px-4 py-3 font-semibold">วัตถุดิบ</th>
+                    <th className="text-left px-4 py-3 font-semibold">วันหมดอายุเดิม</th>
+                    <th className="text-left px-4 py-3 font-semibold">สถานะการจัดการ</th>
+                    <th className="text-right px-4 py-3 font-semibold">การดำเนินการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {resolvedList.map((ing) => (
+                    <tr key={ing.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-gray-900">{ing.name}</td>
+                      <td className="px-4 py-3 text-gray-500">{ing.expirationDate}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1 text-green-700 bg-green-50 px-2 py-0.5 rounded-full font-medium text-[11px]">
+                          <CheckCircle2 size={12} /> เคลียร์รายการแล้ว
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRestoreToActive(ing.id, ing.name)}
+                            className="text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 font-medium"
+                          >
+                            <RotateCcw size={12} /> ย้ายกลับไปตรวจสอบ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePermanentDelete(ing.id, ing.name)}
+                            className="text-xs text-red-600 hover:text-red-800 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 font-semibold border border-red-200"
+                            title="ลบทิ้งถาวร"
+                          >
+                            <Trash2 size={12} /> ลบทิ้งถาวร
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
         </div>
       )}
 
