@@ -43,10 +43,16 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Configuration for Frontend access
+# Robust CORS Configuration for Vercel and Localhost
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "https://khunflow.vercel.app",
+        "https://khumflow.vercel.app",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
