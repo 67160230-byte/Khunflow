@@ -1,0 +1,86 @@
+# KhumFlow — Docker Compose (Full Stack Dev)
+# Usage: docker compose up --build
+
+services:
+  # ── Frontend React ───────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8000
+    restart: unless-stopped
+    networks:
+      - khumflow-network
+
+  # ── Backend FastAPI ──────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/seed.py:/app/seed.py
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://khumflow:khumflow_secret@postgres:5432/khumflow
+      - JWT_SECRET=khumflow_super_secret_jwt_key_change_in_production_12345
+      - ENVIRONMENT=development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - khumflow-network
+
+  # ── Seed Runner (รันครั้งเดียวตอน start) ────────────────────
+  seed:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python seed.py
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://khumflow:khumflow_secret@postgres:5432/khumflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - khumflow-network
+    restart: "no"
+
+  # ── PostgreSQL Database ──────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=khumflow
+      - POSTGRES_USER=khumflow
+      - POSTGRES_PASSWORD=khumflow_secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U khumflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - khumflow-network
+
+networks:
+  khumflow-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

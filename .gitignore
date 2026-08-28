@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+dist/
+build/
+frontend/dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+backend/__pycache__/
+backend/app/__pycache__/
+backend/app/**/__pycache__/
+*.egg-info/
+.eggs/
+venv/
+env/
+.venv/
+
+# Environment variables
+.env
+.env.local
+.env.production.local
+.env.development.local
+frontend/.env.local
+frontend/.env.production
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Docker volumes (local)
+postgres_data/
+
+# TypeScript cache
+*.tsbuildinfo
+frontend/*.tsbuildinfo
