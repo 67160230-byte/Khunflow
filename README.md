@@ -5,9 +5,12 @@
 
 ---
 
-## 1. ข้อมูลโครงงาน (Project Information)
+## 1. ข้อมูลโครงงานและผู้จัดทำ (Project Information)
 
 * **ชื่อโครงงาน**: KhumFlow — Food Business Management System
+* **ผู้จัดทำ**:
+  - **นายภูริพัฒน์ ตานน้อย** รหัสนิสิต `67160230`
+  - **นายกฤษฎา โถรัตน์** รหัสนิสิต `67160313`
 * **Live Web App (Vercel)**: https://khunflow.vercel.app
 * **API Documentation (Render)**: https://khunflow.onrender.com/docs
 * **GitHub Repository**: https://github.com/67160230-byte/Khunflow
