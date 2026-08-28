@@ -8,6 +8,9 @@
 ## 1. ข้อมูลโครงงาน (Project Information)
 
 * **ชื่อโครงงาน**: KhumFlow — Food Business Management System
+* **Live Web App (Vercel)**: https://khunflow.vercel.app
+* **API Documentation (Render)**: https://khunflow.onrender.com/docs
+* **GitHub Repository**: https://github.com/67160230-byte/Khunflow
 * **คำอธิบาย**: ระบบบริหารจัดการธุรกิจอาหาร ร้านกาแฟ และเบเกอรี่ แบบครบวงจร ออกแบบสำหรับธุรกิจในประเทศไทย ครอบคลุมตั้งแต่การบันทึกออเดอร์ คำนวณต้นทุนสูตรอาหาร ติดตามวัตถุดิบ ไปจนถึงการคาดการณ์ยอดขายด้วย AI
 
 ---
@@ -22,10 +25,10 @@
 | **UI Components** | KPICard, AlertCard, Badge, SectionHeader, Sidebar Drawer, Topbar, POS Modal |
 | **Backend Framework** | FastAPI (Python 3.12) ตามมาตรฐาน RESTful Architecture |
 | **Data & ORM** | SQLModel (Pydantic v2 + SQLAlchemy Async) |
-| **Database Engine** | PostgreSQL 16 |
+| **Database Engine** | PostgreSQL 16 (Supabase Cloud Database) |
 | **Database Migration** | Alembic (Auto-migration on Startup + Version Control) |
 | **Authentication** | JWT (python-jose) + bcrypt (passlib) พร้อม Role-based Access Control (Owner, Manager, Inventory Staff, Cashier) |
-| **Database Management** | pgAdmin 4 |
+| **Cloud Deployment** | Vercel (Frontend SPA) + Render (Backend API) + Supabase (Database) |
 | **Containerization** | Docker & Docker Compose (Multi-Container Environment) |
 
 ---
@@ -84,7 +87,7 @@
 2. **Container: `backend` (FastAPI + Uvicorn)**
    - **Base Image**: `python:3.12-slim`
    - **Working Directory**: `/app`
-   - **Port**: `8000`
+   - **Port**: `8000` (หรือ `$PORT` บน Cloud)
    - **โครงสร้างภายใน**: `/app/app/` ซอร์สโค้ด Backend, `/app/alembic/` ไฟล์ Migration
    - **Command ที่รัน**: `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`
    - **กลไกการทำงาน**: รัน Auto-Migration และ Seed ข้อมูลทันทีที่สตาร์ท พร้อมระบบ Live Reload ผ่าน Host Bind Mounts
@@ -121,7 +124,7 @@ Khunflow/
 │   │   │       └── AppLayout.tsx          # Sidebar (RBAC Nav), Topbar, Mobile Drawer, <Outlet />
 │   │   ├── pages/
 │   │   │   ├── LandingPage.tsx            # หน้า Landing (Hero + Features + CTA)
-│   │   │   ├── LoginPage.tsx              # หน้า Login (Email + Password)
+│   │   │   ├── LoginPage.tsx              # หน้า Login (เข้าสู่ระบบ + สมัครร้านใหม่)
 │   │   │   ├── ComingSoon.tsx             # Placeholder component
 │   │   │   ├── dashboard/
 │   │   │   │   └── DashboardPage.tsx      # KPI Cards + 3 Recharts (Sales, FoodCost, Profit) + Alerts
@@ -149,7 +152,7 @@ Khunflow/
 │   │   │   ├── reports/
 │   │   │   │   └── ReportsPage.tsx        # รายงานสรุปธุรกิจรายวัน + ดาวน์โหลด PDF
 │   │   │   └── settings/
-│   │   │       ├── SettingsPages.tsx      # UsersPage, BusinessInfoPage
+│   │   │       ├── SettingsPages.tsx      # UsersPage (เพิ่มพนักงาน), BusinessInfoPage
 │   │   │       ├── RolesPage.tsx          # RBAC Permission Matrix
 │   │   │       └── AuditPage.tsx          # Audit Logs ประวัติการใช้งาน
 │   │   ├── services/
@@ -160,6 +163,7 @@ Khunflow/
 │   │   │   └── index.ts                   # TypeScript Interfaces ครบทุก Domain
 │   │   └── router/
 │   │       └── index.tsx                  # React Router v7 Nested Routes
+│   ├── vercel.json                        # Vercel SPA Routing Configuration
 │   ├── Dockerfile                         # Multi-stage: dev / builder / production
 │   ├── nginx.conf                         # SPA Routing + Gzip + Asset Caching
 │   ├── package.json
@@ -167,9 +171,9 @@ Khunflow/
 │
 ├── backend/                               # FastAPI Backend
 │   ├── app/
-│   │   ├── main.py                        # FastAPI App + CORS + Lifespan (Migration + Seed)
+│   │   ├── main.py                        # FastAPI App + CORS + Lifespan (Migration + Auto-seed)
 │   │   ├── config.py                      # Settings (pydantic-settings, .env support)
-│   │   ├── database.py                    # Async SQLAlchemy Engine & Session Dependency
+│   │   ├── database.py                    # Async SQLAlchemy Engine (Supabase Pooler Support)
 │   │   ├── models/
 │   │   │   └── __init__.py                # SQLModel Tables: Business, User, Ingredient, Product,
 │   │   │                                  #   Recipe, RecipeItem, Order, OrderItem, WasteRecord,
@@ -198,82 +202,44 @@ Khunflow/
 
 ---
 
-## 5. การติดตั้งและเริ่มต้นใช้งาน (Installation & Setup)
+## 5. การเข้าใช้งานและติดตั้ง (Usage & Installation)
 
-### สิ่งที่ต้องเตรียม
-1. **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** (เปิดโปรแกรมก่อนรันคำสั่ง)
-2. **[Git](https://git-scm.com/)**
+### 🌐 ใช้งานผ่านระบบออนไลน์ (Live Cloud Deployment)
 
-### ขั้นตอนการรัน
-
-1. **Clone โปรเจกต์:**
-   ```bash
-   git clone https://github.com/your-username/khumflow.git
-   cd khumflow
-   ```
-
-2. **คัดลอกไฟล์ Environment Variables:**
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **รันทั้งระบบด้วย Docker Compose (พร้อม Auto-Migration และ Auto-Seed):**
-   ```bash
-   docker compose up --build
-   ```
-
-4. **เปิดใช้งานผ่านเว็บเบราว์เซอร์:**
-   | บริการ | URL | คำอธิบาย |
-   |---|---|---|
-   | **Web Application** | http://localhost:5173 | หน้าเว็บหลัก KhumFlow |
-   | **API Swagger UI** | http://localhost:8000/docs | เอกสารและเครื่องมือทดสอบ API Endpoints |
-   | **API ReDoc** | http://localhost:8000/redoc | เอกสาร API แบบ ReDoc |
-   | **pgAdmin Database** | http://localhost:5050 | จัดการ PostgreSQL (`admin@admin.com` / `admin`) |
-
-5. **บัญชีทดสอบที่ Seed ข้อมูลไว้ล่วงหน้า:**
-   | บทบาท (Role) | Email | Password | สิทธิ์การใช้งาน |
-   |---|---|---|---|
-   | **Owner** (เจ้าของร้าน) | `admin@khumflow.app` | `admin1234` | เข้าถึงได้ **ทุกส่วน** ของระบบ |
-   | **Manager** (ผู้จัดการ) | `manager@khumflow.app` | `manager1234` | ทุกส่วน ยกเว้นตั้งค่าระบบ |
-   | **Inventory Staff** (พนักงานคลัง) | `stock@khumflow.app` | `stock1234` | สต็อก, รับสินค้า, ของเสีย |
-   | **Cashier** (แคชเชียร์) | `cashier@khumflow.app` | `cashier1234` | บันทึกออเดอร์เท่านั้น |
-
-6. **คำสั่งที่ใช้บ่อย:**
-   ```bash
-   docker compose up              # รันระบบใน Foreground
-   docker compose up -d           # รันระบบใน Background (Detach Mode)
-   docker compose down            # ปิดระบบ (เก็บรักษาข้อมูลใน Volume)
-   docker compose down -v         # ปิดระบบพร้อมลบ Volume ข้อมูลทั้งหมด
-   docker compose logs -f backend # ดู Log การทำงานของ Backend แบบ Real-time
-   ```
+| บริการ | URL | คำอธิบาย |
+|---|---|---|
+| **Web Application** | https://khunflow.vercel.app | หน้าเว็บหลัก KhumFlow พร้อมใช้งาน |
+| **API Swagger UI** | https://khunflow.onrender.com/docs | เอกสารและทดสอบ FastAPI Endpoints |
+| **API Health Check** | https://khunflow.onrender.com/api/health | ตรวจสอบสถานะการทำงานของ Backend |
 
 ---
 
-## 6. การจัดการ Database Migrations ด้วย Alembic
+### 💻 รันบนเครื่อง Local ผ่าน Docker
 
-ระบบมาพร้อมกับ **Alembic Database Migration** ซึ่งจะรัน `alembic upgrade head` อัตโนมัติทุกครั้งที่เริ่มรัน Docker Container ทำให้สามารถปรับ Schema ได้โดยที่ข้อมูลเก่าไม่สูญหาย
+```bash
+# 1. Clone โปรเจกต์
+git clone https://github.com/67160230-byte/Khunflow.git
+cd Khunflow
 
-### คำสั่งสำหรับการแก้ไข Schema ในอนาคต:
+# 2. คัดลอกไฟล์ Environment Variables
+cp .env.example .env
 
-1. **สร้างไฟล์ Migration อัตโนมัติหลังแก้ไข `models/`:**
-   ```bash
-   docker compose exec backend alembic revision --autogenerate -m "คำอธิบายเช่น add_category_column"
-   ```
+# 3. รันทั้งระบบด้วย Docker Compose
+docker compose up --build
+```
 
-2. **สั่งรัน Migration ขึ้นเวอร์ชันล่าสุด (Upgrade):**
-   ```bash
-   docker compose exec backend alembic upgrade head
-   ```
+---
 
-3. **ดูประวัติเวอร์ชัน Migration ปัจจุบัน:**
-   ```bash
-   docker compose exec backend alembic current
-   ```
+## 6. บัญชีผู้ใช้งานระบบ (Default Accounts)
 
-4. **ย้อนกลับ Migration 1 ขั้น (Rollback / Downgrade):**
-   ```bash
-   docker compose exec backend alembic downgrade -1
-   ```
+| บทบาท (Role) | Email | Password | สิทธิ์การใช้งาน |
+|---|---|---|---|
+| **Owner** (เจ้าของร้าน) | `admin@khumflow.app` | `admin1234` | เข้าถึงได้ **ทุกส่วน** ของระบบ |
+| **Manager** (ผู้จัดการ) | `manager@khumflow.app` | `manager1234` | ทุกส่วน ยกเว้นตั้งค่าระบบ |
+| **Inventory Staff** (พนักงานคลัง) | `stock@khumflow.app` | `stock1234` | สต็อก, รับสินค้า, ของเสีย |
+| **Cashier** (แคชเชียร์) | `cashier@khumflow.app` | `cashier1234` | บันทึกออเดอร์เท่านั้น |
+
+> 💡 **สามารถสร้างร้านใหม่ของตัวเองได้:** ผ่านแท็บ **"สมัครร้านใหม่"** ที่หน้าแรกของเว็บ หรือเพิ่มพนักงานในเมนู **"ตั้งค่า ➔ ผู้ใช้งาน"**
 
 ---
 
