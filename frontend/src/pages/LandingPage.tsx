@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
@@ -29,6 +30,25 @@ const flowSteps = [
 
 export default function LandingPage() {
   const navigate = useNavigate()
+
+  // Handle Google OAuth callback if redirected to root path /?token=...
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+    const userName = params.get('user_name')
+    const role = params.get('role')
+
+    if (token && userName && role) {
+      localStorage.setItem('khumflow_token', token)
+      localStorage.setItem('khumflow_user', JSON.stringify({
+        access_token: token,
+        user_name: decodeURIComponent(userName),
+        role
+      }))
+      window.history.replaceState({}, '', '/')
+      navigate('/app/dashboard')
+    }
+  }, [navigate])
 
   return (
     <div className="min-h-screen bg-white">

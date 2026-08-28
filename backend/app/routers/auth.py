@@ -480,16 +480,17 @@ async def google_callback(
         await session.refresh(user)
 
     if not user.is_active:
-        redirect_url = f"{FRONTEND_URL}/?error=account_suspended"
+        redirect_url = f"{FRONTEND_URL}/login?error=account_suspended"
         return RedirectResponse(url=redirect_url)
 
-    # Step 4: สร้าง JWT token แล้ว redirect กลับ frontend
+    # Step 4: สร้าง JWT token แล้ว redirect กลับ frontend ที่หน้า /login
     role_val = str(user.role.value if hasattr(user.role, 'value') else user.role)
     jwt_token = create_access_token({"sub": user.email, "role": role_val})
 
+    from urllib.parse import quote
     redirect_url = (
-        f"{FRONTEND_URL}/?token={jwt_token}"
-        f"&user_name={user.full_name}"
+        f"{FRONTEND_URL}/login?token={jwt_token}"
+        f"&user_name={quote(user.full_name)}"
         f"&role={role_val}"
     )
     return RedirectResponse(url=redirect_url)

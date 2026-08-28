@@ -42,7 +42,7 @@ export default function LoginPage() {
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://khunflow.onrender.com'
 
-  // Handle Google OAuth callback: /?token=...&user_name=...&role=...
+  // Handle Google OAuth callback: /login?token=...&user_name=...&role=...
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const token = params.get('token')
@@ -52,7 +52,7 @@ export default function LoginPage() {
 
     if (err === 'account_suspended') {
       setError('บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ')
-      window.history.replaceState({}, '', '/')
+      window.history.replaceState({}, '', '/login')
       return
     }
 
@@ -60,13 +60,14 @@ export default function LoginPage() {
       localStorage.setItem('khumflow_token', token)
       localStorage.setItem('khumflow_user', JSON.stringify({
         access_token: token,
-        user_name: userName,
+        user_name: decodeURIComponent(userName),
         role
       }))
-      window.history.replaceState({}, '', '/')
+      window.history.replaceState({}, '', '/login')
       navigate('/app/dashboard')
     }
   }, [navigate])
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
