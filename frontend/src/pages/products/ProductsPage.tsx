@@ -38,6 +38,18 @@ export default function ProductsPage() {
   const [description, setDescription] = useState('')
   const [successToast, setSuccessToast] = useState(false)
 
+  // Role Permission Check
+  const currentUser = (() => {
+    try {
+      const u = localStorage.getItem('khumflow_user')
+      return u ? JSON.parse(u) : null
+    } catch {
+      return null
+    }
+  })()
+  const userRole = currentUser?.role?.toLowerCase() || 'owner'
+  const canAddProduct = userRole.includes('owner') || userRole.includes('manager') || userRole === 'admin'
+
   useEffect(() => {
     productsService.getAll().then((data) => {
       setProducts(data)
@@ -93,10 +105,12 @@ export default function ProductsPage() {
         title="สินค้า"
         subtitle={`ทั้งหมด ${products.length} รายการ`}
         action={
-          <Button size="sm" onClick={() => setIsModalOpen(true)}>
-            <Plus size={16} />
-            เพิ่มสินค้า
-          </Button>
+          canAddProduct ? (
+            <Button size="sm" onClick={() => setIsModalOpen(true)}>
+              <Plus size={16} />
+              เพิ่มสินค้า
+            </Button>
+          ) : undefined
         }
       />
 
