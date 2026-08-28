@@ -14,11 +14,20 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
     full_name: str
     role: UserRole = UserRole.CASHIER
+
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
 
 class UserResponse(BaseModel):
     id: int
@@ -26,6 +35,13 @@ class UserResponse(BaseModel):
     full_name: str
     role: UserRole
     is_active: bool
+
+class PaginatedUsers(BaseModel):
+    total: int
+    page: int
+    limit: int
+    pages: int
+    data: List["UserResponse"]
 
 # ── Product & Recipe Schemas ──────────────────────────────────
 class ProductCreate(BaseModel):
