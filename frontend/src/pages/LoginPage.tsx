@@ -42,13 +42,27 @@ export default function LoginPage() {
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://khunflow.onrender.com'
 
-  // Handle Google OAuth callback: /login?token=...&user_name=...&role=...
+  // Handle Google OAuth callback & Direct Email Reset Links
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const token = params.get('token')
     const userName = params.get('user_name')
     const role = params.get('role')
     const err = params.get('error')
+
+    // Direct password reset link from Email: /login?reset_token=...&email=...
+    const emailResetToken = params.get('reset_token')
+    const emailTarget = params.get('email')
+    if (emailResetToken) {
+      setResetToken(emailResetToken)
+      setTokenInput(emailResetToken)
+      if (emailTarget) setForgotEmail(emailTarget)
+      setShowForgot(true)
+      setForgotStep('token')
+      setForgotSuccess('🔗 คุณกำลังตั้งรหัสผ่านใหม่จากลิงก์ที่ได้รับทางอีเมล')
+      window.history.replaceState({}, '', '/login')
+      return
+    }
 
     if (err === 'account_suspended') {
       setError('บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ')
@@ -164,6 +178,9 @@ export default function LoginPage() {
         return
       }
       setResetToken(data.reset_token)
+      if (data.email_sent) {
+        setForgotSuccess(`ส่งอีเมลพร้อมลิงก์ตั้งรหัสผ่านไปยัง ${forgotEmail} แล้ว 📧 กรุณาตรวจสอบกล่องข้อความ`)
+      }
       setForgotStep('token')
     } catch (err: any) {
       setForgotError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ')

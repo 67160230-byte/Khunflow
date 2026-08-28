@@ -299,19 +299,19 @@ async def delete_user(
 # ── In-Memory Reset Token Store (demo-safe, resets on server restart) ──
 import secrets
 from datetime import datetime, timedelta
+from app.services.email_service import send_password_reset_email
 
 _reset_tokens: dict[str, dict] = {}   # { token: { email, expires_at } }
 
 
 # ── POST /auth/forgot-password ────────────────────────────────────
-@router.post("/forgot-password", summary="ขอ token สำหรับรีเซ็ตรหัสผ่าน")
+@router.post("/forgot-password", summary="ขอ token สำหรับรีเซ็ตรหัสผ่าน และส่งอีเมล")
 async def forgot_password(
     body: dict,
     session: AsyncSession = Depends(get_session)
 ):
     """
-    รับ email แล้วสร้าง reset token อายุ 15 นาที
-    (โหมด Demo: token จะถูกส่งกลับใน response โดยตรง)
+    รับ email แล้วสร้าง reset token อายุ 15 นาที พร้อมส่งอีเมลแจ้งเตือน
     """
     email = str(body.get("email", "")).strip().lower()
     if not email:
@@ -321,23 +321,29 @@ async def forgot_password(
         select(User).where(User.email == email)
     )).scalar_one_or_none()
 
-    # ไม่เปิดเผยว่า email นั้นมีในระบบหรือไม่ (security best practice)
-    # แต่สำหรับ Demo จะแสดง token เสมอถ้า user มีในระบบ
     if not user:
         return {
-            "message": "ถ้า email นี้มีในระบบ คุณจะได้รับ reset token",
+            "message": "หากอีเมลนี้ลงทะเบียนไว้ในระบบ ลิงก์รีเซ็ตรหัสผ่านจะถูกส่งไปยังอีเมลของคุณ",
             "demo_note": "ไม่พบ email นี้ในระบบ กรุณาตรวจสอบ"
         }
 
-    # สร้าง token 6 หลักสำหรับ demo (ในระบบ production ควรส่งทาง email จริง)
+    # สร้าง token 6 หลัก (อายุ 15 นาที)
     token = secrets.token_hex(3).upper()   # เช่น "A3F7C2"
     expires_at = datetime.utcnow() + timedelta(minutes=15)
     _reset_tokens[token] = {"email": email, "expires_at": expires_at}
 
+    # ส่งอีเมลหาผู้ใช้จริง (หากตั้งค่า SMTP ใน Environment Variables)
+    email_sent = await send_password_reset_email(
+        to_email=email,
+        reset_token=token,
+        user_name=user.full_name
+    )
+
     return {
-        "message": "สร้าง reset token สำเร็จ (อายุ 15 นาที)",
-        "reset_token": token,   # Demo mode: แสดง token บนหน้าจอ
-        "demo_note": "ในระบบ Production token นี้จะถูกส่งทาง Email แทน",
+        "message": "ส่งลิงก์ตั้งรหัสผ่านใหม่ไปยังอีเมลของคุณเรียบร้อยแล้ว 📧 กรุณาตรวจสอบกล่องข้อความ",
+        "email_sent": email_sent,
+        "reset_token": token,   # Backup token สำหรับกรณีที่ไม่ได้เปิด SMTP Server
+        "reset_url": f"https://khunflow.vercel.app/login?reset_token={token}&email={email}",
         "expires_in_minutes": 15
     }
 
