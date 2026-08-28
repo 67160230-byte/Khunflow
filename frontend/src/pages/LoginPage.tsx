@@ -14,32 +14,85 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
+  const API_URL = import.meta.env.VITE_API_URL || 'https://khunflow.onrender.com'
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setSuccess('')
 
     if (!email || !password) {
-      setError('กรุณากรอกข้อมูลให้ครบถ้วน')
-      return
-    }
-
-    if (isRegister && (!fullName || !storeName)) {
-      setError('กรุณากรอกชื่อของคุณและชื่อร้านอาหาร')
+      setError('กรุณากรอกอีเมลและรหัสผ่าน')
       return
     }
 
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 600))
-    setLoading(false)
 
-    if (isRegister) {
-      setSuccess('สมัครสมาชิกและสร้างร้านสำเร็จ! กำลังเข้าสู่ระบบ...')
-      setTimeout(() => {
+    try {
+      if (isRegister) {
+        if (!fullName || !storeName) {
+          setError('กรุณากรอกชื่อของคุณและชื่อร้านอาหาร')
+          setLoading(false)
+          return
+        }
+
+        // Real API Register
+        const res = await fetch(`${API_URL}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            password,
+            full_name: `${fullName} (${storeName})`,
+            role: 'owner'
+          })
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.detail || 'สมัครสมาชิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+        }
+
+        // Auto login after register
+        const loginRes = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        })
+        const loginData = await loginRes.json()
+
+        if (loginRes.ok) {
+          localStorage.setItem('khumflow_token', loginData.access_token)
+          localStorage.setItem('khumflow_user', JSON.stringify(loginData))
+        }
+
+        setSuccess('สมัครสมาชิกและสร้างร้านสำเร็จ! กำลังเข้าสู่ระบบ...')
+        setTimeout(() => navigate('/app/dashboard'), 800)
+      } else {
+        // Real API Login
+        const res = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.detail || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+        }
+
+        // Store JWT token
+        localStorage.setItem('khumflow_token', data.access_token)
+        localStorage.setItem('khumflow_user', JSON.stringify(data))
+
         navigate('/app/dashboard')
-      }, 1000)
-    } else {
-      navigate('/app/dashboard')
+      }
+    } catch (err: any) {
+      setError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -61,7 +114,7 @@ export default function LoginPage() {
           <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
             <button
               type="button"
-              onClick={() => { setIsRegister(false); setError(''); }}
+              onClick={() => { setIsRegister(false); setError(''); setSuccess(''); }}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 !isRegister ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
@@ -70,7 +123,7 @@ export default function LoginPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setIsRegister(true); setError(''); }}
+              onClick={() => { setIsRegister(true); setError(''); setSuccess(''); }}
               className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 isRegister ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
@@ -144,7 +197,7 @@ export default function LoginPage() {
 
             {/* Alerts */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg p-2.5">
+              <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg p-2.5 font-medium">
                 {error}
               </div>
             )}
@@ -160,14 +213,26 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full bg-green-700 text-white font-semibold py-2.5 rounded-lg hover:bg-green-800 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-sm shadow-sm"
             >
-              {loading ? 'กำลังดำเนินการ...' : isRegister ? 'สร้างบัญชีและเปิดร้าน' : 'เข้าสู่ระบบ'}
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  กำลังตรวจสอบ...
+                </>
+              ) : isRegister ? (
+                'สร้างบัญชีและเปิดร้าน'
+              ) : (
+                'เข้าสู่ระบบ'
+              )}
             </button>
           </form>
 
           {/* Quick Demo Info */}
           {!isRegister && (
             <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs text-gray-600">
-              <p className="font-semibold text-gray-700 mb-1">💡 บัญชีทดสอบด่วน:</p>
+              <p className="font-semibold text-gray-700 mb-1">🔐 บัญชีเริ่มต้นในระบบ Database:</p>
               <div className="grid grid-cols-2 gap-1 text-[11px]">
                 <div>• เจ้าของร้าน: <span className="font-mono text-green-700">admin1234</span></div>
                 <div>• ผู้จัดการ: <span className="font-mono text-blue-700">manager1234</span></div>
@@ -179,7 +244,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-4">
-          © 2026 KhumFlow • Food Business Management
+          © 2026 KhumFlow • Live Connected with FastAPI & PostgreSQL
         </p>
       </div>
     </div>
