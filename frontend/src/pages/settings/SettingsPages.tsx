@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Card, Button, Badge, SectionHeader } from '@/components/ui'
-import { Users, Plus, Check, Save, X, Shield } from 'lucide-react'
+import { Users, Plus, Check, Save, X, Building2 } from 'lucide-react'
 
 export function UsersPage() {
   const [usersList, setUsersList] = useState([
@@ -163,9 +163,18 @@ export function UsersPage() {
 }
 
 export function BusinessInfoPage() {
+  const [storeName, setStoreName] = useState(() => localStorage.getItem('khumflow_store_name') || 'KhumFlow Cafe & Bakery')
+  const [businessType, setBusinessType] = useState(() => localStorage.getItem('khumflow_business_type') || 'cafe')
+  const [currency, setCurrency] = useState(() => localStorage.getItem('khumflow_currency') || 'THB')
+  const [timezone, setTimezone] = useState(() => localStorage.getItem('khumflow_timezone') || 'Asia/Bangkok')
   const [saved, setSaved] = useState(false)
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
+    localStorage.setItem('khumflow_store_name', storeName)
+    localStorage.setItem('khumflow_business_type', businessType)
+    localStorage.setItem('khumflow_currency', currency)
+    localStorage.setItem('khumflow_timezone', timezone)
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
@@ -173,8 +182,8 @@ export function BusinessInfoPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="ข้อมูลธุรกิจ (Business Profile)"
-        subtitle="ตั้งค่าข้อมูลร้านอาหารและสกุลเงินหลักที่ใช้งาน"
+        title="ข้อมูลธุรกิจ & สกุลเงิน (Business Profile)"
+        subtitle="ตั้งค่าข้อมูลร้านอาหาร สกุลเงินหลัก และเขตเวลาที่ใช้งาน"
       />
       <Card className="p-6 max-w-2xl">
         <form onSubmit={handleSave} className="space-y-4 text-sm">
@@ -182,48 +191,61 @@ export function BusinessInfoPage() {
             <label className="block text-xs font-semibold text-gray-700 mb-1">ชื่อร้านอาหาร / คาเฟ่</label>
             <input
               type="text"
-              defaultValue="KhumFlow Cafe & Bakery"
+              required
+              value={storeName}
+              onChange={(e) => setStoreName(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
             />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">ประเภทธุรกิจ</label>
             <select
-              defaultValue="cafe"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none bg-white"
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none bg-white text-xs"
             >
               <option value="cafe">คาเฟ่ & เบเกอรี่ (Cafe & Bakery)</option>
               <option value="restaurant">ร้านอาหาร (Restaurant)</option>
               <option value="beverage">เครื่องดื่ม & ชานมไข่มุก (Beverage Bar)</option>
+              <option value="bakery">ร้านขนม & เบเกอรี่ (Bakery Shop)</option>
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">สกุลเงินหลัก</label>
-              <input
-                type="text"
-                disabled
-                value="THB (฿) บาท"
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-500"
-              />
+              <label className="block text-xs font-semibold text-gray-700 mb-1">สกุลเงินหลัก (Currency)</label>
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none bg-white text-xs"
+              >
+                <option value="THB">THB (฿) — บาทไทย</option>
+                <option value="USD">USD ($) — ดอลลาร์สหรัฐ</option>
+                <option value="JPY">JPY (¥) — เยนญี่ปุ่น</option>
+                <option value="EUR">EUR (€) — ยูโร</option>
+                <option value="SGD">SGD (S$) — ดอลลาร์สิงคโปร์</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">เขตเวลา (Timezone)</label>
-              <input
-                type="text"
-                disabled
-                value="Asia/Bangkok (GMT+7)"
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-500"
-              />
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none bg-white text-xs"
+              >
+                <option value="Asia/Bangkok">Asia/Bangkok (GMT+7) — กรุงเทพฯ</option>
+                <option value="Asia/Singapore">Asia/Singapore (GMT+8) — สิงคโปร์</option>
+                <option value="Asia/Tokyo">Asia/Tokyo (GMT+9) — โตเกียว</option>
+                <option value="UTC">UTC (GMT+0) — มาตรฐานสากล</option>
+              </select>
             </div>
           </div>
           <div className="pt-2 flex items-center justify-between">
-            <Button type="submit" size="sm">
+            <Button type="submit" size="sm" className="flex items-center gap-1.5">
               <Save size={16} /> บันทึกข้อมูล
             </Button>
             {saved && (
               <span className="text-xs text-green-700 font-semibold flex items-center gap-1">
-                <Check size={16} /> บันทึกการเปลี่ยนแปลงแล้ว
+                <Check size={16} /> บันทึกการเปลี่ยนแปลงสำเร็จ!
               </span>
             )}
           </div>
