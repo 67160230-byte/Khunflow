@@ -43,17 +43,36 @@
 
 ### รายการที่ต้องดำเนินการ
 
-| รายการ | สถานะ |
-|---|---|
-| Integrate Frontend + Backend | ✅ ดำเนินการแล้ว |
-| Integrate Backend + Database | ✅ ดำเนินการแล้ว |
-| Deploy Frontend | ✅ Vercel |
-| Deploy Backend API | ✅ Render |
-| Database Cloud | ✅ Supabase PostgreSQL |
-| Microservices Architecture Diagram | 🟡 จัดทำเป็น Logical / Target Architecture |
-| Technology Stack Diagram | 🟡 จัดทำ |
-| ประเมินความคืบหน้าโครงงาน | 🟡 ประเมินจากฟีเจอร์ที่ทำเสร็จจริง |
-| ส่ง URL Git Repository ล่าสุด | ⬜ ทำหลังจาก Push งานล่าสุด |
+| รายการ | สถานะ | ความคืบหน้า |
+|---|---|---:|
+| Integrate Frontend + Backend | ✅ ดำเนินการแล้ว | 100% |
+| Integrate Backend + Database | ✅ ดำเนินการแล้ว | 100% |
+| Deploy Frontend | ✅ Vercel | 100% |
+| Deploy Backend API | ✅ Render | 100% |
+| Database Cloud | ✅ Supabase PostgreSQL | 100% |
+| ฟีเจอร์หลักของระบบ | 🟡 มีหลายส่วนพร้อมใช้งาน | 75% |
+| Microservices Architecture Diagram | 🟡 Logical / Target Architecture | 70% |
+| Technology Stack Diagram | 🟡 จัดทำ | 70% |
+| Documentation / README | 🟡 ปรับตาม Lab | 70% |
+| Push งานล่าสุดขึ้น GitHub | ⬜ ต้องทำหลังแก้ไฟล์ | 0% |
+
+### การประเมินความคืบหน้าโครงงาน
+
+**ประเมินภาพรวมประมาณ 70%**
+
+| หมวดงาน | น้ำหนักโดยประมาณ | สถานะ |
+|---|---:|---|
+| ระบบ Frontend | 15% | ✅ เสร็จ |
+| ระบบ Backend / API | 15% | ✅ เสร็จ |
+| Database / Integration | 15% | ✅ เสร็จ |
+| Deployment | 10% | ✅ เสร็จ |
+| ฟีเจอร์ธุรกิจหลัก | 15% | 🟡 ดำเนินการแล้วส่วนใหญ่ |
+| AI / Forecast / Smart Reorder | 10% | 🟡 มีการพัฒนา |
+| Architecture + Technology Diagram | 5% | 🟡 กำลังจัดทำ |
+| Documentation / Testing / เก็บรายละเอียด | 10% | 🟡 เหลือบางส่วน |
+| **รวม** | **100%** | **ประมาณ 70%** |
+
+> **สรุปสำหรับรายงาน TA:** KhumFlow ดำเนินการแล้วประมาณ **70%** โดยส่วนหลักของ Frontend, Backend, Database และการ Deploy สามารถเชื่อมต่อกันได้แล้ว ส่วนที่เหลือเป็นการเก็บรายละเอียดฟีเจอร์, AI, Architecture Diagram, Documentation และการทดสอบระบบให้ครบถ้วน
 
 > **หมายเหตุ:** KhumFlow ในการ Deploy ปัจจุบันยังเป็น Frontend + FastAPI Backend + PostgreSQL/Supabase โดย Backend ยังไม่ได้แยกเป็น Microservices ที่ Deploy แยกกันทุก Service ดังนั้น Microservices Diagram ด้านล่างเป็น **Logical / Target Architecture** สำหรับแสดงแนวทางการออกแบบระบบตามโจทย์ Lab ไม่ใช่การอ้างว่าทุก Service ถูก Deploy แยกจริงแล้ว
 
