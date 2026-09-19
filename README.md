@@ -54,7 +54,6 @@
 | Microservices Architecture Diagram | 🟡 Logical / Target Architecture | 70% |
 | Technology Stack Diagram | 🟡 จัดทำ | 70% |
 | Documentation / README | 🟡 ปรับตาม Lab | 70% |
-| Push งานล่าสุดขึ้น GitHub | ⬜ ต้องทำหลังแก้ไฟล์ | 0% |
 
 ### การประเมินความคืบหน้าโครงงาน
 
