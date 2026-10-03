@@ -19,9 +19,10 @@ import {
   TrendingDown,
   AlertTriangle,
   Leaf,
+  Trophy,
 } from 'lucide-react'
-import { dashboardService, analyticsService, isDemoMode } from '@/services'
-import type { DashboardKPI, DashboardAlert, DailySales, FoodCostData } from '@/types'
+import { dashboardService, analyticsService, ordersService, isDemoMode } from '@/services'
+import type { DashboardKPI, DashboardAlert, DailySales, FoodCostData, Order } from '@/types'
 import { Button, KPICard, AlertCard, Card, LoadingSpinner, SectionHeader } from '@/components/ui'
 
 // ── Date Formatter ────────────────────────────────────────────
@@ -32,6 +33,27 @@ function shortDate(dateStr: string) {
 
 function formatBaht(n: number) {
   return `฿${n.toLocaleString('th-TH')}`
+}
+
+function dateKeyInBangkok(value: string | Date) {
+  const parts = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(value))
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value || ''
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+
+function getTopSellers(orders: Order[], date: string, demoMode: boolean) {
+  const totals = new Map<string, { productId: string; productName: string; quantity: number; revenue: number }>()
+  for (const order of orders) {
+    const orderDate = demoMode ? order.date.slice(0, 10) : dateKeyInBangkok(order.date)
+    if (orderDate !== date || order.status !== 'completed') continue
+    for (const item of order.items) {
+      const row = totals.get(item.productId) || { productId: item.productId, productName: item.productName, quantity: 0, revenue: 0 }
+      row.quantity += item.quantity
+      row.revenue += item.subtotal
+      totals.set(item.productId, row)
+    }
+  }
+  return [...totals.values()].sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue || a.productName.localeCompare(b.productName, 'th')).slice(0, 3)
 }
 
 function formatAxisValue(value: number) {
@@ -127,6 +149,7 @@ export default function DashboardPage() {
   const [alerts, setAlerts] = useState<DashboardAlert[]>([])
   const [sales, setSales] = useState<DailySales[]>([])
   const [foodCost, setFoodCost] = useState<FoodCostData[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
@@ -137,12 +160,14 @@ export default function DashboardPage() {
       dashboardService.getAlerts(),
       dashboardService.getDailySales(),
       analyticsService.getFoodCostTrend(),
-    ]).then(([k, a, s, f]) => {
+      ordersService.getAll().catch(() => [] as Order[]),
+    ]).then(([k, a, s, f, o]) => {
       if (cancelled) return
       setKpi(k)
       setAlerts(a)
       setSales(s)
       setFoodCost(f)
+      setOrders(o)
     }).catch((error) => {
       if (!cancelled) setLoadError(error instanceof Error ? error.message : 'โหลดข้อมูลแดชบอร์ดไม่สำเร็จ')
     }).finally(() => {
@@ -162,7 +187,9 @@ export default function DashboardPage() {
 
   const demoMode = isDemoMode()
   const sampleDay = sales[sales.length - 1]?.date
-  const displayDate = new Date(`${demoMode && sampleDay ? sampleDay : new Date().toISOString().slice(0, 10)}T12:00:00`).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const today = demoMode && sampleDay ? sampleDay.slice(0, 10) : dateKeyInBangkok(new Date())
+  const displayDate = new Date(`${today}T12:00:00+07:00`).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Bangkok' })
+  const topSellers = getTopSellers(orders, today, demoMode)
 
   return (
     <div className="space-y-6">
@@ -204,6 +231,30 @@ export default function DashboardPage() {
           iconBg="bg-red-100"
         />
       </div>
+
+      <Card className="p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Trophy size={18} className="text-amber-500" />
+          <h3 className="text-sm font-semibold text-gray-700">{demoMode ? 'เมนูขายดี 3 อันดับของวันตัวอย่าง' : 'เมนูขายดี 3 อันดับวันนี้'}</h3>
+          <span className="text-xs text-gray-400">เรียงตามจำนวนที่ขาย</span>
+        </div>
+        {topSellers.length === 0 ? (
+          <p className="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">วันนี้ยังไม่มีคำสั่งซื้อที่เสร็จสมบูรณ์</p>
+        ) : (
+          <ol className="grid gap-2 md:grid-cols-3">
+            {topSellers.map((item, index) => (
+              <li key={item.productId} className="flex min-w-0 items-center gap-3 rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-3">
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${index === 0 ? 'bg-amber-100 text-amber-700' : 'bg-white text-gray-500'}`}>{index + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-gray-900">{item.productName}</p>
+                  <p className="text-xs text-gray-500">ขายได้ {item.quantity} รายการ</p>
+                </div>
+                <p className="shrink-0 text-sm font-bold tabular-nums text-green-700">{formatBaht(item.revenue)}</p>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Card>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
