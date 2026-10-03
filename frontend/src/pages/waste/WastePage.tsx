@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { inventoryService, wasteService } from '@/services'
+import { inventoryService, wasteService, isDemoMode } from '@/services'
 import type { WasteRecord, WasteReason, IngredientUnit, Ingredient } from '@/types'
 import { Card, LoadingSpinner, SectionHeader, Button, EmptyState, Badge } from '@/components/ui'
 import { Plus, X, Trash2, Check } from 'lucide-react'
@@ -70,7 +70,7 @@ export default function WastePage() {
     <div className="space-y-5">
       <SectionHeader
         title="บันทึกของเสีย (Waste Log)"
-        subtitle={`มูลค่าความสูญเสียรวม ${formatBaht(totalWaste)}`}
+        subtitle={`${isDemoMode() ? 'ข้อมูลตัวอย่าง · ' : ''}รวมทุกรายการ ${formatBaht(totalWaste)}`}
         action={
           <Button size="sm" onClick={() => setIsModalOpen(true)}>
             <Plus size={16} /> บันทึกของเสีย
@@ -129,7 +129,7 @@ export default function WastePage() {
               </tbody>
               <tfoot>
                 <tr className="border-t border-gray-200 bg-gray-50">
-                  <td colSpan={4} className="px-4 py-2.5 text-sm font-semibold text-gray-700 text-right">รวมมูลค่าของเสีย</td>
+                  <td colSpan={4} className="px-4 py-2.5 text-sm font-semibold text-gray-700 text-right">รวมทุกรายการที่แสดง</td>
                   <td className="px-4 py-2.5 text-right font-bold text-red-600 tabular-nums">{formatBaht(totalWaste)}</td>
                   <td colSpan={2} />
                 </tr>

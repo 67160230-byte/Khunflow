@@ -646,30 +646,27 @@ export const mockPurchaseRecommendations: PurchaseRecommendation[] = [
   },
 ]
 
-// ── Orders (recent) ───────────────────────────────────────────
+// ── Orders (sample week) ──────────────────────────────────────
+const sampleOrder = (id: string, date: string, items: Order['items']): Order => ({
+  id, date, items, total: items.reduce((sum, item) => sum + item.subtotal, 0),
+  status: 'completed', staffId: 'u4', staffName: 'สมปอง ยิ้มแย้ม',
+})
+const item = (productId: string, productName: string, quantity: number, unitPrice: number) => ({
+  productId, productName, quantity, unitPrice, subtotal: quantity * unitPrice,
+})
 export const mockOrders: Order[] = [
-  {
-    id: 'o1',
-    date: '2026-08-28T09:15:00',
-    items: [
-      { productId: 'p1', productName: 'ลาเต้', quantity: 2, unitPrice: 90, subtotal: 180 },
-      { productId: 'p6', productName: 'ครัวซองต์เนย', quantity: 1, unitPrice: 65, subtotal: 65 },
-    ],
-    total: 245,
-    status: 'completed',
-    staffId: 'u4',
-    staffName: 'สมปอง ยิ้มแย้ม',
-  },
-  {
-    id: 'o2',
-    date: '2026-08-28T10:30:00',
-    items: [
-      { productId: 'p3', productName: 'ชาไทย', quantity: 3, unitPrice: 65, subtotal: 195 },
-      { productId: 'p2', productName: 'อเมริกาโน่', quantity: 1, unitPrice: 75, subtotal: 75 },
-    ],
-    total: 270,
-    status: 'completed',
-    staffId: 'u4',
-    staffName: 'สมปอง ยิ้มแย้ม',
-  },
+  sampleOrder('o1', '2026-08-22T09:15:00', [item('p1', 'ลาเต้', 2, 90), item('p6', 'ครัวซองต์เนย', 1, 65)]),
+  sampleOrder('o2', '2026-08-22T10:30:00', [item('p3', 'ชาไทย', 3, 65), item('p2', 'อเมริกาโน่', 1, 75)]),
+  sampleOrder('o3', '2026-08-23T09:20:00', [item('p10', 'เลมอนโซดา', 1, 60), item('p3', 'ชาไทย', 1, 65)]),
+  sampleOrder('o4', '2026-08-23T11:10:00', [item('p7', 'เค้กช็อกโกแลต', 1, 120), item('p6', 'ครัวซองต์เนย', 1, 65)]),
+  sampleOrder('o5', '2026-08-24T09:05:00', [item('p5', 'มอคค่า', 1, 95), item('p4', 'คาปูชิโน่', 1, 90)]),
+  sampleOrder('o6', '2026-08-24T13:40:00', [item('p8', 'มัทฉะลาเต้', 1, 105), item('p2', 'อเมริกาโน่', 1, 75)]),
+  sampleOrder('o7', '2026-08-25T08:55:00', [item('p1', 'ลาเต้', 1, 90), item('p7', 'เค้กช็อกโกแลต', 1, 120)]),
+  sampleOrder('o8', '2026-08-25T12:15:00', [item('p3', 'ชาไทย', 2, 65), item('p6', 'ครัวซองต์เนย', 1, 65)]),
+  sampleOrder('o9', '2026-08-26T09:35:00', [item('p2', 'อเมริกาโน่', 2, 75), item('p10', 'เลมอนโซดา', 1, 60)]),
+  sampleOrder('o10', '2026-08-26T14:20:00', [item('p8', 'มัทฉะลาเต้', 1, 105), item('p5', 'มอคค่า', 1, 95)]),
+  sampleOrder('o11', '2026-08-27T09:15:00', [item('p4', 'คาปูชิโน่', 2, 90), item('p6', 'ครัวซองต์เนย', 1, 65)]),
+  sampleOrder('o12', '2026-08-27T15:00:00', [item('p7', 'เค้กช็อกโกแลต', 1, 120), item('p5', 'มอคค่า', 1, 95)]),
+  sampleOrder('o13', '2026-08-28T09:15:00', [item('p1', 'ลาเต้', 2, 90), item('p6', 'ครัวซองต์เนย', 1, 65)]),
+  sampleOrder('o14', '2026-08-28T10:30:00', [item('p3', 'ชาไทย', 3, 65), item('p2', 'อเมริกาโน่', 1, 75)]),
 ]

@@ -19,8 +19,8 @@ import type {
 } from '@/types'
 import {
   mockProducts, mockIngredients, mockRecipes, mockOrders, mockWasteRecords,
-  mockDailySales, mockDashboardKPI, mockDashboardAlerts, mockVarianceData,
-  mockFoodCostData, mockSuppliers, mockPurchaseOrders, mockForecastData,
+  mockDashboardAlerts, mockVarianceData,
+  mockSuppliers, mockPurchaseOrders, mockForecastData,
   mockPurchaseRecommendations,
 } from '@/mocks'
 
@@ -50,6 +50,53 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 const toId = (v: unknown) => String(v ?? '')
 const productFromApi = (p: any): Product => ({ id: toId(p.id), name: p.name, category: p.category, sellingPrice: p.selling_price, foodCost: p.food_cost, grossProfit: p.selling_price - p.food_cost, grossMargin: p.selling_price ? (p.selling_price - p.food_cost) / p.selling_price * 100 : 0, status: p.is_active ? 'active' : 'inactive', description: p.description, createdAt: p.created_at })
 const ingredientFromApi = (i: any): Ingredient => ({ id: toId(i.id), name: i.name, category: i.category, unit: i.unit, currentStock: i.current_stock, minimumStock: i.minimum_stock, averageCost: i.average_cost, stockValue: i.current_stock * i.average_cost, status: i.current_stock <= 0 ? 'critical' : i.current_stock <= i.minimum_stock ? 'low' : i.expiration_date && new Date(i.expiration_date).getTime() - Date.now() < 7 * 86400000 ? 'expiring_soon' : 'normal', expirationDate: i.expiration_date, supplierId: toId(i.supplier_id), createdAt: i.created_at })
+
+// Derive demo analytics from the same sample orders, products, and waste records
+// that the user can browse elsewhere in the app.
+const getDemoDailySales = (): DailySales[] => {
+  const totals = new Map<string, DailySales>()
+  const getDay = (date: string) => {
+    const key = date.slice(0, 10)
+    let day = totals.get(key)
+    if (!day) {
+      day = { date: key, revenue: 0, orders: 0, foodCost: 0, grossProfit: 0, wasteValue: 0 }
+      totals.set(key, day)
+    }
+    return day
+  }
+  const productCosts = new Map(mockProducts.map((product) => [product.id, product.foodCost]))
+  for (const order of mockOrders) {
+    if (order.status !== 'completed') continue
+    const day = getDay(order.date)
+    day.revenue += order.total
+    day.orders += 1
+    day.foodCost += order.items.reduce((sum, item) => sum + (productCosts.get(item.productId) || 0) * item.quantity, 0)
+  }
+  for (const waste of mockWasteRecords) getDay(waste.date).wasteValue += waste.cost
+  return [...totals.values()].map((day) => ({
+    ...day,
+    foodCost: Math.round(day.foodCost * 100) / 100,
+    grossProfit: Math.round((day.revenue - day.foodCost) * 100) / 100,
+  })).sort((a, b) => a.date.localeCompare(b.date))
+}
+const getDemoKPI = (): DashboardKPI => {
+  const days = getDemoDailySales()
+  const latest = days[days.length - 1] || { revenue: 0, orders: 0, foodCost: 0, grossProfit: 0, wasteValue: 0 }
+  const previous = days[days.length - 2] || latest
+  const ratio = latest.revenue ? latest.foodCost / latest.revenue * 100 : 0
+  const previousRatio = previous.revenue ? previous.foodCost / previous.revenue * 100 : 0
+  const change = (current: number, prior: number) => prior ? (current - prior) / prior * 100 : 0
+  return {
+    todaySales: latest.revenue,
+    todayOrders: latest.orders,
+    foodCostPercent: ratio,
+    grossProfit: latest.grossProfit,
+    wasteValue: latest.wasteValue,
+    salesChangePercent: change(latest.revenue, previous.revenue),
+    foodCostChangePercent: ratio - previousRatio,
+    profitChangePercent: change(latest.grossProfit, previous.grossProfit),
+  }
+}
 // ── Products ─────────────────────────────────────────────────
 export const productsService = {
   getAll: async (): Promise<Product[]> => {
@@ -121,9 +168,9 @@ export const wasteService = {
 
 // ── Dashboard ────────────────────────────────────────────────
 export const dashboardService = {
-  getKPI: async (): Promise<DashboardKPI> => isDemoMode() ? demoCopy(mockDashboardKPI) : (await api<any>('/dashboard')).kpi,
+  getKPI: async (): Promise<DashboardKPI> => isDemoMode() ? getDemoKPI() : (await api<any>('/dashboard')).kpi,
   getAlerts: async (): Promise<DashboardAlert[]> => isDemoMode() ? demoCopy(mockDashboardAlerts) : (await api<any>('/dashboard')).alerts,
-  getDailySales: async (days = 7, _offsetDays = 0): Promise<DailySales[]> => isDemoMode() ? demoCopy(mockDailySales.slice(0, days)) : (await api<any>(`/dashboard?days=${days}&offset_days=${_offsetDays}`)).dailySales,
+  getDailySales: async (days = 7, _offsetDays = 0): Promise<DailySales[]> => isDemoMode() ? demoCopy(getDemoDailySales().slice(-days)) : (await api<any>(`/dashboard?days=${days}&offset_days=${_offsetDays}`)).dailySales,
 }
 
 // ── Analytics ────────────────────────────────────────────────
@@ -133,7 +180,14 @@ export const analyticsService = {
     return (await api<any[]>('/analytics/variance')).map((v) => ({ ingredientId: toId(v.ingredient_id), ingredientName: v.ingredient_name, expectedUsage: v.expected_usage, actualUsage: v.actual_usage, variance: v.variance, varianceCost: v.variance_cost, variancePercent: v.variance_percent, unit: v.unit }))
   },
   getFoodCostTrend: async (): Promise<FoodCostData[]> => {
-    if (isDemoMode()) return demoCopy(mockFoodCostData)
+    if (isDemoMode()) return demoCopy(getDemoDailySales().map((day) => ({
+      date: day.date,
+      revenue: day.revenue,
+      expectedFoodCost: Math.round(day.revenue * 0.29),
+      actualFoodCost: day.foodCost,
+      wasteCost: day.wasteValue,
+      grossProfit: day.grossProfit,
+    })))
     return (await api<any>('/dashboard?days=7')).foodCostTrend.map((d: any) => ({ date: d.date, revenue: d.revenue, expectedFoodCost: d.expectedFoodCost, actualFoodCost: d.actualFoodCost, wasteCost: d.wasteCost, grossProfit: d.grossProfit }))
   },
   getDailySales: async (): Promise<DailySales[]> => dashboardService.getDailySales(7),

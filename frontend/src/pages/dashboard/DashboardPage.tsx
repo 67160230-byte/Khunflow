@@ -20,7 +20,7 @@ import {
   AlertTriangle,
   Leaf,
 } from 'lucide-react'
-import { dashboardService, analyticsService } from '@/services'
+import { dashboardService, analyticsService, isDemoMode } from '@/services'
 import type { DashboardKPI, DashboardAlert, DailySales, FoodCostData } from '@/types'
 import { Button, KPICard, AlertCard, Card, LoadingSpinner, SectionHeader } from '@/components/ui'
 
@@ -156,19 +156,21 @@ export default function DashboardPage() {
     </div>
   )
 
-  const today = new Date().toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const demoMode = isDemoMode()
+  const sampleDay = sales[sales.length - 1]?.date
+  const displayDate = new Date(`${demoMode && sampleDay ? sampleDay : new Date().toISOString().slice(0, 10)}T12:00:00`).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   return (
     <div className="space-y-6">
       <SectionHeader
         title="แดชบอร์ด"
-        subtitle={`วันนี้: ${today}`}
+        subtitle={demoMode ? `วันที่ของข้อมูลตัวอย่าง: ${displayDate}` : `วันนี้: ${displayDate}`}
       />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <KPICard
-          title="ยอดขายวันนี้"
+          title={demoMode ? 'ยอดขายวันตัวอย่าง' : 'ยอดขายวันนี้'}
           value={formatBaht(kpi!.todaySales)}
           subtitle={`${kpi!.todayOrders} คำสั่งซื้อ`}
           changePercent={kpi!.salesChangePercent}
@@ -191,7 +193,7 @@ export default function DashboardPage() {
           iconBg="bg-blue-100"
         />
         <KPICard
-          title="มูลค่าของเสียวันนี้"
+          title={demoMode ? 'มูลค่าของเสียวันตัวอย่าง' : 'มูลค่าของเสียวันนี้'}
           value={formatBaht(kpi!.wasteValue)}
           subtitle="Waste Cost"
           icon={<TrendingDown size={22} className="text-red-600" />}
