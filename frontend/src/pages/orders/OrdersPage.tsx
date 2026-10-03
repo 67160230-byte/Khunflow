@@ -35,6 +35,7 @@ export default function OrdersPage() {
   const [customCategory, setCustomCategory] = useState<ProductCategory>('beverage')
   const [toastMessage, setToastMessage] = useState('')
   const [actionError, setActionError] = useState('')
+  const [savingOrder, setSavingOrder] = useState(false)
 
   // Get current user role from localStorage
   const currentUser = (() => {
@@ -102,7 +103,9 @@ export default function OrdersPage() {
   }
 
   const handleCreateOrder = async () => {
-    if (cartItems.length === 0) return
+    if (cartItems.length === 0 || savingOrder) return
+    setSavingOrder(true)
+    setActionError('')
     try {
     const persistedItems = await Promise.all(cartItems.map(async (item) => {
       if (!item.isCustom) return { productId: item.id, quantity: item.quantity }
@@ -111,12 +114,22 @@ export default function OrdersPage() {
       setProducts((current) => [...current, created])
       return { productId: created.id, quantity: item.quantity }
     }))
-    await ordersService.create(persistedItems)
-    const refreshedOrders = await ordersService.getAll()
-    setOrders(refreshedOrders)
+    const result = await ordersService.create(persistedItems)
     setCartItems([])
     setModalOpen(false)
+    setToastMessage(`บันทึกออเดอร์ #${result.order_id} แล้ว`)
+    try {
+      const refreshedOrders = await ordersService.getAll()
+      if (refreshedOrders.some((order) => order.id === String(result.order_id))) {
+        setOrders(refreshedOrders)
+      } else {
+        setToastMessage(`บันทึกออเดอร์ #${result.order_id} แล้ว แต่ยังโหลดรายการกลับมาไม่พบ ลองรีเฟรชหน้าอีกครั้ง`)
+      }
+    } catch {
+      setToastMessage(`บันทึกออเดอร์ #${result.order_id} แล้ว แต่โหลดรายการไม่สำเร็จ ลองรีเฟรชหน้าอีกครั้ง`)
+    }
     } catch (error) { setActionError(error instanceof Error ? error.message : 'บันทึกออเดอร์ไม่สำเร็จ') }
+    finally { setSavingOrder(false) }
   }
 
   if (loading) return <LoadingSpinner />
@@ -136,6 +149,7 @@ export default function OrdersPage() {
       />
       {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
       {actionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
+      {toastMessage && !modalOpen && <p role="status" className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{toastMessage}</p>}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -215,12 +229,14 @@ export default function OrdersPage() {
             <div className="flex items-center justify-between border-b pb-3">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">สร้างคำสั่งซื้อใหม่ (POS)</h3>
-                <p className="text-xs text-gray-400">เลือกเมนู หรือเพิ่มชื่อเมนูและราคาตามต้องการ</p>
+                <p className="text-xs text-gray-500">เลือกเมนูใส่ตะกร้าก่อน แล้วกด “บันทึกออเดอร์” เพื่อบันทึกถาวร</p>
               </div>
-              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => !savingOrder && setModalOpen(false)} disabled={savingOrder} className="text-gray-400 hover:text-gray-600 disabled:opacity-50">
                 <X size={20} />
               </button>
             </div>
+
+            {actionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">บันทึกไม่สำเร็จ: {actionError}</p>}
 
             {toastMessage && (
               <div className="bg-green-50 border border-green-200 text-green-700 p-2 rounded-xl text-xs flex items-center gap-1.5 font-medium animate-in fade-in">
@@ -369,15 +385,15 @@ export default function OrdersPage() {
             {/* Total & Action */}
             <div className="border-t pt-3 flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-500">ยอดรวมทั้งสิ้น</p>
+                <p className="text-xs text-gray-500">ยอดรวม · ยังไม่บันทึก</p>
                 <p className="text-xl font-bold text-green-700">{formatBaht(calculateTotal())}</p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setModalOpen(false)}>
+                <Button variant="outline" size="sm" onClick={() => setModalOpen(false)} disabled={savingOrder}>
                   ยกเลิก
                 </Button>
-                <Button size="sm" onClick={handleCreateOrder} disabled={cartItems.length === 0}>
-                  ยืนยันออเดอร์ (฿{calculateTotal().toFixed(2)})
+                <Button size="sm" onClick={handleCreateOrder} disabled={cartItems.length === 0 || savingOrder}>
+                  {savingOrder ? 'กำลังบันทึก…' : `บันทึกออเดอร์ (฿${calculateTotal().toFixed(2)})`}
                 </Button>
               </div>
             </div>
