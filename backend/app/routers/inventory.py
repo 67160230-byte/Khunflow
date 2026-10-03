@@ -42,8 +42,10 @@ async def create_business(data: dict, current_user: User = Depends(get_current_u
 
 # ── Products ──────────────────────────────────────────────────
 @router.get("/products", response_model=List[Product])
-async def list_products(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    stmt = select(Product).where(Product.is_active == True, Product.business_id == current_user.business_id)
+async def list_products(include_inactive: bool = False, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    stmt = select(Product).where(Product.business_id == current_user.business_id)
+    if not include_inactive:
+        stmt = stmt.where(Product.is_active == True)
     res = await session.execute(stmt)
     return res.scalars().all()
 
@@ -78,6 +80,21 @@ async def create_product(req: ProductCreate, current_user: User = Depends(get_cu
     await session.commit()
     await session.refresh(prod)
     return prod
+
+@router.patch("/products/{product_id}/status")
+async def set_product_status(product_id: int, data: dict, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
+    is_active = data.get("is_active")
+    if not isinstance(is_active, bool):
+        raise HTTPException(status_code=422, detail="กรุณาระบุสถานะสินค้า")
+    product = (await session.execute(select(Product).where(Product.id == product_id, Product.business_id == current_user.business_id))).scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="ไม่พบสินค้าในร้านนี้")
+    product.is_active = is_active
+    log_activity(session, current_user, "activate" if is_active else "deactivate", "product", product.id, product.name)
+    await session.commit()
+    await session.refresh(product)
+    return product
 
 # ── Ingredients ───────────────────────────────────────────────
 @router.get("/ingredients", response_model=List[Ingredient])

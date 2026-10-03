@@ -101,14 +101,18 @@ const getDemoKPI = (): DashboardKPI => {
 }
 // ── Products ─────────────────────────────────────────────────
 export const productsService = {
-  getAll: async (): Promise<Product[]> => {
-    if (isDemoMode()) return demoCopy(mockProducts)
-    return (await api<any[]>('/products')).map(productFromApi)
+  getAll: async (includeInactive = false): Promise<Product[]> => {
+    if (isDemoMode()) {
+      const products = demoCopy(mockProducts)
+      return includeInactive ? products : products.filter((product) => product.status === 'active')
+    }
+    return (await api<any[]>(`/products${includeInactive ? '?include_inactive=true' : ''}`)).map(productFromApi)
   },
   getById: async (id: string): Promise<Product | undefined> => {
     return (await productsService.getAll()).find((p) => p.id === id)
   },
   create: async (p: Pick<Product, 'name' | 'category' | 'sellingPrice' | 'foodCost' | 'description'>) => productFromApi(await api<any>('/products', { method: 'POST', body: JSON.stringify({ name: p.name, category: p.category, selling_price: p.sellingPrice, food_cost: p.foodCost, description: p.description }) })),
+  setActive: async (id: string, isActive: boolean) => productFromApi(await api<any>(`/products/${Number(id)}/status`, { method: 'PATCH', body: JSON.stringify({ is_active: isActive }) })),
 }
 
 // ── Ingredients / Inventory ───────────────────────────────────

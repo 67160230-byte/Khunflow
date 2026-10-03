@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, X, Package, Check } from 'lucide-react'
-import { productsService } from '@/services'
+import { Plus, Search, X, Package, Check, EyeOff, RotateCcw } from 'lucide-react'
+import { productsService, isDemoMode } from '@/services'
 import type { Product, ProductCategory } from '@/types'
 import {
   Card,
@@ -37,8 +37,10 @@ export default function ProductsPage() {
   const [sellingPrice, setSellingPrice] = useState('')
   const [foodCost, setFoodCost] = useState('')
   const [description, setDescription] = useState('')
-  const [successToast, setSuccessToast] = useState(false)
+  const [successToast, setSuccessToast] = useState('')
   const [formError, setFormError] = useState('')
+  const [statusError, setStatusError] = useState('')
+  const [updatingProductId, setUpdatingProductId] = useState<string | null>(null)
 
   // Role Permission Check
   const currentUser = (() => {
@@ -53,12 +55,28 @@ export default function ProductsPage() {
   const canAddProduct = userRole.includes('owner') || userRole.includes('manager') || userRole === 'admin'
 
   useEffect(() => {
-    productsService.getAll().then((data) => {
+    productsService.getAll(true).then((data) => {
       setProducts(data)
       setFiltered(data)
       setLoading(false)
     }).catch((error) => { setLoadError(error instanceof Error ? error.message : 'โหลดสินค้าไม่สำเร็จ'); setLoading(false) })
   }, [])
+
+  const handleProductStatus = async (product: Product) => {
+    const isActive = product.status !== 'active'
+    setStatusError('')
+    setUpdatingProductId(product.id)
+    try {
+      const updated = await productsService.setActive(product.id, isActive)
+      setProducts((current) => current.map((item) => item.id === product.id ? updated : item))
+      setSuccessToast(isActive ? 'นำสินค้ากลับมาขายแล้ว' : 'หยุดขายสินค้าแล้ว (ประวัติเดิมยังอยู่)')
+      setTimeout(() => setSuccessToast(''), 3000)
+    } catch (error) {
+      setStatusError(error instanceof Error ? error.message : 'เปลี่ยนสถานะสินค้าไม่สำเร็จ')
+    } finally {
+      setUpdatingProductId(null)
+    }
+  }
 
   useEffect(() => {
     const q = search.toLowerCase()
@@ -81,8 +99,8 @@ export default function ProductsPage() {
     setSellingPrice('')
     setFoodCost('')
     setDescription('')
-    setSuccessToast(true)
-    setTimeout(() => setSuccessToast(false), 3000)
+    setSuccessToast('เพิ่มสินค้าใหม่สำเร็จเรียบร้อย!')
+    setTimeout(() => setSuccessToast(''), 3000)
     } catch (error) { setFormError(error instanceof Error ? error.message : 'บันทึกสินค้าไม่สำเร็จ') }
   }
 
@@ -106,10 +124,11 @@ export default function ProductsPage() {
 
       {successToast && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
-          <Check size={16} /> เพิ่มสินค้าใหม่สำเร็จเรียบร้อย!
+          <Check size={16} /> {successToast}
         </div>
       )}
       {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{formError}</p>}
+      {statusError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{statusError}</p>}
 
       {/* Search */}
       <div className="relative max-w-sm">
@@ -138,6 +157,7 @@ export default function ProductsPage() {
                   <th className="text-right px-4 py-3 font-semibold">กำไรขั้นต้น</th>
                   <th className="text-right px-4 py-3 font-semibold">Margin</th>
                   <th className="text-left px-4 py-3 font-semibold">สถานะ</th>
+                  <th className="text-right px-4 py-3 font-semibold">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -168,6 +188,19 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <ProductStatusBadge status={p.status} />
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {canAddProduct && (
+                        <button
+                          type="button"
+                          onClick={() => handleProductStatus(p)}
+                          disabled={isDemoMode() || updatingProductId === p.id}
+                          title={isDemoMode() ? 'โหมดตัวอย่างอ่านอย่างเดียว' : undefined}
+                          className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${p.status === 'active' ? 'border-red-200 text-red-700 hover:bg-red-50' : 'border-green-200 text-green-700 hover:bg-green-50'}`}
+                        >
+                          {p.status === 'active' ? <><EyeOff size={14} /> หยุดขาย</> : <><RotateCcw size={14} /> นำกลับมาขาย</>}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
