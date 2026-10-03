@@ -15,7 +15,6 @@ import {
   PackageCheck,
   CalendarClock,
   TrendingUp,
-  GitCompareArrows,
   DollarSign,
   BarChart3,
   Brain,
@@ -76,8 +75,7 @@ const allNavSections: NavSection[] = [
     section: 'วิเคราะห์ (Analytics)',
     roles: ['owner', 'manager', 'admin'], // Only Manager & Owner
     items: [
-      { label: 'ต้นทุนอาหาร', path: '/app/analytics/food-cost', icon: <DollarSign size={18} /> },
-      { label: 'ส่วนต่างการใช้วัตถุดิบ', path: '/app/analytics/variance', icon: <GitCompareArrows size={18} /> },
+      { label: 'ต้นทุนและส่วนต่างวัตถุดิบ', path: '/app/analytics/food-cost', icon: <DollarSign size={18} /> },
       { label: 'กำไรแยกเมนู', path: '/app/analytics/profit', icon: <TrendingUp size={18} /> },
       { label: 'รายงานสรุปธุรกิจ', path: '/app/reports', icon: <BarChart3 size={18} /> },
     ],

@@ -18,7 +18,7 @@ const unitLabel: Record<string, string> = {
   g: 'กรัม', kg: 'กก.', ml: 'มล.', l: 'ลิตร', piece: 'ชิ้น',
 }
 
-export default function VariancePage() {
+export default function CostAnalysisPage() {
   const [variance, setVariance] = useState<VarianceData[]>([])
   const [foodCost, setFoodCost] = useState<FoodCostData[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,25 +33,22 @@ export default function VariancePage() {
 
   if (loading) return <LoadingSpinner />
 
-  const chartData = foodCost.map((d) => ({
-    date: shortDate(d.date),
-    'Expected': d.expectedFoodCost,
-  }))
+  const chartData = foodCost.map((d) => ({ date: shortDate(d.date), expected: d.expectedFoodCost }))
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="ผลตรวจนับวัตถุดิบ" subtitle="เปรียบเทียบยอดในระบบกับจำนวนที่นับได้ และแสดงต้นทุนตามสูตรโดยประมาณ" />
+      <SectionHeader title="ต้นทุนและส่วนต่างวัตถุดิบ" subtitle="ดูต้นทุนตามสูตรและเปรียบเทียบจำนวนวัตถุดิบในระบบกับผลตรวจนับได้ในหน้าเดียว" />
 
       {/* Chart */}
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">ต้นทุนวัตถุดิบตามสูตร (ประมาณการ)</h3>
+        <h3 className="text-sm font-semibold text-gray-700 mb-4">ต้นทุนอาหารตามสูตรย้อนหลัง 7 วัน (ประมาณการ)</h3>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="date" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatBaht(Number(v) || 0)} />
             <Tooltip formatter={(v: any) => formatBaht(Number(v) || 0)} />
-            <Bar dataKey="Expected" name="ต้นทุนตามสูตร" fill="#16a34a" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="expected" name="ต้นทุนตามสูตร" fill="#16a34a" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </Card>
@@ -59,7 +56,7 @@ export default function VariancePage() {
       {/* Variance Table */}
       <Card className="overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-800 text-sm">ผลตรวจนับล่าสุดแยกตามวัตถุดิบ</h3>
+          <h3 className="font-semibold text-gray-800 text-sm">ส่วนต่างจากผลตรวจนับล่าสุดแยกตามวัตถุดิบ</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
