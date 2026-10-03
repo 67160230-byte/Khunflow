@@ -39,7 +39,7 @@ export default function LoginPage() {
   const [forgotError, setForgotError] = useState('')
   const [forgotSuccess, setForgotSuccess] = useState('')
 
-  const API_URL = import.meta.env.VITE_API_URL || ''
+  const API_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || '')
 
   // Handle Google OAuth callback & Direct Email Reset Links
   useEffect(() => {

@@ -18,7 +18,8 @@ import type {
   PurchaseRecommendation,
 } from '@/types'
 
-const API_URL = import.meta.env.VITE_API_URL || '' // Hosted deployments must configure their API destination explicitly.
+// Production API calls go through Vercel's same-origin rewrite to avoid browser CORS/network blocks.
+const API_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || '')
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('khumflow_token')
   const response = await fetch(`${API_URL}/api${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers } })

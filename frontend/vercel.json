@@ -1,10 +1,9 @@
 {
-  "build": {
-    "env": {
-      "VITE_API_URL": "https://khunflow.onrender.com"
-    }
-  },
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://khunflow.onrender.com/api/:path*"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
