@@ -266,18 +266,8 @@ export function ExpirationPage() {
                     key={ing.id}
                     className="p-5 flex flex-col justify-between space-y-4 border border-gray-200 shadow-sm relative group hover:border-green-300 transition-all"
                   >
-                    {/* Quick Permanent Delete Button Top Right */}
-                    <button
-                      type="button"
-                      onClick={() => handlePermanentDelete(ing.id, ing.name)}
-                      className="absolute right-3 top-3 p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                      title="ลบทิ้งถาวร"
-                    >
-                      <X size={17} />
-                    </button>
-
                     <div>
-                      <div className="flex items-center justify-between mb-2 pr-7">
+                      <div className="flex items-center justify-between mb-2">
                         <h4 className="font-bold text-gray-900 text-sm">{ing.name}</h4>
                         <Badge variant={urgency.variant}>{urgency.label}</Badge>
                       </div>
