@@ -296,6 +296,10 @@ async def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail=f"ไม่พบ user id={user_id}")
     membership = (await session.execute(select(BusinessMembership).where(BusinessMembership.user_id == user.id, BusinessMembership.business_id == current_user.business_id))).scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=404, detail="ไม่พบสมาชิกในร้านนี้")
+    if membership.role == UserRole.OWNER:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ไม่สามารถนำเจ้าของร้านออกได้ กรุณาโอนสิทธิ์เจ้าของร้านก่อน")
     if membership:
         await session.delete(membership)
     if user.business_id == current_user.business_id:
@@ -303,8 +307,9 @@ async def delete_user(
         user.business_id = next_membership.business_id if next_membership else None
         if next_membership is None:
             user.is_active = False
+    log_activity(session, current_user, "remove", "user", user.id, f"นำ {user.full_name} ({user.email}) ออกจากธุรกิจ #{current_user.business_id}")
     await session.commit()
-    return {"message": f"ลบ user '{user.full_name}' ({user.email}) สำเร็จแล้ว ✅"}
+    return {"message": f"นำ {user.full_name} ออกจากร้านนี้แล้ว; ประวัติเดิมยังอยู่"}
 
 
 # ── Persistent, one-time password reset tokens ──────────────────────

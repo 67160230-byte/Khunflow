@@ -2,17 +2,24 @@ import { useState } from 'react'
 import { useEffect } from 'react'
 import { usersService, businessService, isDemoMode } from '@/services'
 import { Card, Button, Badge, SectionHeader } from '@/components/ui'
-import { Users, Plus, Check, Save, X, Building2 } from 'lucide-react'
+import { Users, Plus, Check, Save, X, Building2, Trash2 } from 'lucide-react'
 
 export function UsersPage() {
   const [usersList, setUsersList] = useState<any[]>([])
   const [loadError, setLoadError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null)
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newEmail, setNewEmail] = useState('')
   const [newRole, setNewRole] = useState('แคชเชียร์ (Cashier)')
   const [newPassword, setNewPassword] = useState('')
+
+  const currentUser = (() => {
+    try { const user = localStorage.getItem('khumflow_user'); return user ? JSON.parse(user) : null } catch { return null }
+  })()
+  const canRemoveUsers = currentUser?.role?.toLowerCase() === 'owner'
 
   useEffect(() => { usersService.getAll().then(setUsersList).catch((error) => setLoadError(error instanceof Error ? error.message : 'โหลดรายชื่อไม่สำเร็จ')) }, [])
 
@@ -29,6 +36,26 @@ export function UsersPage() {
     setNewPassword('')
   }
 
+  const handleRemoveUser = async (user: any) => {
+    if (isDemoMode()) return
+    const self = String(user.id) === String(currentUser?.id) || user.email === currentUser?.email
+    if (self || user.role?.toLowerCase().includes('owner')) return
+    const confirmed = window.confirm(`นำ ${user.name} ออกจากร้านนี้หรือไม่?\n\nผู้ใช้นี้จะเข้าถึงข้อมูลของร้านนี้ไม่ได้อีก บัญชีและประวัติออเดอร์เดิมจะไม่ถูกลบ หากยังมีธุรกิจอื่นอยู่จะยังเข้าใช้ธุรกิจนั้นได้`)
+    if (!confirmed) return
+    setLoadError('')
+    setRemovingUserId(String(user.id))
+    try {
+      await usersService.removeFromBusiness(String(user.id))
+      setUsersList((current) => current.filter((item) => String(item.id) !== String(user.id)))
+      setSuccessMessage(`นำ ${user.name} ออกจากร้านนี้แล้ว`)
+      setTimeout(() => setSuccessMessage(''), 3000)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'นำผู้ใช้ออกจากร้านไม่สำเร็จ')
+    } finally {
+      setRemovingUserId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <SectionHeader
@@ -41,8 +68,10 @@ export function UsersPage() {
         }
       />
       {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
+      {successMessage && <p role="status" className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{successMessage} — ประวัติเดิมยังอยู่</p>}
 
       <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
@@ -50,6 +79,7 @@ export function UsersPage() {
               <th className="text-left px-4 py-3 font-semibold">อีเมล</th>
               <th className="text-left px-4 py-3 font-semibold">บทบาท (Role)</th>
               <th className="text-center px-4 py-3 font-semibold">สถานะ</th>
+              {canRemoveUsers && <th className="text-right px-4 py-3 font-semibold">จัดการ</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -68,12 +98,16 @@ export function UsersPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <Badge variant="success">ใช้งาน</Badge>
+                  <Badge variant={u.status === 'active' ? 'success' : 'neutral'}>{u.status === 'active' ? 'ใช้งาน' : 'ปิดใช้งาน'}</Badge>
                 </td>
+                {canRemoveUsers && <td className="px-4 py-3 text-right">
+                  {u.role?.toLowerCase().includes('owner') ? <span className="text-xs text-gray-400">เจ้าของร้าน</span> : String(u.id) === String(currentUser?.id) || u.email === currentUser?.email ? <span className="text-xs text-gray-400">บัญชีของคุณ</span> : <button type="button" onClick={() => handleRemoveUser(u)} disabled={isDemoMode() || removingUserId === String(u.id)} title={isDemoMode() ? 'โหมดตัวอย่างอ่านอย่างเดียว' : 'นำผู้ใช้ออกจากร้านนี้'} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 size={14} />{removingUserId === String(u.id) ? 'กำลังนำออก…' : 'นำออกจากร้าน'}</button>}
+                </td>}
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
 
       {/* Modal Add User */}

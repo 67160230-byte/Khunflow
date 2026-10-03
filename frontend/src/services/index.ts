@@ -264,6 +264,7 @@ export const usersService = {
     return response.data.map((u) => ({ id: toId(u.id), name: u.full_name, email: u.email, role: labels[u.role] || u.role, roleBadge: u.role === 'owner' ? 'purple' : u.role === 'manager' ? 'blue' : u.role === 'inventory_staff' ? 'amber' : 'green', status: u.is_active ? 'active' : 'inactive' }))
   },
   create: (data: { name: string; email: string; password: string; role: string }) => api('/auth/users', { method: 'POST', body: JSON.stringify({ full_name: data.name, email: data.email, password: data.password, role: data.role }) }),
+  removeFromBusiness: (id: string) => api<{ message: string }>(`/auth/users/${Number(id)}`, { method: 'DELETE' }),
 }
 
 export const activityService = {
