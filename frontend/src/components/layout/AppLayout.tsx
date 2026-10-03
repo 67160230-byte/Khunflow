@@ -326,7 +326,7 @@ export function AppLayout() {
   if (!localStorage.getItem('khumflow_token') || !currentUser) return <Navigate to="/login" replace state={{ from: location.pathname }} />
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f9fafb' }}>
+    <div className={location.pathname.startsWith('/app/reports') ? 'print-report-layout' : undefined} style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f9fafb' }}>
       {/* Desktop Sidebar */}
       <aside className="hidden lg:block flex-shrink-0">
         <SidebarContent />

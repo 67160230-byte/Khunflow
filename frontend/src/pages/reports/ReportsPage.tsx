@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { dashboardService } from '@/services'
+import { dashboardService, isDemoMode } from '@/services'
 import { Card, SectionHeader, KPICard } from '@/components/ui'
 import { FileText, Download, TrendingUp, Calendar, DollarSign } from 'lucide-react'
 
@@ -12,10 +12,11 @@ function percentOf(total: number, base: number) {
 }
 
 const PERIODS = ['7 วันล่าสุด', '31 วันล่าสุด', '31 วันก่อนหน้า']
+const formatReportDate = (value: string, options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }) =>
+  new Date(`${value.slice(0, 10)}T12:00:00+07:00`).toLocaleDateString('th-TH', { ...options, timeZone: 'Asia/Bangkok' })
 
 export default function ReportsPage() {
   const [period, setPeriod] = useState(0)
-  const [downloading, setDownloading] = useState(false)
   const [reportRows, setReportRows] = useState<Array<{ date: string; revenue: number; foodCost: number; gross: number; waste: number; orders: number }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -32,30 +33,44 @@ export default function ReportsPage() {
   const avgFoodCostPct = percentOf(totalCost, totalRevenue)
   const avgMarginPct = percentOf(totalGross, totalRevenue)
 
-  const handleDownload = () => { setDownloading(true); window.print(); setDownloading(false) }
+  const handleDownload = () => window.print()
 
   if (loading) return <div className="p-8 text-center text-gray-500">กำลังโหลดรายงาน…</div>
 
   return (
-    <div className="space-y-6">
-      <SectionHeader
-        title="รายงานสรุปธุรกิจ"
-        subtitle="สรุปยอดขาย ต้นทุน กำไร และของเสีย แยกตามช่วงเวลาที่เลือก"
-        action={
-          <button
-            onClick={handleDownload}
-            disabled={downloading}
-            className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors disabled:opacity-60"
-          >
-            <Download size={16} />
-            {downloading ? 'กำลังเปิดหน้าพิมพ์...' : 'พิมพ์ / บันทึก PDF'}
-          </button>
-        }
-      />
+    <div id="business-report" className="space-y-6">
+      <div className="print-only mb-5 border-b-2 border-green-700 pb-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-green-800">KhumFlow · รายงานธุรกิจ</p>
+            <h1 className="mt-1 text-2xl font-bold text-gray-900">รายงานสรุปธุรกิจ</h1>
+            <p className="mt-1 text-sm text-gray-600">ช่วงข้อมูล: {reportRows.length ? `${formatReportDate(reportRows[0].date)} – ${formatReportDate(reportRows[reportRows.length - 1].date)}` : 'ไม่มีข้อมูล'}</p>
+          </div>
+          <div className="text-right text-xs text-gray-500">
+            <p>{isDemoMode() ? 'ข้อมูลตัวอย่าง' : 'ข้อมูลร้านจริง'}</p>
+            <p>จัดทำเมื่อ {new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' }).format(new Date())}</p>
+          </div>
+        </div>
+      </div>
+      <div className="no-print">
+        <SectionHeader
+          title="รายงานสรุปธุรกิจ"
+          subtitle="สรุปยอดขาย ต้นทุน กำไร และของเสีย แยกตามช่วงเวลาที่เลือก"
+          action={
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors"
+            >
+              <Download size={16} />
+              พิมพ์ / บันทึก PDF
+            </button>
+          }
+        />
+      </div>
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
       {/* Period Selector */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="no-print flex gap-2 flex-wrap">
         {PERIODS.map((p, i) => (
           <button
             key={p}
@@ -97,16 +112,17 @@ export default function ReportsPage() {
         <KPICard
           title="ของเสียรวม"
           value={formatBaht(totalWaste)}
-          subtitle="ลดลงจากสัปดาห์ก่อน 8%"
+          subtitle="รวมช่วงเวลาที่เลือก"
           icon={<Calendar size={20} className="text-red-500" />}
           iconBg="bg-red-100"
         />
       </div>
 
       {/* Daily Report Table */}
-      <Card className="overflow-hidden">
+      <Card className="report-table overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-800 text-sm">รายงานรายวัน — {PERIODS[period]}</h3>
+          <p className="mt-1 text-xs text-gray-500">{reportRows.length ? `${formatReportDate(reportRows[0].date)} – ${formatReportDate(reportRows[reportRows.length - 1].date)}` : 'ไม่มีข้อมูลในช่วงเวลานี้'}</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -126,11 +142,10 @@ export default function ReportsPage() {
               {reportRows.map((r) => {
                 const fc = percentOf(r.foodCost, r.revenue)
                 const gm = percentOf(r.gross, r.revenue)
-                const d = new Date(r.date)
                 return (
                   <tr key={r.date} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-700">
-                      {d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      {formatReportDate(r.date, { weekday: 'short', day: 'numeric', month: 'short' })}
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-gray-900 tabular-nums">{formatBaht(r.revenue)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-700">{formatBaht(r.foodCost)}</td>

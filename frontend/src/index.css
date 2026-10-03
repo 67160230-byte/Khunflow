@@ -59,3 +59,130 @@
     @apply hover:shadow-md transition-shadow duration-200;
   }
 }
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .print-report-layout {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .print-report-layout > aside,
+  .print-report-layout > div > header,
+  .print-report-layout > div > [role="status"],
+  .no-print {
+    display: none !important;
+  }
+
+  .print-report-layout > div {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .print-report-layout main {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  #business-report {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 12px !important;
+    color: #111827 !important;
+    background: #fff !important;
+    font-size: 9pt !important;
+  }
+
+  #business-report .print-only {
+    display: block !important;
+  }
+
+  #business-report .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  #business-report .card {
+    break-inside: avoid;
+    border: 1px solid #d1d5db !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+  }
+
+  #business-report .report-table,
+  #business-report .report-table > div {
+    overflow: visible !important;
+  }
+
+  #business-report table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    font-size: 8pt !important;
+  }
+
+  #business-report thead {
+    display: table-header-group;
+  }
+
+  #business-report tfoot {
+    display: table-footer-group;
+  }
+
+  #business-report tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  #business-report th,
+  #business-report td {
+    padding: 5px 6px !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    overflow-wrap: anywhere;
+  }
+
+  #business-report th:first-child,
+  #business-report td:first-child {
+    width: 16%;
+    text-align: left !important;
+  }
+
+  #business-report th:not(:first-child),
+  #business-report td:not(:first-child) {
+    width: 12%;
+  }
+
+  #business-report .bg-gray-50 {
+    background: #f8fafc !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
