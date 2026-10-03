@@ -106,6 +106,7 @@ export default function OrdersPage() {
     if (cartItems.length === 0 || savingOrder) return
     setSavingOrder(true)
     setActionError('')
+    let failureContext = 'สร้างเมนูพิเศษ'
     try {
     const persistedItems = await Promise.all(cartItems.map(async (item) => {
       if (!item.isCustom) return { productId: item.id, quantity: item.quantity }
@@ -114,6 +115,7 @@ export default function OrdersPage() {
       setProducts((current) => [...current, created])
       return { productId: created.id, quantity: item.quantity }
     }))
+    failureContext = 'บันทึกออเดอร์'
     const result = await ordersService.create(persistedItems)
     setCartItems([])
     setModalOpen(false)
@@ -128,7 +130,7 @@ export default function OrdersPage() {
     } catch {
       setToastMessage(`บันทึกออเดอร์ #${result.order_id} แล้ว แต่โหลดรายการไม่สำเร็จ ลองรีเฟรชหน้าอีกครั้ง`)
     }
-    } catch (error) { setActionError(error instanceof Error ? error.message : 'บันทึกออเดอร์ไม่สำเร็จ') }
+    } catch (error) { setActionError(`${failureContext}: ${error instanceof Error ? error.message : 'กรุณาลองใหม่'}`) }
     finally { setSavingOrder(false) }
   }
 

@@ -22,13 +22,18 @@ import type {
 const API_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || '')
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('khumflow_token')
-  const response = await fetch(`${API_URL}/api${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers } })
+  let response: Response
+  try {
+    response = await fetch(`${API_URL}/api${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers } })
+  } catch {
+    throw new Error(`เชื่อมต่อ API ไม่ได้ (${path}) กรุณาตรวจสอบสถานะเว็บและลองใหม่`)
+  }
   const body = await response.json().catch(() => ({}))
   if (response.status === 401) {
     localStorage.removeItem('khumflow_token'); localStorage.removeItem('khumflow_user'); window.location.assign('/login')
     throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่')
   }
-  if (!response.ok) throw new Error(body.detail || 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
+  if (!response.ok) throw new Error(body.detail || `API ${path} ตอบกลับ ${response.status} กรุณาลองใหม่`)
   return body as T
 }
 const toId = (v: unknown) => String(v ?? '')
