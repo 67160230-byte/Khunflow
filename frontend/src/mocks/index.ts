@@ -4,15 +4,12 @@ import type {
   Recipe,
   Order,
   WasteRecord,
-  DailySales,
   VarianceData,
-  DashboardKPI,
   DashboardAlert,
   Supplier,
   PurchaseOrder,
   ForecastData,
   PurchaseRecommendation,
-  FoodCostData,
 } from '@/types'
 
 // ── Products ─────────────────────────────────────────────────
@@ -359,29 +356,6 @@ export const mockRecipes: Recipe[] = [
   },
 ]
 
-// ── Daily Sales (7 days) ───────────────────────────────────────
-export const mockDailySales: DailySales[] = [
-  { date: '2026-08-22', revenue: 12400, orders: 98, foodCost: 3844, grossProfit: 8556, wasteValue: 320 },
-  { date: '2026-08-23', revenue: 9800, orders: 77, foodCost: 3038, grossProfit: 6762, wasteValue: 180 },
-  { date: '2026-08-24', revenue: 15200, orders: 121, foodCost: 4712, grossProfit: 10488, wasteValue: 410 },
-  { date: '2026-08-25', revenue: 18600, orders: 148, foodCost: 5766, grossProfit: 12834, wasteValue: 520 },
-  { date: '2026-08-26', revenue: 21400, orders: 171, foodCost: 6634, grossProfit: 14766, wasteValue: 640 },
-  { date: '2026-08-27', revenue: 22800, orders: 182, foodCost: 7068, grossProfit: 15732, wasteValue: 710 },
-  { date: '2026-08-28', revenue: 16500, orders: 132, foodCost: 5115, grossProfit: 11385, wasteValue: 480 },
-]
-
-// ── Dashboard KPI (today) ─────────────────────────────────────
-export const mockDashboardKPI: DashboardKPI = {
-  todaySales: 16500,
-  todayOrders: 132,
-  foodCostPercent: 31.0,
-  grossProfit: 11385,
-  wasteValue: 480,
-  salesChangePercent: -27.6,
-  foodCostChangePercent: 2.1,
-  profitChangePercent: -27.6,
-}
-
 // ── Dashboard Alerts ──────────────────────────────────────────
 export const mockDashboardAlerts: DashboardAlert[] = [
   {
@@ -470,17 +444,7 @@ export const mockVarianceData: VarianceData[] = [
   },
 ]
 
-// ── Food Cost Trend ───────────────────────────────────────────
-export const mockFoodCostData: FoodCostData[] = mockDailySales.map((d) => ({
-  date: d.date,
-  revenue: d.revenue,
-  expectedFoodCost: Math.round(d.revenue * 0.29),
-  actualFoodCost: d.foodCost,
-  wasteCost: d.wasteValue,
-  grossProfit: d.grossProfit,
-}))
-
-// ── Waste Records ─────────────────────────────────────────────
+// ── Waste Records ────────────────────────────────────────────
 export const mockWasteRecords: WasteRecord[] = [
   {
     id: 'w1',

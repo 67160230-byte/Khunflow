@@ -91,7 +91,8 @@ const getDemoKPI = (): DashboardKPI => {
     todayOrders: latest.orders,
     foodCostPercent: ratio,
     grossProfit: latest.grossProfit,
-    wasteValue: latest.wasteValue,
+    // The waste log summary covers every sample record; keep this card on the same scope.
+    wasteValue: mockWasteRecords.reduce((sum, record) => sum + record.cost, 0),
     salesChangePercent: change(latest.revenue, previous.revenue),
     foodCostChangePercent: ratio - previousRatio,
     profitChangePercent: change(latest.grossProfit, previous.grossProfit),

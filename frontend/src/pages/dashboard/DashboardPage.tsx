@@ -34,6 +34,10 @@ function formatBaht(n: number) {
   return `฿${n.toLocaleString('th-TH')}`
 }
 
+function formatAxisValue(value: number) {
+  return value >= 1000 ? `${(value / 1000).toLocaleString('th-TH', { maximumFractionDigits: 1 })}k` : value.toLocaleString('th-TH')
+}
+
 // ── Sales Chart ────────────────────────────────────────────────
 function SalesChart({ data }: { data: DailySales[] }) {
   const chartData = data.map((d) => ({
@@ -55,7 +59,7 @@ function SalesChart({ data }: { data: DailySales[] }) {
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="date" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={formatAxisValue} />
           <Tooltip formatter={(v: any) => formatBaht(Number(v) || 0)} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Area type="monotone" dataKey="ยอดขาย" stroke="#16a34a" fill="url(#salesGrad)" strokeWidth={2} dot={false} />
@@ -81,7 +85,7 @@ function FoodCostChart({ data }: { data: FoodCostData[] }) {
         <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="date" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={formatAxisValue} />
           <Tooltip formatter={(v: any) => formatBaht(Number(v) || 0)} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Bar dataKey="ต้นทุนตามสูตร" fill="#16a34a" radius={[4, 4, 0, 0]} />
@@ -106,7 +110,7 @@ function ProfitChart({ data }: { data: DailySales[] }) {
         <LineChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="date" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={formatAxisValue} />
           <Tooltip formatter={(v: any) => formatBaht(Number(v) || 0)} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Line type="monotone" dataKey="กำไรขั้นต้น" stroke="#16a34a" strokeWidth={2} dot={false} />
@@ -193,9 +197,9 @@ export default function DashboardPage() {
           iconBg="bg-blue-100"
         />
         <KPICard
-          title={demoMode ? 'มูลค่าของเสียวันตัวอย่าง' : 'มูลค่าของเสียวันนี้'}
+          title={demoMode ? 'มูลค่าของเสียรวมตัวอย่าง' : 'มูลค่าของเสียวันนี้'}
           value={formatBaht(kpi!.wasteValue)}
-          subtitle="Waste Cost"
+          subtitle={demoMode ? 'ยอดรวมรายการทั้งหมดในหน้าของเสีย' : 'Waste Cost'}
           icon={<TrendingDown size={22} className="text-red-600" />}
           iconBg="bg-red-100"
         />
