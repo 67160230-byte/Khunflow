@@ -214,6 +214,48 @@ async def cancel_order(order_id: int, req: OrderCancelRequest, current_user: Use
     await session.commit()
     return {"message": "ยกเลิกออเดอร์และคืนสต็อกสำเร็จ", "order_id": order.id, "status": order.status, "restored_ingredients": len(usage_rows)}
 
+@router.post("/orders/{order_id}/restore")
+async def restore_order(order_id: int, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
+    order = (await session.execute(
+        select(Order).where(Order.id == order_id, Order.business_id == current_user.business_id).with_for_update()
+    )).scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="ไม่พบออเดอร์ในร้านนี้")
+    if order.status != OrderStatus.CANCELLED:
+        raise HTTPException(status_code=409, detail="รีเซ็ตกลับได้เฉพาะออเดอร์ที่ยกเลิกแล้ว")
+
+    usage_rows = (await session.execute(
+        select(OrderStockUsage).where(OrderStockUsage.order_id == order.id)
+    )).scalars().all()
+    quantities_by_ingredient: dict[int, float] = {}
+    for usage in usage_rows:
+        quantities_by_ingredient[usage.ingredient_id] = quantities_by_ingredient.get(usage.ingredient_id, 0) + usage.quantity
+
+    ingredients = []
+    for ingredient_id, quantity in quantities_by_ingredient.items():
+        ingredient = (await session.execute(
+            select(Ingredient).where(
+                Ingredient.id == ingredient_id,
+                Ingredient.business_id == current_user.business_id,
+            ).with_for_update()
+        )).scalar_one_or_none()
+        if not ingredient:
+            raise HTTPException(status_code=409, detail="ไม่พบวัตถุดิบที่ต้องตัดสต็อก กรุณาตรวจสอบคลังวัตถุดิบก่อน")
+        if ingredient.current_stock < quantity:
+            raise HTTPException(status_code=409, detail=f"วัตถุดิบ {ingredient.name} มีไม่พอสำหรับรีเซ็ตออเดอร์นี้")
+        ingredients.append((ingredient, quantity))
+
+    for ingredient, quantity in ingredients:
+        ingredient.current_stock -= quantity
+        session.add(ingredient)
+
+    order.status = OrderStatus.COMPLETED
+    session.add(order)
+    log_activity(session, current_user, "restore", "order", order.id, "รีเซ็ตออเดอร์ที่ยกเลิกกลับเป็นสำเร็จ")
+    await session.commit()
+    return {"message": "รีเซ็ตออเดอร์กลับสำเร็จ", "order_id": order.id, "status": order.status, "deducted_ingredients": len(ingredients)}
+
 # ── Stock Count & Variance Calculation ─────────────────────────
 @router.post("/stock-counts")
 async def submit_stock_count(req: StockCountCreate, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):

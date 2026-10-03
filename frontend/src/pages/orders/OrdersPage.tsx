@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ordersService, productsService } from '@/services'
 import type { Order, Product, ProductCategory } from '@/types'
 import { Card, Button, Badge, LoadingSpinner, SectionHeader, KPICard, EmptyState } from '@/components/ui'
-import { Plus, ShoppingBag, Clock, CheckCircle2, X, Sparkles, LayoutGrid, ShieldAlert, Check, Ban } from 'lucide-react'
+import { Plus, ShoppingBag, Clock, CheckCircle2, X, Sparkles, LayoutGrid, ShieldAlert, Check, Ban, RotateCcw } from 'lucide-react'
 
 function formatBaht(n: number) {
   return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -40,6 +40,7 @@ export default function OrdersPage() {
   const [cancelReason, setCancelReason] = useState('')
   const [cancelError, setCancelError] = useState('')
   const [cancellingOrder, setCancellingOrder] = useState(false)
+  const [restoringOrderId, setRestoringOrderId] = useState<string | null>(null)
 
   // Get current user role from localStorage
   const currentUser = (() => {
@@ -157,6 +158,23 @@ export default function OrdersPage() {
     }
   }
 
+  const handleRestoreOrder = async (order: Order) => {
+    if (restoringOrderId) return
+    if (!window.confirm(`รีเซ็ตออเดอร์ #${order.id} กลับเป็นสำเร็จ? ระบบจะตัดวัตถุดิบคืนออกจากคลังอีกครั้ง`)) return
+    setRestoringOrderId(order.id)
+    setActionError('')
+    try {
+      await ordersService.restore(order.id)
+      setOrders((current) => current.map((item) => item.id === order.id ? { ...item, status: 'completed' } : item))
+      setToastMessage(`รีเซ็ตออเดอร์ #${order.id} กลับแล้ว และตัดสต็อกตามเดิม`)
+      try { setOrders(await ordersService.getAll()) } catch { /* Keep the restored state if refresh fails. */ }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'รีเซ็ตออเดอร์ไม่สำเร็จ')
+    } finally {
+      setRestoringOrderId(null)
+    }
+  }
+
   if (loading) return <LoadingSpinner />
 
   const activeOrders = orders.filter((order) => order.status !== 'cancelled')
@@ -241,7 +259,9 @@ export default function OrdersPage() {
                     <td className="px-4 py-3 text-center">
                       <Badge variant={ord.status === 'cancelled' ? 'danger' : 'success'}>{ord.status === 'cancelled' ? 'ยกเลิกแล้ว' : 'สำเร็จ'}</Badge>
                     </td>
-                    {canCancelOrders && <td className="px-4 py-3 text-center">{ord.status !== 'cancelled' && <Button variant="outline" size="sm" onClick={() => { setCancelTarget(ord); setCancelReason(''); setCancelError('') }}><Ban size={14} /> ยกเลิก</Button>}</td>}
+                    {canCancelOrders && <td className="px-4 py-3 text-center">{ord.status === 'cancelled'
+                      ? <Button variant="outline" size="sm" disabled={restoringOrderId !== null} onClick={() => handleRestoreOrder(ord)}><RotateCcw size={14} /> {restoringOrderId === ord.id ? 'กำลังรีเซ็ต…' : 'รีเซ็ตกลับ'}</Button>
+                      : <Button variant="outline" size="sm" onClick={() => { setCancelTarget(ord); setCancelReason(''); setCancelError('') }}><Ban size={14} /> ยกเลิก</Button>}</td>}
                   </tr>
                 ))}
               </tbody>
