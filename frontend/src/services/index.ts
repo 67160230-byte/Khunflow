@@ -50,7 +50,14 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 const toId = (v: unknown) => String(v ?? '')
 const productFromApi = (p: any): Product => ({ id: toId(p.id), name: p.name, category: p.category, sellingPrice: p.selling_price, foodCost: p.food_cost, grossProfit: p.selling_price - p.food_cost, grossMargin: p.selling_price ? (p.selling_price - p.food_cost) / p.selling_price * 100 : 0, status: p.is_active ? 'active' : 'inactive', description: p.description, createdAt: p.created_at })
-const ingredientFromApi = (i: any): Ingredient => ({ id: toId(i.id), name: i.name, category: i.category, unit: i.unit, currentStock: i.current_stock, minimumStock: i.minimum_stock, averageCost: i.average_cost, stockValue: i.current_stock * i.average_cost, status: i.current_stock <= 0 ? 'critical' : i.current_stock <= i.minimum_stock ? 'low' : i.expiration_date && new Date(i.expiration_date).getTime() - Date.now() < 7 * 86400000 ? 'expiring_soon' : 'normal', expirationDate: i.expiration_date, supplierId: toId(i.supplier_id), createdAt: i.created_at })
+const ingredientFromApi = (i: any): Ingredient => {
+  const ingredient: Ingredient = { id: toId(i.id), name: i.name, category: i.category, unit: i.unit, currentStock: i.current_stock, minimumStock: i.minimum_stock, averageCost: i.average_cost, stockValue: i.current_stock * i.average_cost, status: 'normal', expirationDate: i.expiration_date, supplierId: toId(i.supplier_id), createdAt: i.created_at }
+  const dateParts = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+  const datePart = (type: Intl.DateTimeFormatPartTypes) => dateParts.find((part) => part.type === type)?.value || ''
+  const today = `${datePart('year')}-${datePart('month')}-${datePart('day')}`
+  ingredient.status = getIngredientStatus(ingredient, today)
+  return ingredient
+}
 
 // Derive demo analytics from the same sample orders, products, and waste records
 // that the user can browse elsewhere in the app.
@@ -79,6 +86,20 @@ const getDemoDailySales = (): DailySales[] => {
     foodCost: Math.round(day.foodCost * 100) / 100,
     grossProfit: Math.round((day.revenue - day.foodCost) * 100) / 100,
   })).sort((a, b) => a.date.localeCompare(b.date))
+}
+const getDemoSnapshotDate = () => {
+  const days = getDemoDailySales()
+  return days[days.length - 1]?.date || new Date().toISOString().slice(0, 10)
+}
+const getIngredientStatus = (ingredient: Ingredient, asOfDate: string): Ingredient['status'] => {
+  if (ingredient.expirationDate) {
+    const daysToExpiry = Math.floor((Date.parse(`${ingredient.expirationDate}T00:00:00Z`) - Date.parse(`${asOfDate}T00:00:00Z`)) / 86400000)
+    if (daysToExpiry < 0) return 'expired'
+    if (daysToExpiry <= 7) return 'expiring_soon'
+  }
+  if (ingredient.currentStock <= 0) return 'critical'
+  if (ingredient.currentStock <= ingredient.minimumStock) return 'low'
+  return 'normal'
 }
 const getDemoKPI = (): DashboardKPI => {
   const days = getDemoDailySales()
@@ -118,7 +139,14 @@ export const productsService = {
 // ── Ingredients / Inventory ───────────────────────────────────
 export const inventoryService = {
   getAll: async (): Promise<Ingredient[]> => {
-    if (isDemoMode()) return demoCopy(mockIngredients)
+    if (isDemoMode()) {
+      const asOfDate = getDemoSnapshotDate()
+      return demoCopy(mockIngredients).map((ingredient) => ({
+        ...ingredient,
+        stockValue: ingredient.currentStock * ingredient.averageCost,
+        status: getIngredientStatus(ingredient, asOfDate),
+      }))
+    }
     return (await api<any[]>('/ingredients')).map(ingredientFromApi)
   },
   getById: async (id: string): Promise<Ingredient | undefined> => {

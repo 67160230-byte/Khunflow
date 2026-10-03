@@ -386,7 +386,7 @@ export const mockDashboardAlerts: DashboardAlert[] = [
     id: 'a4',
     type: 'expiring',
     title: 'นมสดใกล้หมดอายุ',
-    description: 'หมดอายุ 2 ก.ย. 2026 (อีก 4 วัน)',
+    description: 'หมดอายุ 2 ก.ย. 2026 (อีก 5 วัน)',
     severity: 'warning',
     ingredientId: 'i2',
   },

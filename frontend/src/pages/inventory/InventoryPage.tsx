@@ -112,7 +112,7 @@ export default function InventoryPage() {
 
   const totalValue = ingredients.reduce((s, i) => s + i.stockValue, 0)
   const lowCount = ingredients.filter((i) => i.status === 'low' || i.status === 'critical').length
-  const expiringCount = ingredients.filter((i) => i.status === 'expiring_soon').length
+  const expiringCount = ingredients.filter((i) => i.status === 'expiring_soon' || i.status === 'expired').length
 
   return (
     <div className="space-y-5">
@@ -156,7 +156,7 @@ export default function InventoryPage() {
           iconBg="bg-amber-100"
         />
         <KPICard
-          title="ใกล้หมดอายุ"
+          title="หมดอายุ / ใกล้หมดอายุ"
           value={`${expiringCount} รายการ`}
           icon={<CalendarClock size={20} className="text-red-500" />}
           iconBg="bg-red-100"
