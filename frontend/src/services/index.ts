@@ -172,6 +172,7 @@ export const recipesService = {
     return (await recipesService.getAll()).find((r) => r.productId === productId)
   },
   create: async (productId: string, items: Array<{ ingredientId: string; quantity: number; unit: Ingredient['unit'] }>) => api('/recipes', { method: 'POST', body: JSON.stringify({ product_id: Number(productId), items: items.map((i) => ({ ingredient_id: Number(i.ingredientId), quantity: i.quantity, unit: i.unit })) }) }),
+  delete: async (id: string) => api<{ message: string }>(`/recipes/${Number(id)}`, { method: 'DELETE' }),
 }
 
 // ── Orders ────────────────────────────────────────────────────

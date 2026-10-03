@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { recipesService, productsService, inventoryService } from '@/services'
+import { recipesService, productsService, inventoryService, isDemoMode } from '@/services'
 import type { Recipe, RecipeItem, IngredientUnit, Product, Ingredient } from '@/types'
 import { Card, LoadingSpinner, SectionHeader, Button, EmptyState } from '@/components/ui'
 import { Plus, ChevronDown, ChevronRight, X, BookOpen, Trash2, Check } from 'lucide-react'
@@ -12,20 +12,35 @@ const unitLabel: Record<string, string> = {
   g: 'กรัม', kg: 'กก.', ml: 'มล.', l: 'ลิตร', piece: 'ชิ้น', pack: 'แพ็ก', bottle: 'ขวด',
 }
 
-function RecipeCard({ recipe }: { recipe: Recipe }) {
+function RecipeCard({ recipe, onDelete, deleting, canManage, demoMode }: { recipe: Recipe; onDelete: (recipe: Recipe) => void; deleting: boolean; canManage: boolean; demoMode: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <Card className="overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-left"
-      >
-        <div>
-          <p className="font-semibold text-gray-900">{recipe.productName}</p>
-          <p className="text-sm text-gray-500 mt-0.5">{recipe.items.length} วัตถุดิบ • ต้นทุนรวม {formatBaht(recipe.totalCost)}</p>
-        </div>
-        {open ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronRight size={18} className="text-gray-400" />}
-      </button>
+      <div className="flex items-center gap-2 px-3 sm:px-5 py-2">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          className="min-h-12 min-w-0 flex-1 flex items-center justify-between gap-3 py-2 hover:bg-gray-50 transition-colors text-left"
+        >
+          <div>
+            <p className="font-semibold text-gray-900">{recipe.productName}</p>
+            <p className="text-sm text-gray-500 mt-0.5">{recipe.items.length} วัตถุดิบ • ต้นทุนรวม {formatBaht(recipe.totalCost)}</p>
+          </div>
+          {open ? <ChevronDown size={18} className="shrink-0 text-gray-400" /> : <ChevronRight size={18} className="shrink-0 text-gray-400" />}
+        </button>
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => onDelete(recipe)}
+            disabled={demoMode || deleting}
+            title={demoMode ? 'โหมดตัวอย่างอ่านอย่างเดียว' : 'ลบสูตรอาหาร'}
+            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Trash2 size={14} /> <span className="hidden sm:inline">{deleting ? 'กำลังลบ…' : 'ลบสูตร'}</span>
+          </button>
+        )}
+      </div>
       {open && (
         <div className="border-t border-gray-100 px-5 pb-4">
           <table className="w-full text-sm mt-3">
@@ -71,6 +86,12 @@ export default function RecipesPage() {
   const [successToast, setSuccessToast] = useState(false)
   const [formError, setFormError] = useState('')
   const [loadError, setLoadError] = useState('')
+  const [deletingRecipeId, setDeletingRecipeId] = useState<string | null>(null)
+  const currentUser = (() => {
+    try { const user = localStorage.getItem('khumflow_user'); return user ? JSON.parse(user) : null } catch { return null }
+  })()
+  const role = currentUser?.role?.toLowerCase() || 'owner'
+  const canManageRecipes = role.includes('owner') || role.includes('manager') || role === 'admin'
 
   useEffect(() => {
     Promise.all([recipesService.getAll(), productsService.getAll(), inventoryService.getAll()]).then(([data, catalog, stock]) => {
@@ -119,6 +140,22 @@ export default function RecipesPage() {
     } catch (error) { setFormError(error instanceof Error ? error.message : 'บันทึกสูตรไม่สำเร็จ') }
   }
 
+  const handleDeleteRecipe = async (recipe: Recipe) => {
+    if (!window.confirm(`ยืนยันลบสูตร “${recipe.productName}” หรือไม่?\n\nสินค้าและประวัติออเดอร์เดิมจะยังอยู่ แต่คำสั่งซื้อใหม่จะไม่ตัดวัตถุดิบตามสูตรนี้อัตโนมัติ`)) return
+    setFormError('')
+    setDeletingRecipeId(recipe.id)
+    try {
+      await recipesService.delete(recipe.id)
+      setRecipes((current) => current.filter((item) => item.id !== recipe.id))
+      setSuccessToast(true)
+      setTimeout(() => setSuccessToast(false), 3000)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'ลบสูตรอาหารไม่สำเร็จ')
+    } finally {
+      setDeletingRecipeId(null)
+    }
+  }
+
   if (loading) return <LoadingSpinner />
 
   return (
@@ -136,7 +173,7 @@ export default function RecipesPage() {
 
       {successToast && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
-          <Check size={16} /> บันทึกสูตรอาหารใหม่สำเร็จเรียบร้อย!
+          <Check size={16} /> ดำเนินการกับสูตรอาหารเรียบร้อยแล้ว
         </div>
       )}
       {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{formError}</p>}
@@ -145,7 +182,7 @@ export default function RecipesPage() {
         <EmptyState title="ยังไม่มีสูตรอาหาร" description="สร้างสูตรอาหารเพื่อให้ระบบคำนวณต้นทุนอัตโนมัติ" />
       ) : (
         <div className="space-y-3">
-          {recipes.map((r) => <RecipeCard key={r.id} recipe={r} />)}
+          {recipes.map((r) => <RecipeCard key={r.id} recipe={r} onDelete={handleDeleteRecipe} deleting={deletingRecipeId === r.id} canManage={canManageRecipes} demoMode={isDemoMode()} />)}
         </div>
       )}
 

@@ -233,6 +233,21 @@ async def list_recipes(current_user: User = Depends(get_current_user), session: 
         result.append({"id": recipe.id, "product_id": recipe.product_id, "product_name": product.name if product else "", "total_cost": recipe.total_cost, "yield_amount": recipe.yield_amount, "items": [{"ingredient_id": i.ingredient_id, "ingredient_name": (await session.execute(select(Ingredient.name).where(Ingredient.id == i.ingredient_id))).scalar_one_or_none() or "", "quantity": i.quantity, "unit": i.unit, "unit_cost": i.unit_cost, "total_cost": i.total_cost} for i in items]})
     return result
 
+@router.delete("/recipes/{recipe_id}")
+async def delete_recipe(recipe_id: int, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
+    recipe = (await session.execute(select(Recipe).where(Recipe.id == recipe_id, Recipe.business_id == current_user.business_id))).scalar_one_or_none()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="ไม่พบสูตรอาหารในร้านนี้")
+    product = (await session.execute(select(Product).where(Product.id == recipe.product_id, Product.business_id == current_user.business_id))).scalar_one_or_none()
+    recipe_items = (await session.execute(select(RecipeItem).where(RecipeItem.recipe_id == recipe.id))).scalars().all()
+    for item in recipe_items:
+        await session.delete(item)
+    await session.delete(recipe)
+    log_activity(session, current_user, "delete", "recipe", recipe.id, product.name if product else f"สินค้า #{recipe.product_id}")
+    await session.commit()
+    return {"message": "ลบสูตรอาหารสำเร็จ; สินค้าและประวัติออเดอร์เดิมยังอยู่"}
+
 @router.get("/suppliers")
 async def list_suppliers(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
