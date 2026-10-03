@@ -7,6 +7,10 @@ function formatBaht(n: number) {
   return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`
 }
 
+function percentOf(total: number, base: number) {
+  return base > 0 ? ((total / base) * 100).toFixed(1) : '0.0'
+}
+
 const PERIODS = ['7 วันล่าสุด', '31 วันล่าสุด', '31 วันก่อนหน้า']
 
 export default function ReportsPage() {
@@ -25,8 +29,8 @@ export default function ReportsPage() {
   const totalCost = reportRows.reduce((s, r) => s + r.foodCost, 0)
   const totalGross = reportRows.reduce((s, r) => s + r.gross, 0)
   const totalWaste = reportRows.reduce((s, r) => s + r.waste, 0)
-  const avgFoodCostPct = ((totalCost / totalRevenue) * 100).toFixed(1)
-  const avgMarginPct = ((totalGross / totalRevenue) * 100).toFixed(1)
+  const avgFoodCostPct = percentOf(totalCost, totalRevenue)
+  const avgMarginPct = percentOf(totalGross, totalRevenue)
 
   const handleDownload = () => { setDownloading(true); window.print(); setDownloading(false) }
 
@@ -79,14 +83,14 @@ export default function ReportsPage() {
         <KPICard
           title="ต้นทุนอาหารรวม"
           value={formatBaht(totalCost)}
-          subtitle={`Food Cost Ratio ${avgFoodCostPct}%`}
+          subtitle={`สัดส่วนต้นทุนอาหาร ${avgFoodCostPct}%`}
           icon={<DollarSign size={20} className="text-blue-600" />}
           iconBg="bg-blue-100"
         />
         <KPICard
           title="กำไรขั้นต้นรวม"
           value={formatBaht(totalGross)}
-          subtitle={`Gross Margin ${avgMarginPct}%`}
+          subtitle={`อัตรากำไรขั้นต้น ${avgMarginPct}%`}
           icon={<FileText size={20} className="text-purple-600" />}
           iconBg="bg-purple-100"
         />
@@ -111,17 +115,17 @@ export default function ReportsPage() {
                 <th className="text-left px-4 py-3 font-semibold">วันที่</th>
                 <th className="text-right px-4 py-3 font-semibold">ยอดขาย</th>
                 <th className="text-right px-4 py-3 font-semibold">ต้นทุนอาหาร</th>
-                <th className="text-right px-4 py-3 font-semibold">Food Cost %</th>
+                <th className="text-right px-4 py-3 font-semibold">ต้นทุนอาหาร (%)</th>
                 <th className="text-right px-4 py-3 font-semibold">กำไรขั้นต้น</th>
-                <th className="text-right px-4 py-3 font-semibold">Gross Margin %</th>
+                <th className="text-right px-4 py-3 font-semibold">อัตรากำไรขั้นต้น (%)</th>
                 <th className="text-right px-4 py-3 font-semibold">ของเสีย</th>
                 <th className="text-right px-4 py-3 font-semibold">ออเดอร์</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {reportRows.map((r) => {
-                const fc = ((r.foodCost / r.revenue) * 100).toFixed(1)
-                const gm = ((r.gross / r.revenue) * 100).toFixed(1)
+                const fc = percentOf(r.foodCost, r.revenue)
+                const gm = percentOf(r.gross, r.revenue)
                 const d = new Date(r.date)
                 return (
                   <tr key={r.date} className="hover:bg-gray-50 transition-colors">
