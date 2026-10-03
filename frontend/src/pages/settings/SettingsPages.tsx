@@ -213,7 +213,9 @@ export function BusinessInfoPage() {
           {businesses.map((business) => {
             const activeId = localStorage.getItem('khumflow_business_id') || businesses[0]?.id
             const active = business.id === activeId
-            return <div key={business.id} className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${active ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white'}`}><span className="text-sm font-medium text-gray-800">{business.name}</span>{active ? <Badge variant="success">กำลังใช้งาน</Badge> : <button type="button" className="text-xs font-semibold text-green-700 hover:underline" onClick={() => { localStorage.setItem('khumflow_business_id', business.id); window.location.assign('/app/dashboard') }}>เปิดธุรกิจ</button>}</div>
+            return active
+              ? <div key={business.id} className="flex min-h-14 items-center justify-between rounded-xl border border-green-300 bg-green-50 px-3 sm:px-4"><span className="text-sm font-semibold text-gray-900">{business.name}</span><Badge variant="success">กำลังใช้งาน</Badge></div>
+              : <button key={business.id} type="button" aria-label={`เปิดธุรกิจ ${business.name}`} onClick={() => { localStorage.setItem('khumflow_business_id', business.id); window.location.assign('/app/dashboard') }} className="group flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 text-left transition hover:border-green-400 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 sm:px-4"><span className="text-sm font-medium text-gray-800">{business.name}</span><span className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-green-700 px-4 text-sm font-semibold text-white shadow-sm transition group-hover:bg-green-800">เปิดธุรกิจ</span></button>
           })}
         </div>
         {!isDemoMode() ? <form onSubmit={handleCreateBusiness} className="mt-4 flex flex-col gap-2 sm:flex-row">
