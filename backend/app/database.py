@@ -36,7 +36,7 @@ async def init_db():
         await conn.run_sync(SQLModel.metadata.create_all)
         # Add tenant ownership to existing single-store installations without
         # requiring a destructive reset or a separate migration command.
-        for table in ("suppliers", "ingredients", "products", "recipes", "orders", "waste_records", "stock_counts", "purchase_orders", "goods_receivings"):
+        for table in ("suppliers", "ingredients", "products", "recipes", "orders", "waste_records", "stock_counts", "purchase_orders", "goods_receivings", "audit_logs"):
             await conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS business_id INTEGER REFERENCES businesses(id)'))
             await conn.execute(text(f'CREATE INDEX IF NOT EXISTS "ix_{table}_business_id" ON "{table}" (business_id)'))
             await conn.execute(text(f'UPDATE "{table}" SET business_id = (SELECT id FROM businesses ORDER BY id LIMIT 1) WHERE business_id IS NULL'))
