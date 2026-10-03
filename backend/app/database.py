@@ -41,8 +41,8 @@ async def init_db():
             await conn.execute(text(f'CREATE INDEX IF NOT EXISTS "ix_{table}_business_id" ON "{table}" (business_id)'))
             await conn.execute(text(f'UPDATE "{table}" SET business_id = (SELECT id FROM businesses ORDER BY id LIMIT 1) WHERE business_id IS NULL'))
         await conn.execute(text("""
-            INSERT INTO business_memberships (user_id, business_id, role)
-            SELECT id, business_id, role FROM users WHERE business_id IS NOT NULL
+            INSERT INTO business_memberships (user_id, business_id, role, created_at)
+            SELECT id, business_id, role, CURRENT_TIMESTAMP FROM users WHERE business_id IS NOT NULL
             ON CONFLICT (user_id, business_id) DO NOTHING
         """))
         await conn.execute(text('ALTER TABLE goods_receivings ADD COLUMN IF NOT EXISTS purchase_order_id INTEGER REFERENCES purchase_orders(id)'))
