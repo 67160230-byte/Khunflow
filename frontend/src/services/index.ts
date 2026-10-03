@@ -88,6 +88,7 @@ export const ordersService = {
     return (await ordersService.getAll()).slice(0, limit)
   },
   create: async (items: Array<{ productId: string; quantity: number }>): Promise<{ message: string; order_id: number; total: number }> => api<{ message: string; order_id: number; total: number }>('/orders', { method: 'POST', body: JSON.stringify({ items: items.map((i) => ({ product_id: Number(i.productId), quantity: i.quantity })) }) }),
+  cancel: async (id: string, reason: string): Promise<{ message: string; order_id: number; status: string; restored_ingredients: number }> => api(`/orders/${Number(id)}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
 }
 
 export const stockCountService = {

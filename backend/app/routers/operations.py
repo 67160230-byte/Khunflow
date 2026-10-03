@@ -3,8 +3,8 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.database import get_session
-from app.models import Order, OrderItem, Product, Recipe, RecipeItem, Ingredient, StockCount, StockCountItem, WasteRecord, User, UserRole, OrderStatus
-from app.schemas import OrderCreate, StockCountCreate, WasteRecordCreate
+from app.models import Order, OrderItem, OrderStockUsage, Product, Recipe, RecipeItem, Ingredient, StockCount, StockCountItem, WasteRecord, User, UserRole, OrderStatus
+from app.schemas import OrderCreate, OrderCancelRequest, StockCountCreate, WasteRecordCreate
 from app.services.auth_service import get_current_user, require_role, log_activity
 from app.services.unit_conversion import convert_quantity
 from app.services.unit_conversion import convert_quantity
@@ -150,6 +150,7 @@ async def create_order(req: OrderCreate, current_user: User = Depends(get_curren
                         raise HTTPException(status_code=409, detail=f"วัตถุดิบ {ing.name} มีไม่พอสำหรับออเดอร์นี้")
                     ing.current_stock -= used_qty
                     session.add(ing)
+                    session.add(OrderStockUsage(order_id=order.id, ingredient_id=ing.id, quantity=used_qty))
 
     order.total_amount = total_amount
     session.add(order)
@@ -170,6 +171,48 @@ async def list_orders(current_user: User = Depends(get_current_user), session: A
             items.append({"product_id": line.product_id, "product_name": product.name if product else "สินค้า", "quantity": line.quantity, "unit_price": line.unit_price, "subtotal": line.subtotal})
         result.append({"id": order.id, "created_at": order.created_at, "total_amount": order.total_amount, "status": order.status, "staff_id": order.staff_id, "items": items})
     return result
+
+@router.post("/orders/{order_id}/cancel")
+async def cancel_order(order_id: int, req: OrderCancelRequest, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
+    reason = req.reason.strip()
+    if len(reason) < 3:
+        raise HTTPException(status_code=422, detail="กรุณาระบุเหตุผลยกเลิกอย่างน้อย 3 ตัวอักษร")
+    order = (await session.execute(
+        select(Order).where(Order.id == order_id, Order.business_id == current_user.business_id).with_for_update()
+    )).scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="ไม่พบออเดอร์ในร้านนี้")
+    if order.status == OrderStatus.CANCELLED:
+        raise HTTPException(status_code=409, detail="ออเดอร์นี้ถูกยกเลิกแล้ว")
+    if order.status != OrderStatus.COMPLETED:
+        raise HTTPException(status_code=409, detail="ยกเลิกได้เฉพาะออเดอร์ที่เสร็จสมบูรณ์")
+
+    usage_rows = (await session.execute(
+        select(OrderStockUsage).where(OrderStockUsage.order_id == order.id)
+    )).scalars().all()
+    if not usage_rows:
+        # Older orders did not snapshot the quantities deducted at sale time.
+        lines = (await session.execute(select(OrderItem).where(OrderItem.order_id == order.id))).scalars().all()
+        for line in lines:
+            recipe = (await session.execute(select(Recipe).where(Recipe.product_id == line.product_id))).scalar_one_or_none()
+            if recipe and (await session.execute(select(RecipeItem.id).where(RecipeItem.recipe_id == recipe.id))).first():
+                raise HTTPException(status_code=409, detail="ออเดอร์เก่านี้ไม่มีข้อมูลสต็อกที่ใช้ ณ เวลาขาย จึงยกเลิกอัตโนมัติไม่ได้ กรุณาปรับสต็อกด้วยมือ")
+
+    for usage in usage_rows:
+        ingredient = (await session.execute(
+            select(Ingredient).where(Ingredient.id == usage.ingredient_id, Ingredient.business_id == current_user.business_id)
+        )).scalar_one_or_none()
+        if not ingredient:
+            raise HTTPException(status_code=409, detail="ไม่พบวัตถุดิบที่ต้องคืนสต็อก กรุณาตรวจสอบคลังวัตถุดิบก่อน")
+        ingredient.current_stock += usage.quantity
+        session.add(ingredient)
+
+    order.status = OrderStatus.CANCELLED
+    session.add(order)
+    log_activity(session, current_user, "cancel", "order", order.id, reason)
+    await session.commit()
+    return {"message": "ยกเลิกออเดอร์และคืนสต็อกสำเร็จ", "order_id": order.id, "status": order.status, "restored_ingredients": len(usage_rows)}
 
 # ── Stock Count & Variance Calculation ─────────────────────────
 @router.post("/stock-counts")

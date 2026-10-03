@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ordersService, productsService } from '@/services'
 import type { Order, Product, ProductCategory } from '@/types'
 import { Card, Button, Badge, LoadingSpinner, SectionHeader, KPICard, EmptyState } from '@/components/ui'
-import { Plus, ShoppingBag, Clock, CheckCircle2, X, Sparkles, LayoutGrid, ShieldAlert, Check } from 'lucide-react'
+import { Plus, ShoppingBag, Clock, CheckCircle2, X, Sparkles, LayoutGrid, ShieldAlert, Check, Ban } from 'lucide-react'
 
 function formatBaht(n: number) {
   return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -36,6 +36,10 @@ export default function OrdersPage() {
   const [toastMessage, setToastMessage] = useState('')
   const [actionError, setActionError] = useState('')
   const [savingOrder, setSavingOrder] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState<Order | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelError, setCancelError] = useState('')
+  const [cancellingOrder, setCancellingOrder] = useState(false)
 
   // Get current user role from localStorage
   const currentUser = (() => {
@@ -49,6 +53,7 @@ export default function OrdersPage() {
 
   const userRole = currentUser?.role?.toLowerCase() || 'owner'
   const canAddCustomMenu = userRole.includes('owner') || userRole.includes('manager') || userRole === 'admin'
+  const canCancelOrders = canAddCustomMenu
 
   useEffect(() => {
     Promise.all([ordersService.getAll(), productsService.getAll()]).then(([o, p]) => {
@@ -134,9 +139,28 @@ export default function OrdersPage() {
     finally { setSavingOrder(false) }
   }
 
+  const handleCancelOrder = async () => {
+    if (!cancelTarget || cancelReason.trim().length < 3 || cancellingOrder) return
+    setCancellingOrder(true)
+    setCancelError('')
+    try {
+      await ordersService.cancel(cancelTarget.id, cancelReason.trim())
+      setOrders((current) => current.map((order) => order.id === cancelTarget.id ? { ...order, status: 'cancelled' } : order))
+      setToastMessage(`ยกเลิกออเดอร์ #${cancelTarget.id} และคืนสต็อกแล้ว`)
+      setCancelTarget(null)
+      setCancelReason('')
+      try { setOrders(await ordersService.getAll()) } catch { /* Keep the confirmed cancelled state if refresh fails. */ }
+    } catch (error) {
+      setCancelError(error instanceof Error ? error.message : 'ยกเลิกออเดอร์ไม่สำเร็จ')
+    } finally {
+      setCancellingOrder(false)
+    }
+  }
+
   if (loading) return <LoadingSpinner />
 
-  const totalSales = orders.reduce((sum, o) => sum + o.total, 0)
+  const activeOrders = orders.filter((order) => order.status !== 'cancelled')
+  const totalSales = activeOrders.reduce((sum, order) => sum + order.total, 0)
 
   return (
     <div className="space-y-6">
@@ -158,20 +182,20 @@ export default function OrdersPage() {
         <KPICard
           title="ยอดขายรวม"
           value={formatBaht(totalSales)}
-          subtitle="คำสั่งซื้อทั้งหมด"
+          subtitle="ไม่นับออเดอร์ที่ยกเลิก"
           icon={<ShoppingBag size={20} className="text-green-700" />}
           iconBg="bg-green-100"
         />
         <KPICard
           title="จำนวนออเดอร์"
-          value={`${orders.length} รายการ`}
+          value={`${activeOrders.length} รายการ`}
           subtitle="สถานะเสร็จสมบูรณ์"
           icon={<CheckCircle2 size={20} className="text-blue-600" />}
           iconBg="bg-blue-100"
         />
         <KPICard
           title="ยอดเฉลี่ยต่อออเดอร์"
-          value={formatBaht(orders.length ? totalSales / orders.length : 0)}
+          value={formatBaht(activeOrders.length ? totalSales / activeOrders.length : 0)}
           subtitle="Average Ticket Size"
           icon={<Clock size={20} className="text-purple-600" />}
           iconBg="bg-purple-100"
@@ -193,6 +217,7 @@ export default function OrdersPage() {
                   <th className="text-right px-4 py-3 font-semibold">ยอดรวม</th>
                   <th className="text-left px-4 py-3 font-semibold">พนักงาน</th>
                   <th className="text-center px-4 py-3 font-semibold">สถานะ</th>
+                  {canCancelOrders && <th className="text-center px-4 py-3 font-semibold">จัดการ</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -209,13 +234,14 @@ export default function OrdersPage() {
                         </span>
                       ))}
                     </td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-900 tabular-nums">
+                    <td className={`px-4 py-3 text-right font-bold tabular-nums ${ord.status === 'cancelled' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                       {formatBaht(ord.total)}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{ord.staffName}</td>
                     <td className="px-4 py-3 text-center">
-                      <Badge variant="success">สำเร็จ</Badge>
+                      <Badge variant={ord.status === 'cancelled' ? 'danger' : 'success'}>{ord.status === 'cancelled' ? 'ยกเลิกแล้ว' : 'สำเร็จ'}</Badge>
                     </td>
+                    {canCancelOrders && <td className="px-4 py-3 text-center">{ord.status !== 'cancelled' && <Button variant="outline" size="sm" onClick={() => { setCancelTarget(ord); setCancelReason(''); setCancelError('') }}><Ban size={14} /> ยกเลิก</Button>}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -398,6 +424,34 @@ export default function OrdersPage() {
                   {savingOrder ? 'กำลังบันทึก…' : `บันทึกออเดอร์ (฿${calculateTotal().toFixed(2)})`}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="cancel-order-title" className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 id="cancel-order-title" className="text-lg font-bold text-gray-900">ยืนยันยกเลิกออเดอร์ #{cancelTarget.id}</h3>
+                <p className="mt-1 text-sm text-gray-600">ยอด {formatBaht(cancelTarget.total)} · ระบบจะคืนสต็อกตามรายการที่บันทึกไว้</p>
+              </div>
+              <button type="button" onClick={() => setCancelTarget(null)} disabled={cancellingOrder} aria-label="ปิด" className="text-gray-400 hover:text-gray-600 disabled:opacity-50"><X size={20} /></button>
+            </div>
+            <div className="space-y-2 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">
+              {cancelTarget.items.map((item, index) => <p key={`${item.productId}-${index}`}>{item.productName} × {item.quantity}</p>)}
+            </div>
+            {cancelError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{cancelError}</p>}
+            <label className="block text-sm font-medium text-gray-700">
+              เหตุผลที่ยกเลิก
+              <textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} maxLength={300} rows={3} placeholder="เช่น ลูกค้าขอยกเลิก / บันทึกรายการผิด" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600" />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setCancelTarget(null)} disabled={cancellingOrder}>กลับ</Button>
+              <Button variant="danger" onClick={handleCancelOrder} disabled={cancelReason.trim().length < 3 || cancellingOrder}>
+                {cancellingOrder ? 'กำลังยกเลิก…' : 'ยืนยันยกเลิกออเดอร์'}
+              </Button>
             </div>
           </div>
         </div>

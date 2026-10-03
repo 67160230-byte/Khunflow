@@ -155,6 +155,13 @@ class OrderItem(SQLModel, table=True):
     unit_price: float
     subtotal: float
 
+class OrderStockUsage(SQLModel, table=True):
+    __tablename__ = "order_stock_usages"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    order_id: int = Field(foreign_key="orders.id", index=True)
+    ingredient_id: int = Field(foreign_key="ingredients.id")
+    quantity: float  # exact amount deducted, in the ingredient's stock unit
+
 # ── Waste & Stock Count ───────────────────────────────────────
 class WasteRecord(BusinessRecord, table=True):
     __tablename__ = "waste_records"

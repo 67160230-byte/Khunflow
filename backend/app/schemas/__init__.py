@@ -93,6 +93,9 @@ class OrderItemCreate(BaseModel):
 class OrderCreate(BaseModel):
     items: List[OrderItemCreate]
 
+class OrderCancelRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=300)
+
 # ── Stock Count Schemas ───────────────────────────────────────
 class StockCountItemCreate(BaseModel):
     ingredient_id: int
