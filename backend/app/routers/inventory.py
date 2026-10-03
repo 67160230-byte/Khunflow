@@ -243,6 +243,9 @@ async def delete_recipe(recipe_id: int, current_user: User = Depends(get_current
     recipe_items = (await session.execute(select(RecipeItem).where(RecipeItem.recipe_id == recipe.id))).scalars().all()
     for item in recipe_items:
         await session.delete(item)
+    # Remove dependent rows before deleting the recipe to satisfy PostgreSQL's
+    # foreign-key constraint even though these models do not define ORM relationships.
+    await session.flush()
     await session.delete(recipe)
     log_activity(session, current_user, "delete", "recipe", recipe.id, product.name if product else f"สินค้า #{recipe.product_id}")
     await session.commit()
