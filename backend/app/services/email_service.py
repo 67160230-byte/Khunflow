@@ -1,9 +1,39 @@
 import smtplib
 import asyncio
+import httpx
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
 from app.config import settings
+
+async def _send_email_resend(to_email: str, subject: str, html_content: str, text_content: str = "") -> bool:
+    if not settings.RESEND_API_KEY:
+        return False
+    sender_email = settings.RESEND_FROM_EMAIL or settings.EMAILS_FROM_EMAIL
+    if not sender_email:
+        print("Resend email is configured without RESEND_FROM_EMAIL")
+        return False
+    sender_name = settings.EMAILS_FROM_NAME or "KhumFlow"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                json={
+                    "from": f"{sender_name} <{sender_email}>",
+                    "to": [to_email],
+                    "subject": subject,
+                    "html": html_content,
+                    "text": text_content,
+                },
+            )
+        if response.is_success:
+            return True
+        print(f"Resend email failed with HTTP {response.status_code}: {response.text[:300]}")
+        return False
+    except Exception as e:
+        print(f"Resend email request failed: {type(e).__name__}: {e}")
+        return False
 
 def _send_email_sync(to_email: str, subject: str, html_content: str, text_content: str = "") -> bool:
     """Synchronous SMTP email sender"""
@@ -111,4 +141,7 @@ async def send_password_reset_email(to_email: str, reset_token: str, user_name: 
     หากคุณไม่ได้เป็นผู้ส่งคำขอ สามารถเพิกเฉยอีเมลนี้ได้
     """
 
+    # Resend uses HTTPS, which works on Render plans where outbound SMTP is blocked.
+    if settings.RESEND_API_KEY:
+        return await _send_email_resend(to_email, subject, html_content, text_content)
     return await asyncio.to_thread(_send_email_sync, to_email, subject, html_content, text_content)

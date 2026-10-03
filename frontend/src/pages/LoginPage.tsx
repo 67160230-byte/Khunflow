@@ -175,7 +175,7 @@ export default function LoginPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'เกิดข้อผิดพลาด')
       if (!data.email_sent) {
-        setForgotSuccess('หากอีเมลนี้ลงทะเบียนไว้ ระบบจะส่งรหัสตั้งรหัสผ่านให้ทางอีเมล หากยังไม่ได้รับ กรุณาติดต่อผู้ดูแลร้าน')
+        setForgotError('ระบบส่งอีเมลรีเซ็ตรหัสผ่านไม่สำเร็จ กรุณาลองใหม่ภายหลังหรือติดต่อผู้ดูแลระบบ')
         return
       }
       setForgotSuccess(`ส่งรหัสตั้งรหัสผ่านไปยัง ${forgotEmail} แล้ว กรุณาตรวจสอบกล่องข้อความ`)

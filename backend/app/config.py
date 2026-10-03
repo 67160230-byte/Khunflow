@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     EMAILS_FROM_EMAIL: str = ""
     EMAILS_FROM_NAME: str = "KhumFlow Security"
+    # HTTPS email provider used on hosts that block outbound SMTP ports.
+    RESEND_API_KEY: str = ""
+    RESEND_FROM_EMAIL: str = ""
     FRONTEND_URL: str = "https://khunflow.vercel.app"
 
     # Comma-separated exact account emails allowed into platform operations.
