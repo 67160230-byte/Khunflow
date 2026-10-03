@@ -298,7 +298,7 @@ async def delete_user(
 # ── Persistent, one-time password reset tokens ──────────────────────
 import secrets
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.services.email_service import send_password_reset_email
 
 
@@ -328,7 +328,7 @@ async def forgot_password(
 
     # ใช้ token แบบสุ่ม 256 บิต เพื่อป้องกันการเดารหัส
     token = secrets.token_hex(32).upper()
-    expires_at = datetime.utcnow() + timedelta(minutes=15)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     old_tokens = (await session.execute(select(PasswordReset).where(PasswordReset.email == email))).scalars().all()
     for old_token in old_tokens: await session.delete(old_token)
@@ -368,7 +368,7 @@ async def reset_password(
     if not record:
         raise HTTPException(status_code=400, detail="Token ไม่ถูกต้องหรือไม่มีในระบบ")
 
-    if datetime.utcnow() > record.expires_at:
+    if datetime.now(timezone.utc) > record.expires_at:
         await session.delete(record); await session.commit()
         raise HTTPException(status_code=400, detail="Token หมดอายุแล้ว กรุณาขอ token ใหม่")
 
