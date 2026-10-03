@@ -3,12 +3,42 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.database import get_session
-from app.models import Product, Ingredient, Recipe, RecipeItem, GoodsReceiving, Supplier, PurchaseOrder, PurchaseOrderItem, User, UserRole, POStatus, Business
+from app.models import Product, Ingredient, Recipe, RecipeItem, GoodsReceiving, Supplier, PurchaseOrder, PurchaseOrderItem, User, UserRole, POStatus, Business, BusinessMembership, AuditLog
 from app.schemas import ProductCreate, IngredientCreate, IngredientUpdate, RecipeCreate, GoodsReceivingCreate
 from app.services.auth_service import get_current_user, require_role, log_activity
 from app.services.unit_conversion import convert_quantity
 
 router = APIRouter(tags=["Catalog & Inventory"])
+
+@router.get("/businesses")
+async def list_businesses(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    rows = (await session.execute(
+        select(Business, BusinessMembership.role)
+        .join(BusinessMembership, BusinessMembership.business_id == Business.id)
+        .where(BusinessMembership.user_id == current_user.id)
+        .order_by(Business.created_at, Business.id)
+    )).all()
+    return [{"id": business.id, "name": business.name, "business_type": business.business_type, "currency": business.currency, "timezone": business.timezone, "role": role.value if hasattr(role, "value") else role} for business, role in rows]
+
+@router.post("/businesses")
+async def create_business(data: dict, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    require_role(current_user, UserRole.OWNER)
+    name = str(data.get("name", "")).strip()
+    if not name or len(name) > 120:
+        raise HTTPException(status_code=422, detail="กรุณาระบุชื่อธุรกิจ 1–120 ตัวอักษร")
+    business = Business(
+        name=name,
+        business_type=str(data.get("business_type", "cafe")),
+        currency=str(data.get("currency", "THB")),
+        timezone=str(data.get("timezone", "Asia/Bangkok")),
+    )
+    session.add(business)
+    await session.flush()
+    session.add(BusinessMembership(user_id=current_user.id, business_id=business.id, role=UserRole.OWNER))
+    session.add(AuditLog(business_id=business.id, actor_id=current_user.id, action="create", entity_type="business", entity_id=str(business.id), detail=name))
+    await session.commit()
+    await session.refresh(business)
+    return {"id": business.id, "name": business.name, "business_type": business.business_type, "currency": business.currency, "timezone": business.timezone, "role": UserRole.OWNER.value}
 
 # ── Products ──────────────────────────────────────────────────
 @router.get("/products", response_model=List[Product])

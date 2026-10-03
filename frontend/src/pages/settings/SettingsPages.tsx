@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useEffect } from 'react'
-import { usersService, businessService } from '@/services'
+import { usersService, businessService, isDemoMode } from '@/services'
 import { Card, Button, Badge, SectionHeader } from '@/components/ui'
 import { Users, Plus, Check, Save, X, Building2 } from 'lucide-react'
 
@@ -163,8 +163,30 @@ export function BusinessInfoPage() {
   const [timezone, setTimezone] = useState(() => localStorage.getItem('khumflow_timezone') || 'Asia/Bangkok')
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [businesses, setBusinesses] = useState<Array<{ id: string; name: string }>>([])
+  const [newBusinessName, setNewBusinessName] = useState('')
+  const [creatingBusiness, setCreatingBusiness] = useState(false)
 
-  useEffect(() => { businessService.get().then((business) => { setStoreName(business.name); setBusinessType(business.business_type); setCurrency(business.currency); setTimezone(business.timezone || 'Asia/Bangkok') }).catch((e) => setError(e instanceof Error ? e.message : 'โหลดข้อมูลร้านไม่สำเร็จ')) }, [])
+  useEffect(() => {
+    Promise.all([businessService.get(), businessService.getAll()]).then(([business, list]) => {
+      setStoreName(business.name); setBusinessType(business.business_type); setCurrency(business.currency); setTimezone(business.timezone || 'Asia/Bangkok'); setBusinesses(list)
+    }).catch((e) => setError(e instanceof Error ? e.message : 'โหลดข้อมูลร้านไม่สำเร็จ'))
+  }, [])
+
+  const handleCreateBusiness = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const name = newBusinessName.trim()
+    if (!name || creatingBusiness) return
+    setCreatingBusiness(true); setError('')
+    try {
+      const created = await businessService.create(name)
+      localStorage.setItem('khumflow_business_id', String(created.id))
+      window.location.assign('/app/dashboard')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'สร้างธุรกิจไม่สำเร็จ')
+      setCreatingBusiness(false)
+    }
+  }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -182,6 +204,23 @@ export function BusinessInfoPage() {
         subtitle="ตั้งค่าข้อมูลร้านอาหาร สกุลเงินหลัก และเขตเวลาที่ใช้งาน"
       />
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      <Card className="p-6 max-w-2xl">
+        <div className="mb-4">
+          <h3 className="font-semibold text-gray-900">ธุรกิจของฉัน ({businesses.length})</h3>
+          <p className="mt-1 text-xs text-gray-500">แต่ละธุรกิจมีสินค้า คลัง คำสั่งซื้อ และแดชบอร์ดแยกกัน ธุรกิจใหม่จะเริ่มต้นด้วยข้อมูลว่าง</p>
+        </div>
+        <div className="space-y-2">
+          {businesses.map((business) => {
+            const activeId = localStorage.getItem('khumflow_business_id') || businesses[0]?.id
+            const active = business.id === activeId
+            return <div key={business.id} className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${active ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white'}`}><span className="text-sm font-medium text-gray-800">{business.name}</span>{active ? <Badge variant="success">กำลังใช้งาน</Badge> : <button type="button" className="text-xs font-semibold text-green-700 hover:underline" onClick={() => { localStorage.setItem('khumflow_business_id', business.id); window.location.assign('/app/dashboard') }}>เปิดธุรกิจ</button>}</div>
+          })}
+        </div>
+        {!isDemoMode() ? <form onSubmit={handleCreateBusiness} className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <input aria-label="ชื่อธุรกิจใหม่" required maxLength={120} value={newBusinessName} onChange={(e) => setNewBusinessName(e.target.value)} placeholder="ชื่อธุรกิจใหม่ เช่น สาขาสยาม" className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+          <Button type="submit" size="sm" disabled={creatingBusiness}><Plus size={16} /> {creatingBusiness ? 'กำลังสร้าง…' : 'เพิ่มธุรกิจ'}</Button>
+        </form> : <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">กลับไปข้อมูลร้านจริงก่อน จึงจะเพิ่มธุรกิจใหม่ได้</p>}
+      </Card>
       <Card className="p-6 max-w-2xl">
         <form onSubmit={handleSave} className="space-y-4 text-sm">
           <div>

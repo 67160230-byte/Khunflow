@@ -35,7 +35,8 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('khumflow_token')
   let response: Response
   try {
-    response = await fetch(`${API_URL}/api${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers } })
+    const businessId = localStorage.getItem('khumflow_business_id')
+    response = await fetch(`${API_URL}/api${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(businessId ? { 'X-Business-Id': businessId } : {}), ...init.headers } })
   } catch {
     throw new Error(`เชื่อมต่อ API ไม่ได้ (${path}) กรุณาตรวจสอบสถานะเว็บและลองใหม่`)
   }
@@ -243,6 +244,8 @@ export const activityService = {
 export const businessService = {
   get: async () => isDemoMode() ? demoCopy({ name: 'KhumFlow Cafe & Bakery (ตัวอย่าง)', business_type: 'cafe', currency: 'THB', timezone: 'Asia/Bangkok' }) : api<any>('/business'),
   update: (business: { name: string; businessType: string; currency: string; timezone: string }) => api('/business', { method: 'PUT', body: JSON.stringify({ name: business.name, business_type: business.businessType, currency: business.currency, timezone: business.timezone }) }),
+  getAll: async (): Promise<Array<{ id: string; name: string; business_type: string; currency: string; timezone: string; role: string }>> => isDemoMode() ? demoCopy([{ id: 'demo', name: 'KhumFlow Cafe & Bakery (ตัวอย่าง)', business_type: 'cafe', currency: 'THB', timezone: 'Asia/Bangkok', role: 'owner' }]) : (await api<any[]>('/businesses')).map((business) => ({ ...business, id: toId(business.id) })),
+  create: (name: string) => api<any>('/businesses', { method: 'POST', body: JSON.stringify({ name }) }),
 }
 
 // ── Forecast ──────────────────────────────────────────────────

@@ -40,6 +40,7 @@ export default function LandingPage() {
 
     if (token && userName && role) {
       localStorage.setItem('khumflow_token', token)
+      localStorage.removeItem('khumflow_business_id')
       localStorage.setItem('khumflow_user', JSON.stringify({
         access_token: token,
         user_name: decodeURIComponent(userName),

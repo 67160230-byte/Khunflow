@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 from typing import List
 from app.database import get_session
-from app.models import User, Business, UserRole, PasswordReset, AuditLog
+from app.models import User, Business, BusinessMembership, UserRole, PasswordReset, AuditLog
 from app.schemas import (
     LoginRequest, Token, UserCreate, UserResponse,
     ChangePasswordRequest, UserUpdate, PaginatedUsers
@@ -82,6 +82,8 @@ async def register(req: UserCreate, session: AsyncSession = Depends(get_session)
         is_active=True
     )
     session.add(user)
+    await session.flush()
+    session.add(BusinessMembership(user_id=user.id, business_id=biz.id, role=UserRole.OWNER))
     await session.commit()
     await session.refresh(user)
     return user
@@ -94,7 +96,8 @@ async def change_password(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ):
-    if not verify_password(req.old_password, current_user.hashed_password):
+    user = (await session.execute(select(User).where(User.id == current_user.id))).scalar_one()
+    if not verify_password(req.old_password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="รหัสผ่านเดิมไม่ถูกต้อง"
@@ -104,8 +107,8 @@ async def change_password(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="รหัสผ่านใหม่ต้องมี 8–72 ตัวอักษร"
         )
-    current_user.hashed_password = get_password_hash(req.new_password)
-    session.add(current_user)
+    user.hashed_password = get_password_hash(req.new_password)
+    session.add(user)
     await session.commit()
     return {"message": "เปลี่ยนรหัสผ่านสำเร็จ ✅"}
 
@@ -158,14 +161,14 @@ async def list_users(
             detail="เฉพาะ Owner และ Manager เท่านั้นที่ดูรายชื่อ user ทั้งหมดได้"
         )
 
-    stmt = select(User).where(User.business_id == current_user.business_id)
-    count_stmt = select(func.count(User.id)).where(User.business_id == current_user.business_id)
+    stmt = select(User).join(BusinessMembership, BusinessMembership.user_id == User.id).where(BusinessMembership.business_id == current_user.business_id)
+    count_stmt = select(func.count(User.id)).join(BusinessMembership, BusinessMembership.user_id == User.id).where(BusinessMembership.business_id == current_user.business_id)
 
     if role:
         try:
             role_enum = UserRole(role.lower())
-            stmt = stmt.where(User.role == role_enum)
-            count_stmt = count_stmt.where(User.role == role_enum)
+            stmt = stmt.where(BusinessMembership.role == role_enum)
+            count_stmt = count_stmt.where(BusinessMembership.role == role_enum)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"role '{role}' ไม่ถูกต้อง")
 
@@ -194,7 +197,7 @@ async def get_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="ไม่มีสิทธิ์ดูข้อมูลผู้ใช้รายอื่น"
         )
-    user = (await session.execute(select(User).where(User.id == user_id, User.business_id == current_user.business_id))).scalar_one_or_none()
+    user = (await session.execute(select(User).join(BusinessMembership, BusinessMembership.user_id == User.id).where(User.id == user_id, BusinessMembership.business_id == current_user.business_id))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail=f"ไม่พบ user id={user_id}")
     return user
@@ -209,7 +212,7 @@ async def create_employee(req: UserCreate, current_user: User = Depends(get_curr
     if (await session.execute(select(User).where(User.email == email))).scalar_one_or_none():
         raise HTTPException(status_code=409, detail="อีเมลนี้มีในระบบแล้ว")
     user = User(email=email, hashed_password=get_password_hash(req.password), full_name=req.full_name.strip(), role=req.role, business_id=current_user.business_id, is_active=True)
-    session.add(user); await session.flush(); log_activity(session, current_user, "create", "user", user.id, f"{user.full_name} ({user.role.value})"); await session.commit(); await session.refresh(user)
+    session.add(user); await session.flush(); session.add(BusinessMembership(user_id=user.id, business_id=current_user.business_id, role=req.role)); log_activity(session, current_user, "create", "user", user.id, f"{user.full_name} ({user.role.value})"); await session.commit(); await session.refresh(user)
     return user
 
 @router.get("/audit-logs")
@@ -239,7 +242,7 @@ async def update_user(
             detail="ไม่มีสิทธิ์แก้ไขข้อมูลผู้ใช้รายอื่น"
         )
 
-    user = (await session.execute(select(User).where(User.id == user_id, User.business_id == current_user.business_id))).scalar_one_or_none()
+    user = (await session.execute(select(User).join(BusinessMembership, BusinessMembership.user_id == User.id).where(User.id == user_id, BusinessMembership.business_id == current_user.business_id))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail=f"ไม่พบ user id={user_id}")
 
@@ -254,6 +257,8 @@ async def update_user(
                 detail="เฉพาะ Owner เท่านั้นที่สามารถเปลี่ยน Role ได้"
             )
         user.role = req.role
+        membership = (await session.execute(select(BusinessMembership).where(BusinessMembership.user_id == user.id, BusinessMembership.business_id == current_user.business_id))).scalar_one()
+        membership.role = req.role
 
     if req.is_active is not None:
         if current_user.role != UserRole.OWNER:
@@ -287,10 +292,17 @@ async def delete_user(
             detail="ไม่สามารถลบบัญชีของตัวเองได้"
         )
 
-    user = (await session.execute(select(User).where(User.id == user_id, User.business_id == current_user.business_id))).scalar_one_or_none()
+    user = (await session.execute(select(User).join(BusinessMembership, BusinessMembership.user_id == User.id).where(User.id == user_id, BusinessMembership.business_id == current_user.business_id))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail=f"ไม่พบ user id={user_id}")
-    await session.delete(user)
+    membership = (await session.execute(select(BusinessMembership).where(BusinessMembership.user_id == user.id, BusinessMembership.business_id == current_user.business_id))).scalar_one_or_none()
+    if membership:
+        await session.delete(membership)
+    if user.business_id == current_user.business_id:
+        next_membership = (await session.execute(select(BusinessMembership).where(BusinessMembership.user_id == user.id, BusinessMembership.business_id != current_user.business_id).order_by(BusinessMembership.created_at).limit(1))).scalar_one_or_none()
+        user.business_id = next_membership.business_id if next_membership else None
+        if next_membership is None:
+            user.is_active = False
     await session.commit()
     return {"message": f"ลบ user '{user.full_name}' ({user.email}) สำเร็จแล้ว ✅"}
 
@@ -485,6 +497,8 @@ async def google_callback(
             is_active=True
         )
         session.add(user)
+        await session.flush()
+        session.add(BusinessMembership(user_id=user.id, business_id=biz.id, role=UserRole.OWNER))
         await session.commit()
         await session.refresh(user)
 

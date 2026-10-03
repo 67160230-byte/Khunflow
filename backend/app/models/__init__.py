@@ -50,6 +50,13 @@ class Business(SQLModel, table=True):
     timezone: str = "Asia/Bangkok"
     created_at: datetime = Field(default_factory=utc_now)
 
+class BusinessMembership(SQLModel, table=True):
+    __tablename__ = "business_memberships"
+    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    business_id: int = Field(foreign_key="businesses.id", primary_key=True, index=True)
+    role: UserRole = Field(default=UserRole.CASHIER)
+    created_at: datetime = Field(default_factory=utc_now)
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
     id: Optional[int] = Field(default=None, primary_key=True)

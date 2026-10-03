@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { isDemoMode } from '@/services'
+import { businessService, isDemoMode } from '@/services'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -221,6 +221,21 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => void; demoMode: boolean; onToggleDemo: () => void }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const [businesses, setBusinesses] = useState<Array<{ id: string; name: string }>>([])
+  const [activeBusinessId, setActiveBusinessId] = useState(localStorage.getItem('khumflow_business_id') || '')
+
+  useEffect(() => {
+    if (demoMode) { setBusinesses([]); return }
+    businessService.getAll().then((items) => {
+      setBusinesses(items)
+      const saved = localStorage.getItem('khumflow_business_id')
+      if (saved && items.some((business) => business.id === saved)) setActiveBusinessId(saved)
+      else if (items[0]) {
+        localStorage.removeItem('khumflow_business_id')
+        setActiveBusinessId(items[0].id)
+      }
+    }).catch(() => setBusinesses([]))
+  }, [demoMode])
 
   const getTitle = () => {
     const all = allNavSections.flatMap((s) => s.items)
@@ -231,6 +246,7 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
     localStorage.removeItem('khumflow_token')
     localStorage.removeItem('khumflow_user')
     localStorage.removeItem('khumflow_demo_mode')
+    localStorage.removeItem('khumflow_business_id')
     navigate('/login')
   }
 
@@ -241,6 +257,7 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
       </button>
       <h2 className="font-semibold text-gray-800 text-sm md:text-base">{getTitle()}</h2>
       <div className="ml-auto flex items-center gap-2">
+        {!demoMode && businesses.length > 1 && <select aria-label="เลือกธุรกิจ" value={activeBusinessId} onChange={(event) => { localStorage.setItem('khumflow_business_id', event.target.value); setActiveBusinessId(event.target.value); window.location.reload() }} className="max-w-48 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700"><option value="" disabled>เลือกธุรกิจ</option>{businesses.map((business) => <option key={business.id} value={business.id}>{business.name}</option>)}</select>}
         <button onClick={onToggleDemo} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${demoMode ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : 'bg-green-50 text-green-800 hover:bg-green-100'}`}>
           {demoMode ? 'กลับข้อมูลร้าน' : 'ดูข้อมูลตัวอย่าง'}
         </button>

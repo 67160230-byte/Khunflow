@@ -70,6 +70,7 @@ export default function LoginPage() {
 
     if (token && userName && role) {
       localStorage.setItem('khumflow_token', token)
+      localStorage.removeItem('khumflow_business_id')
       localStorage.setItem('khumflow_user', JSON.stringify({
         access_token: token,
         user_name: decodeURIComponent(userName),
@@ -128,6 +129,7 @@ export default function LoginPage() {
 
         if (!loginRes.ok) throw new Error(loginData.detail || 'สมัครสำเร็จแต่เข้าสู่ระบบไม่สำเร็จ กรุณาลองเข้าสู่ระบบอีกครั้ง')
         localStorage.setItem('khumflow_token', loginData.access_token)
+        localStorage.removeItem('khumflow_business_id')
         localStorage.setItem('khumflow_user', JSON.stringify(loginData))
 
         setSuccess('สมัครสมาชิกและสร้างร้านสำเร็จ! กำลังเข้าสู่ระบบ...')
@@ -146,6 +148,7 @@ export default function LoginPage() {
         }
 
         localStorage.setItem('khumflow_token', data.access_token)
+        localStorage.removeItem('khumflow_business_id')
         localStorage.setItem('khumflow_user', JSON.stringify(data))
         navigate('/app/dashboard')
       }
