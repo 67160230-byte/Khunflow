@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom'
 import { clsx } from 'clsx'
+import { isDemoMode } from '@/services'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -217,7 +218,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   )
 }
 
-function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
+function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => void; demoMode: boolean; onToggleDemo: () => void }) {
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -229,6 +230,7 @@ function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const handleLogout = () => {
     localStorage.removeItem('khumflow_token')
     localStorage.removeItem('khumflow_user')
+    localStorage.removeItem('khumflow_demo_mode')
     navigate('/login')
   }
 
@@ -239,6 +241,9 @@ function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       </button>
       <h2 className="font-semibold text-gray-800 text-sm md:text-base">{getTitle()}</h2>
       <div className="ml-auto flex items-center gap-2">
+        <button onClick={onToggleDemo} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${demoMode ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : 'bg-green-50 text-green-800 hover:bg-green-100'}`}>
+          {demoMode ? 'กลับข้อมูลร้าน' : 'ดูข้อมูลตัวอย่าง'}
+        </button>
         <button
           onClick={handleLogout}
           className="text-xs font-medium text-gray-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
@@ -253,6 +258,7 @@ function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
 // AppLayout with Route Protection based on Role
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [demoMode, setDemoMode] = useState(isDemoMode)
   const location = useLocation()
 
   const currentUser = (() => {
@@ -293,6 +299,12 @@ export function AppLayout() {
   }
 
   const allowed = isRouteAllowed()
+  const toggleDemoMode = () => {
+    if (demoMode) localStorage.removeItem('khumflow_demo_mode')
+    else localStorage.setItem('khumflow_demo_mode', 'true')
+    setDemoMode(!demoMode)
+    window.location.reload()
+  }
 
   if (!localStorage.getItem('khumflow_token') || !currentUser) return <Navigate to="/login" replace state={{ from: location.pathname }} />
 
@@ -322,7 +334,8 @@ export function AppLayout() {
 
       {/* Main Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        <Topbar onMenuClick={() => setMobileOpen(true)} />
+        <Topbar onMenuClick={() => setMobileOpen(true)} demoMode={demoMode} onToggleDemo={toggleDemoMode} />
+        {demoMode && <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900"><span><strong>โหมดข้อมูลตัวอย่าง</strong> — ใช้ข้อมูลจำลองเพื่อเรียนรู้ ข้อมูลร้านจริงไม่ถูกแก้ไข และบันทึกรายการไม่ได้</span><button onClick={toggleDemoMode} className="font-semibold underline">กลับไปข้อมูลร้านจริง</button></div>}
         <main style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
           {allowed ? (
             <Outlet />
