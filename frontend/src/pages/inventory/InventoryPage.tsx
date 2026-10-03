@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, X, Warehouse, Check } from 'lucide-react'
+import { Plus, Search, X, Warehouse, Check, ChevronDown } from 'lucide-react'
 import { inventoryService } from '@/services'
 import type { Ingredient, IngredientCategory, IngredientUnit, IngredientStatus } from '@/types'
 import {
@@ -48,8 +48,31 @@ export default function InventoryPage() {
   const [minimumStock, setMinimumStock] = useState('')
   const [averageCost, setAverageCost] = useState('')
   const [expirationDate, setExpirationDate] = useState('')
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [successToast, setSuccessToast] = useState(false)
   const [formError, setFormError] = useState('')
+
+  const openAddModal = () => {
+    setName('')
+    setCategory('beverage_base')
+    setUnit('kg')
+    setCurrentStock('')
+    setMinimumStock('')
+    setAverageCost('')
+    setExpirationDate('')
+    setShowAdvanced(false)
+    setFormError('')
+    setIsModalOpen(true)
+  }
+
+  const selectCategory = (value: IngredientCategory) => {
+    setCategory(value)
+    const suggestedUnit: Partial<Record<IngredientCategory, IngredientUnit>> = {
+      dairy: 'l', beverage_base: 'kg', sweetener: 'kg', grain: 'kg',
+      produce: 'kg', protein: 'kg', packaging: 'piece', other: 'piece',
+    }
+    setUnit(suggestedUnit[value] || 'piece')
+  }
 
   useEffect(() => {
     inventoryService.getAll().then((data) => {
@@ -97,7 +120,7 @@ export default function InventoryPage() {
         title="คลังวัตถุดิบ"
         subtitle={`วัตถุดิบ ${ingredients.length} รายการ`}
         action={
-          <Button size="sm" onClick={() => setIsModalOpen(true)}>
+          <Button size="sm" onClick={openAddModal}>
             <Plus size={16} />
             เพิ่มวัตถุดิบ
           </Button>
@@ -156,7 +179,7 @@ export default function InventoryPage() {
         <EmptyState
           title="ยังไม่มีข้อมูลวัตถุดิบ"
           description="เพิ่มวัตถุดิบรายการแรกเพื่อเริ่มต้นจัดการคลัง"
-          action={<Button size="sm" onClick={() => setIsModalOpen(true)}><Plus size={16} />เพิ่มวัตถุดิบ</Button>}
+          action={<Button size="sm" onClick={openAddModal}><Plus size={16} />เพิ่มวัตถุดิบ</Button>}
         />
       ) : (
         <Card className="overflow-hidden">
@@ -212,7 +235,7 @@ export default function InventoryPage() {
       {/* Add Ingredient Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl relative animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[calc(100vh-2rem)] overflow-y-auto p-5 sm:p-6 shadow-xl relative animate-in fade-in zoom-in-95">
             <button
               onClick={() => setIsModalOpen(false)}
               className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
@@ -223,7 +246,7 @@ export default function InventoryPage() {
             <h3 className="text-base font-bold text-gray-900 mb-1 flex items-center gap-2">
               <Warehouse size={18} className="text-green-700" /> เพิ่มวัตถุดิบใหม่เข้าคลัง
             </h3>
-            <p className="text-xs text-gray-500 mb-4">กำหนดหน่วยนับ สต็อกเริ่มต้น และจุดสั่งซื้อขั้นต่ำ</p>
+            <p className="text-xs text-gray-500 mb-4">กรอก 4 ช่องหลักก่อน ส่วนต้นทุนและการแจ้งเตือนตั้งเพิ่มภายหลังได้</p>
 
             <form onSubmit={handleAddIngredient} className="space-y-3.5 text-sm">
               <div>
@@ -243,7 +266,7 @@ export default function InventoryPage() {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">หมวดหมู่</label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value as IngredientCategory)}
+                    onChange={(e) => selectCategory(e.target.value as IngredientCategory)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none bg-white text-xs"
                   >
                     <option value="beverage_base">เบสเครื่องดื่ม</option>
@@ -251,33 +274,35 @@ export default function InventoryPage() {
                     <option value="sweetener">สารให้ความหวาน/น้ำเชื่อม</option>
                     <option value="grain">แป้ง/ผงชง</option>
                     <option value="produce">ผัก/ผลไม้</option>
+                    <option value="protein">เนื้อสัตว์/โปรตีน</option>
                     <option value="packaging">บรรจุภัณฑ์</option>
                     <option value="other">อื่น ๆ</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">หน่วยนับ (Unit)</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">หน่วยนับ</label>
                   <select
                     value={unit}
                     onChange={(e) => setUnit(e.target.value as IngredientUnit)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none bg-white text-xs"
                   >
-                    <option value="kg">กิโลกรัม (kg)</option>
-                    <option value="g">กรัม (g)</option>
-                    <option value="l">ลิตร (l)</option>
-                    <option value="ml">มิลลิลิตร (ml)</option>
-                    <option value="piece">ชิ้น (piece)</option>
-                    <option value="pack">แพ็ก (pack)</option>
-                    <option value="bottle">ขวด (bottle)</option>
+                    <option value="kg">กิโลกรัม</option>
+                    <option value="g">กรัม</option>
+                    <option value="l">ลิตร</option>
+                    <option value="ml">มิลลิลิตร</option>
+                    <option value="piece">ชิ้น</option>
+                    <option value="pack">แพ็ก</option>
+                    <option value="bottle">ขวด</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">สต็อกคงเหลือปัจจุบัน</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">จำนวนคงเหลือเริ่มต้น ({unitLabel[unit]})</label>
                   <input
                     type="number"
+                    min="0"
                     step="0.1"
                     required
                     placeholder="10"
@@ -286,40 +311,29 @@ export default function InventoryPage() {
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">จุดสั่งซื้อขั้นต่ำ (Safety)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    placeholder="2"
-                    value={minimumStock}
-                    onChange={(e) => setMinimumStock(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                  />
-                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">ต้นทุนเฉลี่ยต่อหน่วย (฿)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    placeholder="45.00"
-                    value={averageCost}
-                    onChange={(e) => setAverageCost(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">วันหมดอายุ (ถ้ามี)</label>
-                  <input
-                    type="date"
-                    value={expirationDate}
-                    onChange={(e) => setExpirationDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none text-xs"
-                  />
-                </div>
+              <div className="rounded-xl border border-gray-200">
+                <button type="button" aria-expanded={showAdvanced} onClick={() => setShowAdvanced((value) => !value)} className="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                  <span>ตั้งค่าเพิ่มเติม <span className="font-normal text-gray-500">(ไม่บังคับ)</span><span className="mt-0.5 block font-normal text-gray-500">ต้นทุนช่วยคำนวณมูลค่าสต็อกให้แม่นยำขึ้น</span></span>
+                  <ChevronDown size={16} className={`transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+                </button>
+                {showAdvanced && <div className="space-y-3 border-t border-gray-100 p-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">แจ้งเตือนเมื่อเหลือต่ำกว่า ({unitLabel[unit]})</label>
+                      <input type="number" min="0" step="0.1" placeholder="ไม่ตั้งค่า" value={minimumStock} onChange={(e) => setMinimumStock(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">ต้นทุนต่อหน่วย (บาท)</label>
+                      <input type="number" min="0" step="0.1" placeholder="ยังไม่ทราบ ข้ามได้" value={averageCost} onChange={(e) => setAverageCost(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">วันหมดอายุ (ถ้ามี)</label>
+                    <input type="date" value={expirationDate} onChange={(e) => setExpirationDate(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none text-xs" />
+                  </div>
+                </div>}
               </div>
 
               <div className="pt-2 flex justify-end gap-2">
