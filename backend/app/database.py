@@ -33,6 +33,10 @@ async_session_maker = sessionmaker(
 
 async def init_db():
     async with engine.begin() as conn:
+        # Render can start a replacement instance while the previous one is
+        # still serving traffic. Serialize schema setup so concurrent ALTERs
+        # do not deadlock on PostgreSQL relation locks.
+        await conn.execute(text("SELECT pg_advisory_xact_lock(73498241)"))
         await conn.run_sync(SQLModel.metadata.create_all)
         # Add tenant ownership to existing single-store installations without
         # requiring a destructive reset or a separate migration command.
