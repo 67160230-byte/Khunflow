@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.database import get_session
@@ -14,7 +14,7 @@ router = APIRouter(tags=["Operations & Business Logic"])
 @router.get("/forecast")
 async def forecast(days: int = 7, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
-    days = max(1, min(days, 14)); start = datetime.utcnow() - timedelta(days=30)
+    days = max(1, min(days, 14)); start = datetime.now(timezone.utc) - timedelta(days=30)
     orders = (await session.execute(select(Order).where(Order.business_id == current_user.business_id, Order.status == OrderStatus.COMPLETED, Order.created_at >= start))).scalars().all()
     lines = (await session.execute(select(OrderItem).where(OrderItem.order_id.in_([o.id for o in orders])))).scalars().all() if orders else []
     sold: dict[int, int] = {}
@@ -28,7 +28,7 @@ async def forecast(days: int = 7, current_user: User = Depends(get_current_user)
 async def purchase_recommendations(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
     items = (await session.execute(select(Ingredient).where(Ingredient.business_id == current_user.business_id))).scalars().all()
-    orders = (await session.execute(select(Order).where(Order.business_id == current_user.business_id, Order.status == OrderStatus.COMPLETED, Order.created_at >= datetime.utcnow() - timedelta(days=30)))).scalars().all()
+    orders = (await session.execute(select(Order).where(Order.business_id == current_user.business_id, Order.status == OrderStatus.COMPLETED, Order.created_at >= datetime.now(timezone.utc) - timedelta(days=30)))).scalars().all()
     lines = (await session.execute(select(OrderItem).where(OrderItem.order_id.in_([o.id for o in orders])))).scalars().all() if orders else []
     sold: dict[int, int] = {}
     for line in lines: sold[line.product_id] = sold.get(line.product_id, 0) + line.quantity
@@ -57,9 +57,10 @@ async def dashboard(days: int = 7, offset_days: int = 0, current_user: User = De
     offset_days = max(0, min(offset_days, 365))
     end = date.today() - timedelta(days=offset_days)
     start = end - timedelta(days=days - 1)
-    orders = (await session.execute(select(Order).where(Order.business_id == current_user.business_id, Order.status == OrderStatus.COMPLETED, Order.created_at >= datetime.combine(start, datetime.min.time())))).scalars().all()
+    start_at = datetime.combine(start, time.min, tzinfo=timezone.utc)
+    orders = (await session.execute(select(Order).where(Order.business_id == current_user.business_id, Order.status == OrderStatus.COMPLETED, Order.created_at >= start_at))).scalars().all()
     ingredients = (await session.execute(select(Ingredient).where(Ingredient.business_id == current_user.business_id))).scalars().all()
-    waste = (await session.execute(select(WasteRecord).where(WasteRecord.business_id == current_user.business_id, WasteRecord.created_at >= datetime.combine(start, datetime.min.time())))).scalars().all()
+    waste = (await session.execute(select(WasteRecord).where(WasteRecord.business_id == current_user.business_id, WasteRecord.created_at >= start_at))).scalars().all()
     products = {p.id: p for p in (await session.execute(select(Product).where(Product.business_id == current_user.business_id))).scalars().all()}
     lines = (await session.execute(select(OrderItem).where(OrderItem.order_id.in_([o.id for o in orders])))).scalars().all() if orders else []
     daily = {}
