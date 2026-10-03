@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import { dashboardService, analyticsService } from '@/services'
 import type { DashboardKPI, DashboardAlert, DailySales, FoodCostData } from '@/types'
-import { KPICard, AlertCard, Card, LoadingSpinner, SectionHeader } from '@/components/ui'
+import { Button, KPICard, AlertCard, Card, LoadingSpinner, SectionHeader } from '@/components/ui'
 
 // ── Date Formatter ────────────────────────────────────────────
 function shortDate(dateStr: string) {
@@ -124,23 +124,37 @@ export default function DashboardPage() {
   const [sales, setSales] = useState<DailySales[]>([])
   const [foodCost, setFoodCost] = useState<FoodCostData[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
+    let cancelled = false
     Promise.all([
       dashboardService.getKPI(),
       dashboardService.getAlerts(),
       dashboardService.getDailySales(),
       analyticsService.getFoodCostTrend(),
     ]).then(([k, a, s, f]) => {
+      if (cancelled) return
       setKpi(k)
       setAlerts(a)
       setSales(s)
       setFoodCost(f)
-      setLoading(false)
+    }).catch((error) => {
+      if (!cancelled) setLoadError(error instanceof Error ? error.message : 'โหลดข้อมูลแดชบอร์ดไม่สำเร็จ')
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
     })
+    return () => { cancelled = true }
   }, [])
 
   if (loading) return <LoadingSpinner />
+  if (loadError) return (
+    <div className="mx-auto max-w-xl p-6 text-center" role="alert">
+      <h2 className="text-lg font-semibold text-gray-900">โหลดแดชบอร์ดไม่สำเร็จ</h2>
+      <p className="mt-2 text-sm text-gray-600">{loadError}</p>
+      <Button className="mt-4" onClick={() => window.location.reload()}>ลองอีกครั้ง</Button>
+    </div>
+  )
 
   const today = new Date().toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
