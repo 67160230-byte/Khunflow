@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { dashboardService } from '@/services'
 import { Card, SectionHeader, KPICard } from '@/components/ui'
 import { FileText, Download, TrendingUp, Calendar, DollarSign } from 'lucide-react'
 
@@ -6,21 +7,19 @@ function formatBaht(n: number) {
   return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`
 }
 
-const reportRows = [
-  { date: '2026-08-22', revenue: 12450, foodCost: 4230, gross: 8220, waste: 320, orders: 38 },
-  { date: '2026-08-23', revenue: 11820, foodCost: 4010, gross: 7810, waste: 280, orders: 35 },
-  { date: '2026-08-24', revenue: 13100, foodCost: 4450, gross: 8650, waste: 390, orders: 41 },
-  { date: '2026-08-25', revenue: 9800,  foodCost: 3330, gross: 6470, waste: 260, orders: 29 },
-  { date: '2026-08-26', revenue: 10200, foodCost: 3470, gross: 6730, waste: 300, orders: 31 },
-  { date: '2026-08-27', revenue: 14300, foodCost: 4860, gross: 9440, waste: 430, orders: 45 },
-  { date: '2026-08-28', revenue: 13750, foodCost: 4680, gross: 9070, waste: 400, orders: 43 },
-]
-
-const PERIODS = ['สัปดาห์นี้ (7 วัน)', 'เดือนนี้ (สิงหาคม 2026)', 'เดือนที่แล้ว (กรกฎาคม 2026)']
+const PERIODS = ['7 วันล่าสุด', '31 วันล่าสุด', '31 วันก่อนหน้า']
 
 export default function ReportsPage() {
   const [period, setPeriod] = useState(0)
   const [downloading, setDownloading] = useState(false)
+  const [reportRows, setReportRows] = useState<Array<{ date: string; revenue: number; foodCost: number; gross: number; waste: number; orders: number }>>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setLoading(true)
+    dashboardService.getDailySales(period === 0 ? 7 : 31, period === 2 ? 31 : 0).then((data) => setReportRows(data.map((d) => ({ date: d.date, revenue: d.revenue, foodCost: d.foodCost, gross: d.grossProfit, waste: d.wasteValue, orders: d.orders })))).catch((e) => setError(e instanceof Error ? e.message : 'โหลดรายงานไม่สำเร็จ')).finally(() => setLoading(false))
+  }, [period])
 
   const totalRevenue = reportRows.reduce((s, r) => s + r.revenue, 0)
   const totalCost = reportRows.reduce((s, r) => s + r.foodCost, 0)
@@ -29,13 +28,9 @@ export default function ReportsPage() {
   const avgFoodCostPct = ((totalCost / totalRevenue) * 100).toFixed(1)
   const avgMarginPct = ((totalGross / totalRevenue) * 100).toFixed(1)
 
-  const handleDownload = () => {
-    setDownloading(true)
-    setTimeout(() => {
-      setDownloading(false)
-      alert('ดาวน์โหลดรายงาน PDF สำเร็จ (Phase 2 — เชื่อมต่อ Backend จริง)')
-    }, 800)
-  }
+  const handleDownload = () => { setDownloading(true); window.print(); setDownloading(false) }
+
+  if (loading) return <div className="p-8 text-center text-gray-500">กำลังโหลดรายงาน…</div>
 
   return (
     <div className="space-y-6">
@@ -49,10 +44,11 @@ export default function ReportsPage() {
             className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors disabled:opacity-60"
           >
             <Download size={16} />
-            {downloading ? 'กำลังสร้าง PDF...' : 'ดาวน์โหลด PDF'}
+            {downloading ? 'กำลังเปิดหน้าพิมพ์...' : 'พิมพ์ / บันทึก PDF'}
           </button>
         }
       />
+      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
       {/* Period Selector */}
       <div className="flex gap-2 flex-wrap">

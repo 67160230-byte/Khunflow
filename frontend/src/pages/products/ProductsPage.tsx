@@ -28,6 +28,7 @@ export default function ProductsPage() {
   const [filtered, setFiltered] = useState<Product[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -37,6 +38,7 @@ export default function ProductsPage() {
   const [foodCost, setFoodCost] = useState('')
   const [description, setDescription] = useState('')
   const [successToast, setSuccessToast] = useState(false)
+  const [formError, setFormError] = useState('')
 
   // Role Permission Check
   const currentUser = (() => {
@@ -55,7 +57,7 @@ export default function ProductsPage() {
       setProducts(data)
       setFiltered(data)
       setLoading(false)
-    })
+    }).catch((error) => { setLoadError(error instanceof Error ? error.message : 'โหลดสินค้าไม่สำเร็จ'); setLoading(false) })
   }, [])
 
   useEffect(() => {
@@ -65,29 +67,15 @@ export default function ProductsPage() {
     )
   }, [search, products])
 
-  const handleAddProduct = (e: React.FormEvent) => {
+  const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name || !sellingPrice) return
 
     const price = parseFloat(sellingPrice) || 0
     const cost = parseFloat(foodCost) || 0
-    const profit = price - cost
-    const margin = price > 0 ? (profit / price) * 100 : 0
-
-    const newProd: Product = {
-      id: `p${Date.now()}`,
-      name,
-      category,
-      sellingPrice: price,
-      foodCost: cost,
-      grossProfit: profit,
-      grossMargin: margin,
-      status: 'active',
-      description: description || undefined,
-      createdAt: new Date().toISOString(),
-    }
-
-    setProducts([newProd, ...products])
+    try {
+    const newProd = await productsService.create({ name, category, sellingPrice: price, foodCost: cost, description: description || undefined })
+    setProducts((current) => [newProd, ...current])
     setIsModalOpen(false)
     setName('')
     setSellingPrice('')
@@ -95,6 +83,7 @@ export default function ProductsPage() {
     setDescription('')
     setSuccessToast(true)
     setTimeout(() => setSuccessToast(false), 3000)
+    } catch (error) { setFormError(error instanceof Error ? error.message : 'บันทึกสินค้าไม่สำเร็จ') }
   }
 
   if (loading) return <LoadingSpinner />
@@ -113,12 +102,14 @@ export default function ProductsPage() {
           ) : undefined
         }
       />
+      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
 
       {successToast && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
           <Check size={16} /> เพิ่มสินค้าใหม่สำเร็จเรียบร้อย!
         </div>
       )}
+      {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{formError}</p>}
 
       {/* Search */}
       <div className="relative max-w-sm">

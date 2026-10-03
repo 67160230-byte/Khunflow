@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import date, datetime
 from app.models import UserRole, ProductCategory, IngredientUnit, OrderStatus
@@ -20,9 +20,10 @@ class ChangePasswordRequest(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8, max_length=72)
     full_name: str
     role: UserRole = UserRole.CASHIER
+    business_name: Optional[str] = None
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -48,13 +49,14 @@ class ProductCreate(BaseModel):
     name: str
     category: ProductCategory
     selling_price: float
+    food_cost: float = 0.0
     description: Optional[str] = None
 
 class RecipeItemCreate(BaseModel):
     ingredient_id: int
     quantity: float
     unit: IngredientUnit
-    unit_cost: float
+    unit_cost: float = 0.0
 
 class RecipeCreate(BaseModel):
     product_id: int
@@ -71,8 +73,12 @@ class IngredientCreate(BaseModel):
     supplier_id: Optional[int] = None
     expiration_date: Optional[date] = None
 
+class IngredientUpdate(BaseModel):
+    expiration_date: Optional[date] = None
+
 class GoodsReceivingCreate(BaseModel):
     supplier_id: int
+    purchase_order_id: Optional[int] = None
     ingredient_id: int
     quantity: float
     unit_cost: float

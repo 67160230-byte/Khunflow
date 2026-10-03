@@ -1,14 +1,12 @@
 import { useState } from 'react'
+import { useEffect } from 'react'
+import { usersService, businessService } from '@/services'
 import { Card, Button, Badge, SectionHeader } from '@/components/ui'
 import { Users, Plus, Check, Save, X, Building2 } from 'lucide-react'
 
 export function UsersPage() {
-  const [usersList, setUsersList] = useState([
-    { id: '1', name: 'สมชาย เจ้าของร้าน', email: 'owner@khumflow.app', role: 'เจ้าของร้าน (Owner)', roleBadge: 'purple', status: 'active' },
-    { id: '2', name: 'วิภาดา ผู้จัดการ', email: 'manager@khumflow.app', role: 'ผู้จัดการ (Manager)', roleBadge: 'blue', status: 'active' },
-    { id: '3', name: 'สมหมาย พนักงานสต็อก', email: 'stock@khumflow.app', role: 'พนักงานคลัง (Staff)', roleBadge: 'amber', status: 'active' },
-    { id: '4', name: 'สมปอง พนักงานแคชเชียร์', email: 'cashier@khumflow.app', role: 'แคชเชียร์ (Cashier)', roleBadge: 'green', status: 'active' },
-  ])
+  const [usersList, setUsersList] = useState<any[]>([])
+  const [loadError, setLoadError] = useState('')
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [newName, setNewName] = useState('')
@@ -16,20 +14,15 @@ export function UsersPage() {
   const [newRole, setNewRole] = useState('แคชเชียร์ (Cashier)')
   const [newPassword, setNewPassword] = useState('')
 
-  const handleAddUser = (e: React.FormEvent) => {
+  useEffect(() => { usersService.getAll().then(setUsersList).catch((error) => setLoadError(error instanceof Error ? error.message : 'โหลดรายชื่อไม่สำเร็จ')) }, [])
+
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newName || !newEmail) return
 
-    const newUser = {
-      id: String(Date.now()),
-      name: newName,
-      email: newEmail,
-      role: newRole,
-      roleBadge: newRole.includes('Owner') ? 'purple' : newRole.includes('Manager') ? 'blue' : newRole.includes('Staff') ? 'amber' : 'green',
-      status: 'active'
-    }
-
-    setUsersList([...usersList, newUser])
+    const role = newRole.includes('Owner') ? 'owner' : newRole.includes('Manager') ? 'manager' : newRole.includes('Staff') ? 'inventory_staff' : 'cashier'
+    try { await usersService.create({ name: newName, email: newEmail, password: newPassword, role }); setUsersList(await usersService.getAll()) }
+    catch (error) { setLoadError(error instanceof Error ? error.message : 'เพิ่มผู้ใช้ไม่สำเร็จ'); return }
     setIsModalOpen(false)
     setNewName('')
     setNewEmail('')
@@ -47,6 +40,7 @@ export function UsersPage() {
           </Button>
         }
       />
+      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
 
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
@@ -168,13 +162,15 @@ export function BusinessInfoPage() {
   const [currency, setCurrency] = useState(() => localStorage.getItem('khumflow_currency') || 'THB')
   const [timezone, setTimezone] = useState(() => localStorage.getItem('khumflow_timezone') || 'Asia/Bangkok')
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => { businessService.get().then((business) => { setStoreName(business.name); setBusinessType(business.business_type); setCurrency(business.currency); setTimezone(business.timezone || 'Asia/Bangkok') }).catch((e) => setError(e instanceof Error ? e.message : 'โหลดข้อมูลร้านไม่สำเร็จ')) }, [])
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    localStorage.setItem('khumflow_store_name', storeName)
-    localStorage.setItem('khumflow_business_type', businessType)
-    localStorage.setItem('khumflow_currency', currency)
-    localStorage.setItem('khumflow_timezone', timezone)
+    setError('')
+    try { await businessService.update({ name: storeName, businessType, currency, timezone }) }
+    catch (e) { setError(e instanceof Error ? e.message : 'บันทึกข้อมูลร้านไม่สำเร็จ'); return }
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
@@ -185,6 +181,7 @@ export function BusinessInfoPage() {
         title="ข้อมูลธุรกิจ & สกุลเงิน (Business Profile)"
         subtitle="ตั้งค่าข้อมูลร้านอาหาร สกุลเงินหลัก และเขตเวลาที่ใช้งาน"
       />
+      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       <Card className="p-6 max-w-2xl">
         <form onSubmit={handleSave} className="space-y-4 text-sm">
           <div>

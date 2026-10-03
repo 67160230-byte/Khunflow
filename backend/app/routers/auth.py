@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 from typing import List
 from app.database import get_session
-from app.models import User, Business, UserRole
+from app.models import User, Business, UserRole, PasswordReset, AuditLog
 from app.schemas import (
     LoginRequest, Token, UserCreate, UserResponse,
     ChangePasswordRequest, UserUpdate, PaginatedUsers
@@ -11,6 +11,8 @@ from app.schemas import (
 from app.services.auth_service import (
     verify_password, get_password_hash, create_access_token, get_current_user
 )
+from app.config import settings
+from app.services.auth_service import log_activity
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -22,30 +24,6 @@ async def login(req: LoginRequest, session: AsyncSession = Depends(get_session))
     stmt = select(User).where(User.email == email_clean)
     res = await session.execute(stmt)
     user = res.scalar_one_or_none()
-
-    # Auto-seed default accounts on demand if no users exist in database
-    if not user:
-        all_users_stmt = select(User)
-        any_user = (await session.execute(all_users_stmt)).scalars().first()
-        if not any_user:
-            biz_stmt = select(Business)
-            biz = (await session.execute(biz_stmt)).scalars().first()
-            if not biz:
-                biz = Business(name="KhumFlow Cafe & Bakery", business_type="cafe", currency="THB")
-                session.add(biz)
-                await session.flush()
-
-            default_users = [
-                User(email="admin@khumflow.app", hashed_password=get_password_hash("admin1234"), full_name="สมชาย เจ้าของร้าน", role=UserRole.OWNER, business_id=biz.id, is_active=True),
-                User(email="manager@khumflow.app", hashed_password=get_password_hash("manager1234"), full_name="วิภาดา ผู้จัดการ", role=UserRole.MANAGER, business_id=biz.id, is_active=True),
-                User(email="stock@khumflow.app", hashed_password=get_password_hash("stock1234"), full_name="สมหมาย พนักงานสต็อก", role=UserRole.INVENTORY_STAFF, business_id=biz.id, is_active=True),
-                User(email="cashier@khumflow.app", hashed_password=get_password_hash("cashier1234"), full_name="สมปอง พนักงานแคชเชียร์", role=UserRole.CASHIER, business_id=biz.id, is_active=True),
-            ]
-            for u in default_users:
-                session.add(u)
-            await session.commit()
-
-            user = (await session.execute(select(User).where(User.email == email_clean))).scalar_one_or_none()
 
     if not user or not verify_password(req.password, user.hashed_password):
         raise HTTPException(
@@ -91,18 +69,15 @@ async def register(req: UserCreate, session: AsyncSession = Depends(get_session)
     if res.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="อีเมลนี้มีในระบบแล้ว")
 
-    biz_stmt = select(Business)
-    biz = (await session.execute(biz_stmt)).scalars().first()
-    if not biz:
-        biz = Business(name="KhumFlow Store", business_type="cafe", currency="THB")
-        session.add(biz)
-        await session.flush()
+    biz = Business(name=(req.business_name or "ร้านใหม่").strip(), business_type="cafe", currency="THB")
+    session.add(biz)
+    await session.flush()
 
     user = User(
         email=email_clean,
         hashed_password=get_password_hash(req.password),
         full_name=req.full_name,
-        role=req.role or UserRole.OWNER,
+        role=UserRole.OWNER,
         business_id=biz.id,
         is_active=True
     )
@@ -124,10 +99,10 @@ async def change_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="รหัสผ่านเดิมไม่ถูกต้อง"
         )
-    if len(req.new_password) < 6:
+    if len(req.new_password) < 8 or len(req.new_password) > 72:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร"
+            detail="รหัสผ่านใหม่ต้องมี 8–72 ตัวอักษร"
         )
     current_user.hashed_password = get_password_hash(req.new_password)
     session.add(current_user)
@@ -183,8 +158,8 @@ async def list_users(
             detail="เฉพาะ Owner และ Manager เท่านั้นที่ดูรายชื่อ user ทั้งหมดได้"
         )
 
-    stmt = select(User)
-    count_stmt = select(func.count(User.id))
+    stmt = select(User).where(User.business_id == current_user.business_id)
+    count_stmt = select(func.count(User.id)).where(User.business_id == current_user.business_id)
 
     if role:
         try:
@@ -219,10 +194,34 @@ async def get_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="ไม่มีสิทธิ์ดูข้อมูลผู้ใช้รายอื่น"
         )
-    user = (await session.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    user = (await session.execute(select(User).where(User.id == user_id, User.business_id == current_user.business_id))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail=f"ไม่พบ user id={user_id}")
     return user
+
+@router.post("/users", response_model=UserResponse, summary="เพิ่มพนักงานในร้าน")
+async def create_employee(req: UserCreate, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    if current_user.role not in (UserRole.OWNER, UserRole.MANAGER):
+        raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์เพิ่มพนักงาน")
+    if req.role == UserRole.OWNER and current_user.role != UserRole.OWNER:
+        raise HTTPException(status_code=403, detail="เฉพาะเจ้าของร้านเท่านั้นที่เพิ่ม Owner ได้")
+    email = str(req.email).strip().lower()
+    if (await session.execute(select(User).where(User.email == email))).scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="อีเมลนี้มีในระบบแล้ว")
+    user = User(email=email, hashed_password=get_password_hash(req.password), full_name=req.full_name.strip(), role=req.role, business_id=current_user.business_id, is_active=True)
+    session.add(user); await session.flush(); log_activity(session, current_user, "create", "user", user.id, f"{user.full_name} ({user.role.value})"); await session.commit(); await session.refresh(user)
+    return user
+
+@router.get("/audit-logs")
+async def list_audit_logs(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    if current_user.role not in (UserRole.OWNER, UserRole.MANAGER):
+        raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์ดูประวัติกิจกรรม")
+    records = (await session.execute(select(AuditLog).where(AuditLog.business_id == current_user.business_id).order_by(AuditLog.created_at.desc()).limit(200))).scalars().all()
+    result = []
+    for record in records:
+        user = (await session.execute(select(User).where(User.id == record.actor_id))).scalar_one_or_none() if record.actor_id else None
+        result.append({"id": record.id, "created_at": record.created_at, "user": user.full_name if user else "ระบบ", "action": record.action, "type": record.entity_type, "entity_id": record.entity_id, "detail": record.detail})
+    return result
 
 
 # ── PUT /auth/users/{id} ──────────────────────────────────────────
@@ -240,7 +239,7 @@ async def update_user(
             detail="ไม่มีสิทธิ์แก้ไขข้อมูลผู้ใช้รายอื่น"
         )
 
-    user = (await session.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    user = (await session.execute(select(User).where(User.id == user_id, User.business_id == current_user.business_id))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail=f"ไม่พบ user id={user_id}")
 
@@ -288,7 +287,7 @@ async def delete_user(
             detail="ไม่สามารถลบบัญชีของตัวเองได้"
         )
 
-    user = (await session.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    user = (await session.execute(select(User).where(User.id == user_id, User.business_id == current_user.business_id))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail=f"ไม่พบ user id={user_id}")
     await session.delete(user)
@@ -296,12 +295,12 @@ async def delete_user(
     return {"message": f"ลบ user '{user.full_name}' ({user.email}) สำเร็จแล้ว ✅"}
 
 
-# ── In-Memory Reset Token Store (demo-safe, resets on server restart) ──
+# ── Persistent, one-time password reset tokens ──────────────────────
 import secrets
+import hashlib
 from datetime import datetime, timedelta
 from app.services.email_service import send_password_reset_email
 
-_reset_tokens: dict[str, dict] = {}   # { token: { email, expires_at } }
 
 
 # ── POST /auth/forgot-password ────────────────────────────────────
@@ -324,13 +323,17 @@ async def forgot_password(
     if not user:
         return {
             "message": "หากอีเมลนี้ลงทะเบียนไว้ในระบบ ลิงก์รีเซ็ตรหัสผ่านจะถูกส่งไปยังอีเมลของคุณ",
-            "demo_note": "ไม่พบ email นี้ในระบบ กรุณาตรวจสอบ"
+            "email_sent": False
         }
 
-    # สร้าง token 6 หลัก (อายุ 15 นาที)
-    token = secrets.token_hex(3).upper()   # เช่น "A3F7C2"
+    # ใช้ token แบบสุ่ม 256 บิต เพื่อป้องกันการเดารหัส
+    token = secrets.token_hex(32).upper()
     expires_at = datetime.utcnow() + timedelta(minutes=15)
-    _reset_tokens[token] = {"email": email, "expires_at": expires_at}
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    old_tokens = (await session.execute(select(PasswordReset).where(PasswordReset.email == email))).scalars().all()
+    for old_token in old_tokens: await session.delete(old_token)
+    session.add(PasswordReset(token_hash=token_hash, email=email, expires_at=expires_at))
+    await session.commit()
 
     # ส่งอีเมลหาผู้ใช้จริง (หากตั้งค่า SMTP ใน Environment Variables)
     email_sent = await send_password_reset_email(
@@ -339,13 +342,7 @@ async def forgot_password(
         user_name=user.full_name
     )
 
-    return {
-        "message": "ส่งลิงก์ตั้งรหัสผ่านใหม่ไปยังอีเมลของคุณเรียบร้อยแล้ว 📧 กรุณาตรวจสอบกล่องข้อความ",
-        "email_sent": email_sent,
-        "reset_token": token,   # Backup token สำหรับกรณีที่ไม่ได้เปิด SMTP Server
-        "reset_url": f"https://khunflow.vercel.app/login?reset_token={token}&email={email}",
-        "expires_in_minutes": 15
-    }
+    return {"message": "หากอีเมลนี้ลงทะเบียนไว้ ระบบจะส่งรหัสสำหรับตั้งรหัสผ่านใหม่ให้ภายในไม่กี่นาที", "email_sent": email_sent, "expires_in_minutes": 15}
 
 
 # ── POST /auth/reset-password ─────────────────────────────────────
@@ -360,21 +357,22 @@ async def reset_password(
     if not token or not new_password:
         raise HTTPException(status_code=422, detail="กรุณาระบุ token และรหัสผ่านใหม่")
 
-    if len(new_password) < 6:
+    if len(new_password) < 8 or len(new_password) > 72:
         raise HTTPException(
             status_code=422,
-            detail="รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร"
+            detail="รหัสผ่านใหม่ต้องมี 8–72 ตัวอักษร"
         )
 
-    record = _reset_tokens.get(token)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    record = (await session.execute(select(PasswordReset).where(PasswordReset.token_hash == token_hash))).scalar_one_or_none()
     if not record:
         raise HTTPException(status_code=400, detail="Token ไม่ถูกต้องหรือไม่มีในระบบ")
 
-    if datetime.utcnow() > record["expires_at"]:
-        _reset_tokens.pop(token, None)
+    if datetime.utcnow() > record.expires_at:
+        await session.delete(record); await session.commit()
         raise HTTPException(status_code=400, detail="Token หมดอายุแล้ว กรุณาขอ token ใหม่")
 
-    email = record["email"]
+    email = record.email
     user = (await session.execute(
         select(User).where(User.email == email)
     )).scalar_one_or_none()
@@ -384,8 +382,8 @@ async def reset_password(
 
     user.hashed_password = get_password_hash(new_password)
     session.add(user)
+    await session.delete(record)
     await session.commit()
-    _reset_tokens.pop(token, None)   # ใช้ token ได้ครั้งเดียว
 
     return {"message": f"รีเซ็ตรหัสผ่านสำเร็จ! ✅ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่"}
 
@@ -394,6 +392,8 @@ async def reset_password(
 import os
 from fastapi.responses import RedirectResponse
 import httpx
+from jose import jwt as jose_jwt, JWTError
+from urllib.parse import urlencode
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
@@ -410,14 +410,10 @@ async def google_login():
             detail="Google OAuth ยังไม่ได้ตั้งค่า กรุณาตั้งค่า GOOGLE_CLIENT_ID ใน Environment Variables"
         )
     scope = "openid email profile"
+    state = create_access_token({"purpose": "google_oauth", "nonce": secrets.token_urlsafe(18)}, timedelta(minutes=5))
     google_auth_url = (
         "https://accounts.google.com/o/oauth2/v2/auth"
-        f"?client_id={GOOGLE_CLIENT_ID}"
-        f"&redirect_uri={GOOGLE_REDIRECT_URI}"
-        f"&response_type=code"
-        f"&scope={scope}"
-        f"&access_type=offline"
-        f"&prompt=select_account"
+        + "?" + urlencode({"client_id": GOOGLE_CLIENT_ID, "redirect_uri": GOOGLE_REDIRECT_URI, "response_type": "code", "scope": scope, "access_type": "offline", "prompt": "select_account", "state": state})
     )
     return RedirectResponse(url=google_auth_url)
 
@@ -425,11 +421,18 @@ async def google_login():
 @router.get("/google/callback", summary="Google OAuth Callback")
 async def google_callback(
     code: str,
+    state: str,
     session: AsyncSession = Depends(get_session)
 ):
     """รับ code จาก Google แล้วแลก token และ login/register user อัตโนมัติ"""
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         raise HTTPException(status_code=503, detail="Google OAuth ยังไม่ได้ตั้งค่า")
+    try:
+        state_payload = jose_jwt.decode(state, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        if state_payload.get("purpose") != "google_oauth" or not state_payload.get("nonce"):
+            raise ValueError("Invalid OAuth state")
+    except (JWTError, ValueError):
+        raise HTTPException(status_code=400, detail="Google sign-in request expired or invalid; please try again")
 
     # Step 1: แลก code → access_token จาก Google
     async with httpx.AsyncClient() as client:
@@ -459,6 +462,8 @@ async def google_callback(
 
     if not google_email:
         raise HTTPException(status_code=400, detail="ไม่สามารถดึง email จาก Google ได้")
+    if userinfo.get("email_verified") is not True:
+        raise HTTPException(status_code=403, detail="Google account email is not verified")
 
     # Step 3: หา user ในระบบ หรือสร้างใหม่
     user = (await session.execute(
@@ -467,11 +472,9 @@ async def google_callback(
 
     if not user:
         # Auto-register จาก Google account
-        biz = (await session.execute(select(Business))).scalars().first()
-        if not biz:
-            biz = Business(name="KhumFlow Store", business_type="cafe", currency="THB")
-            session.add(biz)
-            await session.flush()
+        biz = Business(name=f"{google_name} · KhumFlow", business_type="cafe", currency="THB")
+        session.add(biz)
+        await session.flush()
 
         user = User(
             email=google_email,

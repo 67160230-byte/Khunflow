@@ -20,6 +20,7 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [cartItems, setCartItems] = useState<OrderCartItem[]>([])
 
@@ -33,6 +34,7 @@ export default function OrdersPage() {
   const [saveToCatalog, setSaveToCatalog] = useState(true)
   const [customCategory, setCustomCategory] = useState<ProductCategory>('beverage')
   const [toastMessage, setToastMessage] = useState('')
+  const [actionError, setActionError] = useState('')
 
   // Get current user role from localStorage
   const currentUser = (() => {
@@ -52,7 +54,7 @@ export default function OrdersPage() {
       setOrders(o)
       setProducts(p)
       setLoading(false)
-    })
+    }).catch((error) => { setLoadError(error instanceof Error ? error.message : 'โหลดออเดอร์ไม่สำเร็จ'); setLoading(false) })
   }, [])
 
   const handleAddPresetItem = (p: Product) => {
@@ -84,24 +86,7 @@ export default function OrdersPage() {
 
     setCartItems((prev) => [...prev, newCartItem])
 
-    // If Admin/Manager wants to also save it permanently to products catalog
-    if (saveToCatalog && canAddCustomMenu) {
-      const foodCost = price * 0.3
-      const newProd: Product = {
-        id: `p${Date.now()}`,
-        name: customName,
-        category: customCategory,
-        sellingPrice: price,
-        foodCost,
-        grossProfit: price - foodCost,
-        grossMargin: 70,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-      }
-      setProducts((prev) => [...prev, newProd])
-      setToastMessage(`เพิ่มเมนู "${customName}" เข้าเมนูร้านแล้ว`)
-      setTimeout(() => setToastMessage(''), 3000)
-    }
+    setToastMessage('เมนูใหม่จะถูกเพิ่มในรายการสินค้าเมื่อบันทึกออเดอร์')
 
     setCustomName('')
     setCustomPrice('')
@@ -116,26 +101,22 @@ export default function OrdersPage() {
     return cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
   }
 
-  const handleCreateOrder = () => {
+  const handleCreateOrder = async () => {
     if (cartItems.length === 0) return
-    const newOrder: Order = {
-      id: `o${orders.length + 1}`,
-      date: new Date().toISOString(),
-      items: cartItems.map((it) => ({
-        productId: it.id,
-        productName: it.name,
-        quantity: it.quantity,
-        unitPrice: it.price,
-        subtotal: it.price * it.quantity,
-      })),
-      total: calculateTotal(),
-      status: 'completed',
-      staffId: 'u1',
-      staffName: currentUser?.user_name || 'สมชาย เจ้าของร้าน',
-    }
-    setOrders([newOrder, ...orders])
+    try {
+    const persistedItems = await Promise.all(cartItems.map(async (item) => {
+      if (!item.isCustom) return { productId: item.id, quantity: item.quantity }
+      if (!canAddCustomMenu) throw new Error('เมนูพิเศษต้องให้เจ้าของร้านหรือผู้จัดการเพิ่มลงในรายการสินค้าก่อน')
+      const created = await productsService.create({ name: item.name, category: customCategory, sellingPrice: item.price, foodCost: 0 })
+      setProducts((current) => [...current, created])
+      return { productId: created.id, quantity: item.quantity }
+    }))
+    await ordersService.create(persistedItems)
+    const refreshedOrders = await ordersService.getAll()
+    setOrders(refreshedOrders)
     setCartItems([])
     setModalOpen(false)
+    } catch (error) { setActionError(error instanceof Error ? error.message : 'บันทึกออเดอร์ไม่สำเร็จ') }
   }
 
   if (loading) return <LoadingSpinner />
@@ -153,6 +134,8 @@ export default function OrdersPage() {
           </Button>
         }
       />
+      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
+      {actionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -337,15 +320,7 @@ export default function OrdersPage() {
                     </div>
 
                     <div className="flex items-center justify-between pt-1">
-                      <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={saveToCatalog}
-                          onChange={(e) => setSaveToCatalog(e.target.checked)}
-                          className="rounded text-green-600 focus:ring-green-500"
-                        />
-                        <span>บันทึกเป็นเมนูถาวรในร้านด้วย</span>
-                      </label>
+                      <p className="text-[11px] text-gray-500">เมนูใหม่จะถูกบันทึกในรายการสินค้าเมื่อยืนยันออเดอร์</p>
                       <Button type="submit" size="sm" className="text-xs py-1.5">
                         + เพิ่มลงออเดอร์
                       </Button>

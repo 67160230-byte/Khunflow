@@ -1,4 +1,6 @@
-import { Card, SectionHeader, Badge } from '@/components/ui'
+import { useEffect, useState } from 'react'
+import { activityService } from '@/services'
+import { Card, SectionHeader, Badge, LoadingSpinner } from '@/components/ui'
 import { History, User, ShoppingCart, Package, Warehouse, ClipboardList } from 'lucide-react'
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -9,19 +11,6 @@ const iconMap: Record<string, React.ReactNode> = {
   product: <Package size={14} className="text-gray-600" />,
 }
 
-const logs = [
-  { id: '1', ts: '2026-08-29T00:48:12', user: 'สมชาย เจ้าของร้าน', action: 'สร้างออเดอร์ #o4', type: 'order', detail: 'ลาเต้ × 2, ชาไทย × 1 — ฿220' },
-  { id: '2', ts: '2026-08-29T00:42:05', user: 'วิภาดา ผู้จัดการ', action: 'บันทึกผลตรวจนับสต็อก', type: 'stock_count', detail: 'พบส่วนต่าง เมล็ดกาแฟ Arabica -0.2 kg' },
-  { id: '3', ts: '2026-08-29T00:30:00', user: 'สมหมาย พนักงานสต็อก', action: 'รับสินค้าเข้าคลัง', type: 'inventory', detail: 'นมสด LOT-260828 จำนวน 20 ลิตร' },
-  { id: '4', ts: '2026-08-28T18:15:33', user: 'วิภาดา ผู้จัดการ', action: 'เพิ่มสินค้าใหม่', type: 'product', detail: 'สินค้า: ลาเต้ บราวน์ชูการ์ (ราคา ฿85)' },
-  { id: '5', ts: '2026-08-28T17:00:00', user: 'สมชาย เจ้าของร้าน', action: 'เพิ่มผู้ใช้งานใหม่', type: 'user', detail: 'สมปอง พนักงานแคชเชียร์ (Role: Cashier)' },
-  { id: '6', ts: '2026-08-28T14:20:00', user: 'สมหมาย พนักงานสต็อก', action: 'รับสินค้าเข้าคลัง', type: 'inventory', detail: 'เมล็ดกาแฟ Arabica LOT-20260828-01 จำนวน 5 kg' },
-  { id: '7', ts: '2026-08-28T12:05:11', user: 'สมปอง พนักงานแคชเชียร์', action: 'สร้างออเดอร์ #o3', type: 'order', detail: 'อเมริกาโน่ × 3 — ฿195' },
-  { id: '8', ts: '2026-08-28T10:00:00', user: 'สมหมาย พนักงานสต็อก', action: 'บันทึกของเสีย', type: 'inventory', detail: 'นมสด 1.5 ลิตร — สาเหตุ: หมดอายุ (฿67.50)' },
-  { id: '9', ts: '2026-08-27T17:30:00', user: 'วิภาดา ผู้จัดการ', action: 'อัปเดตสูตรอาหาร', type: 'product', detail: 'มัทฉะลาเต้ — ปรับสัดส่วนผงมัทฉะ 18g → 20g' },
-  { id: '10', ts: '2026-08-27T09:00:00', user: 'สมชาย เจ้าของร้าน', action: 'เข้าสู่ระบบ', type: 'user', detail: 'จาก IP 192.168.3.10' },
-]
-
 const typeLabel: Record<string, { label: string; variant: 'success' | 'info' | 'warning' | 'neutral' | 'danger' }> = {
   order: { label: 'ออเดอร์', variant: 'success' },
   inventory: { label: 'คลังสินค้า', variant: 'info' },
@@ -31,12 +20,18 @@ const typeLabel: Record<string, { label: string; variant: 'success' | 'info' | '
 }
 
 export default function AuditPage() {
+  const [logs, setLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  useEffect(() => { activityService.getAll().then(setLogs).catch((e) => setError(e instanceof Error ? e.message : 'โหลดประวัติไม่สำเร็จ')).finally(() => setLoading(false)) }, [])
+  if (loading) return <LoadingSpinner />
   return (
     <div className="space-y-6">
       <SectionHeader
         title="ประวัติการใช้งาน (Audit Logs)"
         subtitle="บันทึกกิจกรรมทั้งหมดในระบบ KhumFlow สำหรับตรวจสอบย้อนหลัง"
       />
+      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
       <Card className="overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
@@ -56,7 +51,7 @@ export default function AuditPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {logs.map((log) => {
+              {logs.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">ยังไม่มีกิจกรรมให้แสดง</td></tr> : logs.map((log) => {
                 const t = new Date(log.ts)
                 const tp = typeLabel[log.type] ?? { label: log.type, variant: 'neutral' as const }
                 return (

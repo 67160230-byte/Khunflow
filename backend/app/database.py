@@ -3,6 +3,7 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
+from sqlalchemy import text
 from app.config import settings
 
 def get_async_database_url() -> str:
@@ -33,6 +34,14 @@ async_session_maker = sessionmaker(
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+        # Add tenant ownership to existing single-store installations without
+        # requiring a destructive reset or a separate migration command.
+        for table in ("suppliers", "ingredients", "products", "recipes", "orders", "waste_records", "stock_counts", "purchase_orders", "goods_receivings"):
+            await conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS business_id INTEGER REFERENCES businesses(id)'))
+            await conn.execute(text(f'CREATE INDEX IF NOT EXISTS "ix_{table}_business_id" ON "{table}" (business_id)'))
+            await conn.execute(text(f'UPDATE "{table}" SET business_id = (SELECT id FROM businesses ORDER BY id LIMIT 1) WHERE business_id IS NULL'))
+        await conn.execute(text('ALTER TABLE goods_receivings ADD COLUMN IF NOT EXISTS purchase_order_id INTEGER REFERENCES purchase_orders(id)'))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS timezone VARCHAR NOT NULL DEFAULT 'Asia/Bangkok'"))
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_maker() as session:

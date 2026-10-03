@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "KhumFlow API"
@@ -35,6 +35,12 @@ class Settings(BaseSettings):
             elif v.startswith("postgresql://") and not v.startswith("postgresql+asyncpg://"):
                 v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self):
+        if self.ENVIRONMENT.lower() == "production" and (len(self.JWT_SECRET) < 32 or "change_in_production" in self.JWT_SECRET or self.JWT_SECRET.startswith("change_me")):
+            raise ValueError("Production requires a unique JWT_SECRET with at least 32 characters")
+        return self
 
     class Config:
         env_file = ".env"

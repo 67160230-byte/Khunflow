@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { forecastService, recommendationsService } from '@/services'
+import { forecastService, recommendationsService, purchaseOrdersService, inventoryService } from '@/services'
 import type { ForecastData, PurchaseRecommendation } from '@/types'
 import { Card, Button, Badge, LoadingSpinner, SectionHeader, KPICard } from '@/components/ui'
 import { Brain, ShoppingCart, Sparkles, TrendingUp, CheckCircle, Package } from 'lucide-react'
@@ -28,17 +28,25 @@ export default function ForecastPage() {
   const [recommendations, setRecommendations] = useState<PurchaseRecommendation[]>([])
   const [loading, setLoading] = useState(true)
   const [orderedItems, setOrderedItems] = useState<Record<string, boolean>>({})
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     Promise.all([forecastService.getAll(), recommendationsService.getAll()]).then(([f, r]) => {
       setForecasts(f)
       setRecommendations(r)
       setLoading(false)
-    })
+    }).catch((error) => { setLoadError(error instanceof Error ? error.message : 'โหลดข้อมูลคาดการณ์ไม่สำเร็จ'); setLoading(false) })
   }, [])
 
-  const handleCreatePO = (ingredientId: string) => {
-    setOrderedItems((prev) => ({ ...prev, [ingredientId]: true }))
+  const handleCreatePO = async (ingredientId: string) => {
+    const rec = recommendations.find((item) => item.ingredientId === ingredientId)
+    if (!rec?.supplierId) return
+    try {
+      const ingredient = (await inventoryService.getAll()).find((item) => item.id === ingredientId)
+      if (!ingredient) throw new Error('ไม่พบวัตถุดิบในคลัง')
+      await purchaseOrdersService.create(rec.supplierId, [{ ingredientId, quantity: rec.recommendedOrder, unitCost: ingredient.averageCost }])
+      setOrderedItems((prev) => ({ ...prev, [ingredientId]: true }))
+    } catch { setOrderedItems((prev) => ({ ...prev, [`error-${ingredientId}`]: true })) }
   }
 
   if (loading) return <LoadingSpinner />
@@ -61,9 +69,10 @@ export default function ForecastPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="คาดการณ์ยอดขาย & คำแนะนำสั่งซื้อ (AI Forecast)"
-        subtitle="วิเคราะห์แนวโน้มยอดขายล่วงหน้า 7 วัน และคำนวณปริมาณวัตถุดิบที่ต้องสั่งซื้อป้องกันของขาด"
+        title="คาดการณ์ยอดขาย & คำแนะนำสั่งซื้อ"
+        subtitle="ใช้ยอดขายเฉลี่ย 30 วันล่าสุดเพื่อประมาณการสัปดาห์หน้าและแนะนำปริมาณสั่งซื้อ"
       />
+      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
 
       {/* KPI Top Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -82,9 +91,9 @@ export default function ForecastPage() {
           iconBg="bg-green-100"
         />
         <KPICard
-          title="ความแม่นยำโมเดล AI"
-          value="85.4%"
-          subtitle="อ้างอิงข้อมูลยอดขายย้อนหลัง 30 วัน"
+          title="ข้อมูลย้อนหลังที่ใช้คำนวณ"
+          value="30 วัน"
+          subtitle="คำนวณจากยอดขายจริงในระบบ"
           icon={<TrendingUp size={20} className="text-blue-600" />}
           iconBg="bg-blue-100"
         />
@@ -99,7 +108,7 @@ export default function ForecastPage() {
               การคาดการณ์ยอดจำหน่ายเมนูยอดนิยม (7 วันข้างหน้า)
             </h3>
           </div>
-          <Badge variant="info">AI Predictive Model</Badge>
+          <Badge variant="info">ประมาณการจากยอดขายจริง</Badge>
         </div>
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -173,9 +182,10 @@ export default function ForecastPage() {
                           size="sm"
                           variant="secondary"
                           onClick={() => handleCreatePO(rec.ingredientId)}
+                          disabled={!rec.supplierId || orderedItems[`error-${rec.ingredientId}`]}
                           className="text-xs py-1"
                         >
-                          <ShoppingCart size={14} /> ออกใบสั่งซื้อ (PO)
+                          <ShoppingCart size={14} /> {orderedItems[`error-${rec.ingredientId}`] ? 'ออกใบสั่งซื้อไม่สำเร็จ' : rec.supplierId ? 'ออกใบสั่งซื้อ (PO)' : 'เพิ่มซัพพลายเออร์ก่อน'}
                         </Button>
                       )}
                     </td>

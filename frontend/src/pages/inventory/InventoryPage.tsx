@@ -37,6 +37,7 @@ export default function InventoryPage() {
   const [filtered, setFiltered] = useState<Ingredient[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -48,13 +49,14 @@ export default function InventoryPage() {
   const [averageCost, setAverageCost] = useState('')
   const [expirationDate, setExpirationDate] = useState('')
   const [successToast, setSuccessToast] = useState(false)
+  const [formError, setFormError] = useState('')
 
   useEffect(() => {
     inventoryService.getAll().then((data) => {
       setIngredients(data)
       setFiltered(data)
       setLoading(false)
-    })
+    }).catch((error) => { setLoadError(error instanceof Error ? error.message : 'โหลดคลังวัตถุดิบไม่สำเร็จ'); setLoading(false) })
   }, [])
 
   useEffect(() => {
@@ -62,35 +64,16 @@ export default function InventoryPage() {
     setFiltered(q ? ingredients.filter((i) => i.name.toLowerCase().includes(q)) : ingredients)
   }, [search, ingredients])
 
-  const handleAddIngredient = (e: React.FormEvent) => {
+  const handleAddIngredient = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name || !currentStock) return
 
     const stock = parseFloat(currentStock) || 0
     const minStock = parseFloat(minimumStock) || 0
     const cost = parseFloat(averageCost) || 0
-    const totalVal = stock * cost
-
-    let status: IngredientStatus = 'normal'
-    if (stock <= 0) status = 'critical'
-    else if (stock <= minStock * 0.5) status = 'critical'
-    else if (stock <= minStock) status = 'low'
-
-    const newIng: Ingredient = {
-      id: `ing${Date.now()}`,
-      name,
-      category,
-      unit,
-      currentStock: stock,
-      minimumStock: minStock,
-      averageCost: cost,
-      stockValue: totalVal,
-      status,
-      expirationDate: expirationDate || undefined,
-      createdAt: new Date().toISOString(),
-    }
-
-    setIngredients([newIng, ...ingredients])
+    try {
+    const newIng = await inventoryService.create({ name, category, unit, currentStock: stock, minimumStock: minStock, averageCost: cost, expirationDate: expirationDate || undefined })
+    setIngredients((current) => [newIng, ...current])
     setIsModalOpen(false)
     setName('')
     setCurrentStock('')
@@ -99,6 +82,7 @@ export default function InventoryPage() {
     setExpirationDate('')
     setSuccessToast(true)
     setTimeout(() => setSuccessToast(false), 3000)
+    } catch (error) { setFormError(error instanceof Error ? error.message : 'บันทึกวัตถุดิบไม่สำเร็จ') }
   }
 
   if (loading) return <LoadingSpinner />
@@ -119,12 +103,14 @@ export default function InventoryPage() {
           </Button>
         }
       />
+      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
 
       {successToast && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
           <Check size={16} /> เพิ่มวัตถุดิบใหม่เข้าคลังสำเร็จเรียบร้อย!
         </div>
       )}
+      {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{formError}</p>}
 
       {/* KPI */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">

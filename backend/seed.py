@@ -98,14 +98,16 @@ async def seed():
             contact_name="คุณสมศักดิ์",
             phone="02-123-4567",
             email="coffee@thaicoffee.co.th",
-            payment_terms="Net 15"
+            payment_terms="Net 15",
+            business_id=business.id
         )
         supplier2 = Supplier(
             name="ฟาร์มนมสด ชนบท",
             contact_name="คุณมานี",
             phone="081-234-5678",
             email="farm@naturalmilk.th",
-            payment_terms="COD"
+            payment_terms="COD",
+            business_id=business.id
         )
         session.add(supplier1)
         session.add(supplier2)
@@ -132,7 +134,7 @@ async def seed():
         ]
         ings = []
         for d in ingredients_data:
-            ing = Ingredient(**d)
+            ing = Ingredient(**d, business_id=business.id)
             session.add(ing)
             ings.append(ing)
         await session.flush()
@@ -148,13 +150,13 @@ async def seed():
         ]
         prods = []
         for d in products_data:
-            prod = Product(**d)
+            prod = Product(**d, business_id=business.id)
             session.add(prod)
             prods.append(prod)
         await session.flush()
 
         # ── Recipes (ลาเต้) ───────────────────────────────────────
-        recipe_latte = Recipe(product_id=prods[0].id, total_cost=22.0, yield_amount=1.0)
+        recipe_latte = Recipe(product_id=prods[0].id, total_cost=22.0, yield_amount=1.0, business_id=business.id)
         session.add(recipe_latte)
         await session.flush()
         for item_data in [
@@ -165,7 +167,7 @@ async def seed():
             session.add(RecipeItem(recipe_id=recipe_latte.id, **item_data))
 
         # ── Recipes (มัทฉะลาเต้) ──────────────────────────────────
-        recipe_matcha = Recipe(product_id=prods[2].id, total_cost=32.0, yield_amount=1.0)
+        recipe_matcha = Recipe(product_id=prods[2].id, total_cost=32.0, yield_amount=1.0, business_id=business.id)
         session.add(recipe_matcha)
         await session.flush()
         for item_data in [

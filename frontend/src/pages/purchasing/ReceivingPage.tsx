@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { suppliersService, inventoryService } from '@/services'
-import type { Supplier, Ingredient } from '@/types'
+import { suppliersService, inventoryService, purchaseOrdersService } from '@/services'
+import type { Supplier, Ingredient, PurchaseOrder } from '@/types'
 import { Card, Button, Badge, LoadingSpinner, SectionHeader, KPICard } from '@/components/ui'
 import { PackageCheck, CheckCircle2, Calendar, FileText, AlertCircle } from 'lucide-react'
 
@@ -24,34 +24,11 @@ interface ReceiveHistory {
 export default function ReceivingPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
+  const [purchaseOrderId, setPurchaseOrderId] = useState('')
   const [loading, setLoading] = useState(true)
 
-  const [history, setHistory] = useState<ReceiveHistory[]>([
-    {
-      id: 'rc-1',
-      date: '2026-08-28T14:20:00',
-      supplierName: 'บริษัท กาแฟไทย จำกัด',
-      ingredientName: 'เมล็ดกาแฟ Arabica',
-      quantity: 5,
-      unit: 'kg',
-      lotNo: 'LOT-20260828-01',
-      expirationDate: '2027-02-28',
-      unitCost: 800,
-      totalCost: 4000,
-    },
-    {
-      id: 'rc-2',
-      date: '2026-08-27T10:00:00',
-      supplierName: 'ฟาร์มนมสด ชนบท',
-      ingredientName: 'นมสด',
-      quantity: 20,
-      unit: 'l',
-      lotNo: 'MILK-260827',
-      expirationDate: '2026-09-04',
-      unitCost: 45,
-      totalCost: 900,
-    },
-  ])
+  const [history, setHistory] = useState<ReceiveHistory[]>([])
 
   // Form State
   const [supplierId, setSupplierId] = useState('')
@@ -61,18 +38,22 @@ export default function ReceivingPage() {
   const [expirationDate, setExpirationDate] = useState('')
   const [unitCost, setUnitCost] = useState<number | ''>('')
   const [successMsg, setSuccessMsg] = useState('')
+  const [formError, setFormError] = useState('')
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
-    Promise.all([suppliersService.getAll(), inventoryService.getAll()]).then(([s, i]) => {
+    Promise.all([suppliersService.getAll(), inventoryService.getAll(), purchaseOrdersService.getReceiving(), purchaseOrdersService.getAll()]).then(([s, i, h, pos]) => {
       setSuppliers(s)
       setIngredients(i)
+      setHistory(h)
+      setPurchaseOrders(pos.filter((po) => po.status === 'ordered'))
       if (s.length > 0) setSupplierId(s[0].id)
       if (i.length > 0) {
         setIngredientId(i[0].id)
         setUnitCost(i[0].averageCost)
       }
       setLoading(false)
-    })
+    }).catch((error) => { setLoadError(error instanceof Error ? error.message : 'โหลดประวัติรับสินค้าไม่สำเร็จ'); setLoading(false) })
   }, [])
 
   const handleIngredientSelect = (id: string) => {
@@ -81,7 +62,7 @@ export default function ReceivingPage() {
     if (ing) setUnitCost(ing.averageCost)
   }
 
-  const handleReceive = (e: React.FormEvent) => {
+  const handleReceive = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!ingredientId || !quantity || !unitCost) return
 
@@ -90,25 +71,18 @@ export default function ReceivingPage() {
     const qtyNum = Number(quantity)
     const costNum = Number(unitCost)
 
-    const newRecord: ReceiveHistory = {
-      id: `rc-${Date.now()}`,
-      date: new Date().toISOString(),
-      supplierName: supp?.name || 'ซัพพลายเออร์ทั่วไป',
-      ingredientName: ing.name,
-      quantity: qtyNum,
-      unit: ing.unit,
-      lotNo: lotNo || `LOT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
-      expirationDate: expirationDate || '—',
-      unitCost: costNum,
-      totalCost: qtyNum * costNum,
-    }
-
-    setHistory([newRecord, ...history])
+    if (!supp) return
+    try {
+    await purchaseOrdersService.receive({ supplierId, ingredientId, quantity: qtyNum, unitCost: costNum, lotNumber: lotNo || `LOT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`, expirationDate, purchaseOrderId: purchaseOrderId || undefined })
+    setHistory(await purchaseOrdersService.getReceiving())
+    setIngredients(await inventoryService.getAll())
+    if (purchaseOrderId) { setPurchaseOrders((await purchaseOrdersService.getAll()).filter((po) => po.status === 'ordered')); setPurchaseOrderId('') }
     setQuantity('')
     setLotNo('')
     setExpirationDate('')
     setSuccessMsg(`รับ "${ing.name}" จำนวน ${qtyNum} ${ing.unit} เข้าสต็อกเรียบร้อยแล้ว`)
     setTimeout(() => setSuccessMsg(''), 4000)
+    } catch (error) { setFormError(error instanceof Error ? error.message : 'บันทึกรับสินค้าไม่สำเร็จ') }
   }
 
   if (loading) return <LoadingSpinner />
@@ -121,6 +95,8 @@ export default function ReceivingPage() {
         title="รับสินค้าเข้าคลัง (Goods Receiving)"
         subtitle="บันทึกการรับวัตถุดิบเข้าคลัง พร้อมระบุ Lot Number และวันหมดอายุเพื่อเพิ่มจำนวนสต็อกจริง"
       />
+      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
+      {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{formError}</p>}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -163,6 +139,12 @@ export default function ReceivingPage() {
             ฟอร์มบันทึกรับวัตถุดิบ
           </h3>
           <form onSubmit={handleReceive} className="space-y-3.5 text-sm">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">รับตามใบสั่งซื้อ (ถ้ามี)</label>
+              <select value={purchaseOrderId} onChange={(e) => { const po = purchaseOrders.find((p) => p.id === e.target.value); setPurchaseOrderId(e.target.value); if (po?.items[0]) { setSupplierId(po.supplierId); setIngredientId(po.items[0].ingredientId); setQuantity(po.items[0].quantity); setUnitCost(po.items[0].unitCost) } }} className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-900">
+                <option value="">รับเข้าโดยไม่อ้างอิง PO</option>{purchaseOrders.map((po) => <option key={po.id} value={po.id}>PO #{po.id} · {po.supplierName}</option>)}
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">ซัพพลายเออร์</label>
               <select

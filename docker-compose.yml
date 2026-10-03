@@ -17,7 +17,7 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
-      - VITE_API_URL=http://localhost:8000
+      - VITE_PROXY_TARGET=http://backend:8000
     restart: unless-stopped
     networks:
       - khumflow-network
@@ -37,6 +37,8 @@ services:
       - JWT_SECRET=khumflow_super_secret_jwt_key_change_in_production_12345
       - ENVIRONMENT=development
     depends_on:
+      seed:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     restart: unless-stopped

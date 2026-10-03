@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
+import { Link, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom'
 import { clsx } from 'clsx'
 import {
   LayoutDashboard,
@@ -123,7 +123,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     }
   })()
 
-  const userRole = currentUser?.role?.toLowerCase() || 'owner'
+  const userRole = currentUser?.role?.toLowerCase() || ''
 
   // Filter sections and items based on role
   const visibleSections = allNavSections
@@ -264,7 +264,7 @@ export function AppLayout() {
     }
   })()
 
-  const userRole = currentUser?.role?.toLowerCase() || 'owner'
+  const userRole = currentUser?.role?.toLowerCase() || ''
 
   // Check if current route is allowed for this role
   const isRouteAllowed = () => {
@@ -279,13 +279,13 @@ export function AppLayout() {
     }
     // Check if Cashier trying to access inventory/recipes/products
     if (userRole.includes('cashier')) {
-      if (currentPath.includes('/inventory') || currentPath.includes('/recipes') || currentPath.includes('/products') || currentPath.includes('/waste') || currentPath.includes('/suppliers')) {
+      if (currentPath.includes('/inventory') || currentPath.includes('/recipes') || currentPath.includes('/products') || currentPath.includes('/waste') || currentPath.includes('/suppliers') || currentPath.includes('/stock-count') || currentPath.includes('/receiving') || currentPath.includes('/purchase-orders') || currentPath.includes('/expiration') || currentPath.includes('/purchase-recommendations')) {
         return false
       }
     }
     // Check if Inventory Staff trying to access orders
     if (userRole.includes('inventory') || userRole.includes('stock')) {
-      if (currentPath.includes('/orders') || currentPath.includes('/products') || currentPath.includes('/recipes')) {
+      if (currentPath.includes('/orders') || currentPath.includes('/products') || currentPath.includes('/recipes') || currentPath.includes('/analytics/') || currentPath.includes('/forecast') || currentPath.includes('/reports') || currentPath.includes('/settings')) {
         return false
       }
     }
@@ -293,6 +293,8 @@ export function AppLayout() {
   }
 
   const allowed = isRouteAllowed()
+
+  if (!localStorage.getItem('khumflow_token') || !currentUser) return <Navigate to="/login" replace state={{ from: location.pathname }} />
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f9fafb' }}>

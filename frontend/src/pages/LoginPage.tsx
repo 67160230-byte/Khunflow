@@ -21,8 +21,8 @@ export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false)
   const [fullName, setFullName] = useState('')
   const [storeName, setStoreName] = useState('')
-  const [email, setEmail] = useState('admin@khumflow.app')
-  const [password, setPassword] = useState('admin1234')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -32,7 +32,6 @@ export default function LoginPage() {
   const [showForgot, setShowForgot] = useState(false)
   const [forgotStep, setForgotStep] = useState<ForgotStep>('email')
   const [forgotEmail, setForgotEmail] = useState('')
-  const [resetToken, setResetToken] = useState('')
   const [tokenInput, setTokenInput] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [showNewPw, setShowNewPw] = useState(false)
@@ -40,7 +39,7 @@ export default function LoginPage() {
   const [forgotError, setForgotError] = useState('')
   const [forgotSuccess, setForgotSuccess] = useState('')
 
-  const API_URL = import.meta.env.VITE_API_URL || 'https://khunflow.onrender.com'
+  const API_URL = import.meta.env.VITE_API_URL || ''
 
   // Handle Google OAuth callback & Direct Email Reset Links
   useEffect(() => {
@@ -54,7 +53,6 @@ export default function LoginPage() {
     const emailResetToken = params.get('reset_token')
     const emailTarget = params.get('email')
     if (emailResetToken) {
-      setResetToken(emailResetToken)
       setTokenInput(emailResetToken)
       if (emailTarget) setForgotEmail(emailTarget)
       setShowForgot(true)
@@ -110,6 +108,7 @@ export default function LoginPage() {
             email,
             password,
             full_name: `${fullName} (${storeName})`,
+            business_name: storeName,
             role: 'owner'
           })
         })
@@ -127,10 +126,9 @@ export default function LoginPage() {
         })
         const loginData = await loginRes.json()
 
-        if (loginRes.ok) {
-          localStorage.setItem('khumflow_token', loginData.access_token)
-          localStorage.setItem('khumflow_user', JSON.stringify(loginData))
-        }
+        if (!loginRes.ok) throw new Error(loginData.detail || 'สมัครสำเร็จแต่เข้าสู่ระบบไม่สำเร็จ กรุณาลองเข้าสู่ระบบอีกครั้ง')
+        localStorage.setItem('khumflow_token', loginData.access_token)
+        localStorage.setItem('khumflow_user', JSON.stringify(loginData))
 
         setSuccess('สมัครสมาชิกและสร้างร้านสำเร็จ! กำลังเข้าสู่ระบบ...')
         setTimeout(() => navigate('/app/dashboard'), 800)
@@ -173,14 +171,11 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'เกิดข้อผิดพลาด')
-      if (!data.reset_token) {
-        setForgotError(data.demo_note || 'ไม่พบ email นี้ในระบบ')
+      if (!data.email_sent) {
+        setForgotSuccess('หากอีเมลนี้ลงทะเบียนไว้ ระบบจะส่งรหัสตั้งรหัสผ่านให้ทางอีเมล หากยังไม่ได้รับ กรุณาติดต่อผู้ดูแลร้าน')
         return
       }
-      setResetToken(data.reset_token)
-      if (data.email_sent) {
-        setForgotSuccess(`ส่งอีเมลพร้อมลิงก์ตั้งรหัสผ่านไปยัง ${forgotEmail} แล้ว 📧 กรุณาตรวจสอบกล่องข้อความ`)
-      }
+      setForgotSuccess(`ส่งรหัสตั้งรหัสผ่านไปยัง ${forgotEmail} แล้ว กรุณาตรวจสอบกล่องข้อความ`)
       setForgotStep('token')
     } catch (err: any) {
       setForgotError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ')
@@ -216,7 +211,6 @@ export default function LoginPage() {
     setShowForgot(false)
     setForgotStep('email')
     setForgotEmail('')
-    setResetToken('')
     setTokenInput('')
     setNewPassword('')
     setForgotError('')
@@ -476,24 +470,8 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Reset Token Display */}
-                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                  <p className="text-xs text-amber-700 font-semibold mb-1">🔑 Reset Token ของคุณ (อายุ 15 นาที):</p>
-                  <div className="flex items-center gap-2">
-                    <code className="text-xl font-mono font-bold text-amber-800 tracking-widest">
-                      {resetToken}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => { setTokenInput(resetToken) }}
-                      className="text-xs bg-amber-200 hover:bg-amber-300 text-amber-800 px-2 py-1 rounded-lg font-medium transition-colors"
-                    >
-                      ใส่อัตโนมัติ
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-amber-600 mt-1.5">
-                    💡 Demo Mode: ในระบบ Production token จะถูกส่งทาง Email
-                  </p>
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                  กรุณาคัดลอกรหัสจากอีเมลที่ส่งไปยัง {forgotEmail} รหัสมีอายุ 15 นาที
                 </div>
 
                 <form onSubmit={handleResetPassword} className="space-y-3.5">
@@ -504,8 +482,8 @@ export default function LoginPage() {
                       required
                       value={tokenInput}
                       onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
-                      placeholder="เช่น A3F7C2"
-                      maxLength={6}
+                      placeholder="วางรหัสจากอีเมลที่นี่"
+                      maxLength={64}
                       className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                   </div>

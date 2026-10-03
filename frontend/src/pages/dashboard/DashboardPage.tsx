@@ -70,14 +70,13 @@ function SalesChart({ data }: { data: DailySales[] }) {
 function FoodCostChart({ data }: { data: FoodCostData[] }) {
   const chartData = data.map((d) => ({
     date: shortDate(d.date),
-    'Expected Cost': d.expectedFoodCost,
-    'Actual Cost': d.actualFoodCost,
+    'ต้นทุนตามสูตร': d.expectedFoodCost,
     'ของเสีย': d.wasteCost,
   }))
 
   return (
     <Card className="p-5">
-      <h3 className="text-sm font-semibold text-gray-700 mb-4">ต้นทุนอาหาร: คาดการณ์ vs จริง</h3>
+      <h3 className="text-sm font-semibold text-gray-700 mb-4">ต้นทุนตามสูตรและมูลค่าของเสีย (ประมาณการ)</h3>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -85,8 +84,7 @@ function FoodCostChart({ data }: { data: FoodCostData[] }) {
           <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
           <Tooltip formatter={(v: any) => formatBaht(Number(v) || 0)} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Bar dataKey="Expected Cost" fill="#86efac" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="Actual Cost" fill="#16a34a" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="ต้นทุนตามสูตร" fill="#16a34a" radius={[4, 4, 0, 0]} />
           <Bar dataKey="ของเสีย" fill="#fca5a5" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>

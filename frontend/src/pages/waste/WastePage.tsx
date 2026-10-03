@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { wasteService } from '@/services'
-import type { WasteRecord, WasteReason, IngredientUnit } from '@/types'
+import { inventoryService, wasteService } from '@/services'
+import type { WasteRecord, WasteReason, IngredientUnit, Ingredient } from '@/types'
 import { Card, LoadingSpinner, SectionHeader, Button, EmptyState, Badge } from '@/components/ui'
 import { Plus, X, Trash2, Check } from 'lucide-react'
 
@@ -23,51 +23,43 @@ const unitLabel: Record<string, string> = {
 
 export default function WastePage() {
   const [records, setRecords] = useState<WasteRecord[]>([])
+  const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [loading, setLoading] = useState(true)
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [ingredientName, setIngredientName] = useState('นมสด')
+  const [ingredientId, setIngredientId] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [unit, setUnit] = useState<IngredientUnit>('l')
   const [reason, setReason] = useState<WasteReason>('expired')
-  const [cost, setCost] = useState('45')
-  const [staffName, setStaffName] = useState('สมชาย เจ้าของร้าน')
   const [note, setNote] = useState('')
   const [successToast, setSuccessToast] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
-    wasteService.getAll().then((data) => {
+    Promise.all([wasteService.getAll(), inventoryService.getAll()]).then(([data, availableIngredients]) => {
       setRecords(data)
+      setIngredients(availableIngredients)
+      setIngredientId(availableIngredients[0]?.id || '')
+      if (availableIngredients[0]) setUnit(availableIngredients[0].unit)
       setLoading(false)
-    })
+    }).catch((error) => { setLoadError(error instanceof Error ? error.message : 'โหลดรายการของเสียไม่สำเร็จ'); setLoading(false) })
   }, [])
 
-  const handleAddWaste = (e: React.FormEvent) => {
+  const handleAddWaste = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!ingredientName || !quantity) return
-
-    const newRecord: WasteRecord = {
-      id: `w${Date.now()}`,
-      ingredientId: `ing_${Date.now()}`,
-      ingredientName,
-      quantity: parseFloat(quantity) || 0,
-      unit,
-      cost: parseFloat(cost) || 0,
-      reason,
-      date: new Date().toISOString(),
-      staffId: 'u1',
-      staffName,
-      note: note || undefined,
-    }
-
-    setRecords([newRecord, ...records])
+    const ingredient = ingredients.find((i) => i.id === ingredientId)
+    if (!ingredient || !quantity) return
+    try {
+    await wasteService.create({ ingredientId, quantity: parseFloat(quantity) || 0, unit: ingredient.unit, reason, note: note || undefined })
+    setRecords(await wasteService.getAll())
     setIsModalOpen(false)
     setQuantity('1')
-    setCost('45')
     setNote('')
     setSuccessToast(true)
     setTimeout(() => setSuccessToast(false), 3000)
+    } catch (error) { setActionError(error instanceof Error ? error.message : 'บันทึกของเสียไม่สำเร็จ') }
   }
 
   if (loading) return <LoadingSpinner />
@@ -85,6 +77,8 @@ export default function WastePage() {
           </Button>
         }
       />
+      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
+      {actionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
 
       {successToast && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
@@ -164,14 +158,9 @@ export default function WastePage() {
             <form onSubmit={handleAddWaste} className="space-y-3.5 text-sm">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">ชื่อวัตถุดิบ</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="เช่น นมสด, เมล็ดกาแฟ Arabica, วิปครีม"
-                  value={ingredientName}
-                  onChange={(e) => setIngredientName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                />
+                <select required value={ingredientId} onChange={(e) => { const next = ingredients.find((i) => i.id === e.target.value); setIngredientId(e.target.value); if (next) setUnit(next.unit) }} className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none">
+                  {ingredients.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.currentStock} {item.unit})</option>)}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -220,29 +209,8 @@ export default function WastePage() {
                     <option value="other">อื่น ๆ (Other)</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">มูลค่าความเสียหาย (฿)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    required
-                    placeholder="45.00"
-                    value={cost}
-                    onChange={(e) => setCost(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                  />
-                </div>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">ผู้บันทึก</label>
-                <input
-                  type="text"
-                  value={staffName}
-                  onChange={(e) => setStaffName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                />
-              </div>
+              <p className="text-xs text-gray-500">ระบบคำนวณมูลค่าจากต้นทุนเฉลี่ยของวัตถุดิบและบันทึกชื่อผู้ใช้ให้อัตโนมัติ</p>
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">หมายเหตุ / รายละเอียด</label>

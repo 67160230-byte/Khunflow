@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { recipesService } from '@/services'
-import type { Recipe, RecipeItem, IngredientUnit } from '@/types'
+import { recipesService, productsService, inventoryService } from '@/services'
+import type { Recipe, RecipeItem, IngredientUnit, Product, Ingredient } from '@/types'
 import { Card, LoadingSpinner, SectionHeader, Button, EmptyState } from '@/components/ui'
 import { Plus, ChevronDown, ChevronRight, X, BookOpen, Trash2, Check } from 'lucide-react'
 
@@ -64,22 +64,27 @@ export default function RecipesPage() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [productName, setProductName] = useState('')
-  const [items, setItems] = useState<Array<{ name: string; quantity: string; unit: IngredientUnit; unitCost: string }>>([
-    { name: 'เมล็ดกาแฟ Arabica', quantity: '18', unit: 'g', unitCost: '0.8' },
-    { name: 'นมสด', quantity: '200', unit: 'ml', unitCost: '0.045' },
-  ])
+  const [products, setProducts] = useState<Product[]>([])
+  const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [productId, setProductId] = useState('')
+  const [items, setItems] = useState<Array<{ ingredientId: string; quantity: string; unit: IngredientUnit }>>([])
   const [successToast, setSuccessToast] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
-    recipesService.getAll().then((data) => {
+    Promise.all([recipesService.getAll(), productsService.getAll(), inventoryService.getAll()]).then(([data, catalog, stock]) => {
       setRecipes(data)
+      setProducts(catalog); setIngredients(stock)
+      setProductId(catalog[0]?.id || '')
+      setItems(stock.slice(0, 2).map((i) => ({ ingredientId: i.id, quantity: '1', unit: i.unit })))
       setLoading(false)
-    })
+    }).catch((error) => { setLoadError(error instanceof Error ? error.message : 'โหลดสูตรอาหารไม่สำเร็จ'); setLoading(false) })
   }, [])
 
   const addItemRow = () => {
-    setItems([...items, { name: '', quantity: '1', unit: 'g', unitCost: '0.5' }])
+    const item = ingredients[0]
+    if (item) setItems([...items, { ingredientId: item.id, quantity: '1', unit: item.unit }])
   }
 
   const removeItemRow = (idx: number) => {
@@ -93,46 +98,25 @@ export default function RecipesPage() {
   const calculateTotalCost = () => {
     return items.reduce((sum, it) => {
       const q = parseFloat(it.quantity) || 0
-      const c = parseFloat(it.unitCost) || 0
-      return sum + (q * c)
+      const ingredient = ingredients.find((item) => item.id === it.ingredientId)
+      if (!ingredient) return sum
+      const factors: Record<string, number> = { 'g:kg': 0.001, 'kg:g': 1000, 'ml:l': 0.001, 'l:ml': 1000 }
+      const cost = ingredient.averageCost * (it.unit === ingredient.unit ? 1 : factors[`${it.unit}:${ingredient.unit}`] || 1)
+      return sum + q * cost
     }, 0)
   }
 
-  const handleAddRecipe = (e: React.FormEvent) => {
+  const handleAddRecipe = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!productName || items.length === 0) return
-
-    const totalCost = calculateTotalCost()
-    const recipeItems: RecipeItem[] = items.map((it, idx) => ({
-      id: `ri${Date.now()}_${idx}`,
-      recipeId: `r${Date.now()}`,
-      ingredientId: `ing${idx}`,
-      ingredientName: it.name || 'วัตถุดิบ',
-      quantity: parseFloat(it.quantity) || 0,
-      unit: it.unit,
-      unitCost: parseFloat(it.unitCost) || 0,
-      totalCost: (parseFloat(it.quantity) || 0) * (parseFloat(it.unitCost) || 0),
-    }))
-
-    const newRecipe: Recipe = {
-      id: `r${Date.now()}`,
-      productId: `p${Date.now()}`,
-      productName,
-      items: recipeItems,
-      totalCost,
-      yield: 1,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-
-    setRecipes([newRecipe, ...recipes])
+    if (!productId || items.length === 0) return
+    try {
+    await recipesService.create(productId, items.map((it) => ({ ingredientId: it.ingredientId, quantity: Number(it.quantity), unit: it.unit })))
+    setRecipes(await recipesService.getAll())
     setIsModalOpen(false)
-    setProductName('')
-    setItems([
-      { name: '', quantity: '1', unit: 'g', unitCost: '0.5' }
-    ])
+    setItems([])
     setSuccessToast(true)
     setTimeout(() => setSuccessToast(false), 3000)
+    } catch (error) { setFormError(error instanceof Error ? error.message : 'บันทึกสูตรไม่สำเร็จ') }
   }
 
   if (loading) return <LoadingSpinner />
@@ -148,12 +132,14 @@ export default function RecipesPage() {
           </Button>
         }
       />
+      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
 
       {successToast && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
           <Check size={16} /> บันทึกสูตรอาหารใหม่สำเร็จเรียบร้อย!
         </div>
       )}
+      {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{formError}</p>}
 
       {recipes.length === 0 ? (
         <EmptyState title="ยังไม่มีสูตรอาหาร" description="สร้างสูตรอาหารเพื่อให้ระบบคำนวณต้นทุนอัตโนมัติ" />
@@ -182,14 +168,9 @@ export default function RecipesPage() {
             <form onSubmit={handleAddRecipe} className="space-y-4 text-sm">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">ชื่อเมนู / สินค้า</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="เช่น มัทฉะลาเต้เย็น, ชาเขียวปั่น"
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                />
+                <select required value={productId} onChange={(e) => setProductId(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none">
+                  <option value="">เลือกสินค้า</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
 
               <div>
@@ -207,14 +188,9 @@ export default function RecipesPage() {
                 <div className="space-y-2">
                   {items.map((it, idx) => (
                     <div key={idx} className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-200/80">
-                      <input
-                        type="text"
-                        required
-                        placeholder="ชื่อวัตถุดิบ"
-                        value={it.name}
-                        onChange={(e) => updateItem(idx, 'name', e.target.value)}
-                        className="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs focus:ring-2 focus:ring-green-500 focus:outline-none"
-                      />
+                      <select required value={it.ingredientId} onChange={(e) => { const ingredient = ingredients.find((i) => i.id === e.target.value); if (ingredient) setItems((prev) => prev.map((row, n) => n === idx ? { ...row, ingredientId: ingredient.id, unit: ingredient.unit } : row)) }} className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs">
+                        {ingredients.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                      </select>
                       <input
                         type="number"
                         step="0.1"
@@ -235,14 +211,7 @@ export default function RecipesPage() {
                         <option value="l">ลิตร (l)</option>
                         <option value="piece">ชิ้น</option>
                       </select>
-                      <input
-                        type="number"
-                        step="0.001"
-                        placeholder="ต้นทุน/หน่วย"
-                        value={it.unitCost}
-                        onChange={(e) => updateItem(idx, 'unitCost', e.target.value)}
-                        className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs text-right focus:ring-2 focus:ring-green-500 focus:outline-none"
-                      />
+                      <span className="w-24 text-right text-[10px] text-gray-500">คำนวณต้นทุนให้</span>
                       {items.length > 1 && (
                         <button
                           type="button"

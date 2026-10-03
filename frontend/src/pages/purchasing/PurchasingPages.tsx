@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { suppliersService, purchaseOrdersService } from '@/services'
-import type { Supplier, PurchaseOrder, IngredientUnit } from '@/types'
+import { useNavigate } from 'react-router-dom'
+import { suppliersService, purchaseOrdersService, inventoryService } from '@/services'
+import type { Supplier, PurchaseOrder, IngredientUnit, Ingredient } from '@/types'
 import { Card, Button, Badge, LoadingSpinner, SectionHeader } from '@/components/ui'
 import { Truck, Plus, Phone, Mail, FileText, X, Check } from 'lucide-react'
 
@@ -10,6 +11,7 @@ function formatBaht(n: number) {
 
 export function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
 
   // Modal State
@@ -19,8 +21,8 @@ export function SuppliersPage() {
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [paymentTerms, setPaymentTerms] = useState('Net 15')
-  const [ingredientsText, setIngredientsText] = useState('')
   const [successToast, setSuccessToast] = useState(false)
+  const [actionError, setActionError] = useState('')
 
   useEffect(() => {
     suppliersService.getAll().then((data) => {
@@ -29,29 +31,17 @@ export function SuppliersPage() {
     })
   }, [])
 
-  const handleAddSupplier = (e: React.FormEvent) => {
+  const handleAddSupplier = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name) return
 
-    const ings = ingredientsText ? ingredientsText.split(',').map((s) => s.trim()).filter(Boolean) : ['เมล็ดกาแฟ', 'นมสด']
-    const newSup: Supplier = {
-      id: `sup_${Date.now()}`,
-      name,
-      contactName: contactName || undefined,
-      phone: phone || undefined,
-      email: email || undefined,
-      paymentTerms,
-      ingredients: ings,
-      createdAt: new Date().toISOString(),
-    }
-
-    setSuppliers([...suppliers, newSup])
+    try { await suppliersService.create({ name, contactName, phone, email, paymentTerms }); setSuppliers(await suppliersService.getAll()) }
+    catch (error) { setActionError(error instanceof Error ? error.message : 'บันทึกซัพพลายเออร์ไม่สำเร็จ'); return }
     setIsModalOpen(false)
     setName('')
     setContactName('')
     setPhone('')
     setEmail('')
-    setIngredientsText('')
     setSuccessToast(true)
     setTimeout(() => setSuccessToast(false), 3000)
   }
@@ -69,6 +59,7 @@ export function SuppliersPage() {
           </Button>
         }
       />
+      {actionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
 
       {successToast && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
@@ -107,7 +98,7 @@ export function SuppliersPage() {
             </div>
             <div className="border-t border-gray-100 pt-3 flex justify-between items-center text-xs">
               <span className="text-gray-400">{s.ingredients.length} วัตถุดิบที่ส่ง</span>
-              <Button variant="outline" size="sm" className="text-xs py-1" onClick={() => alert(`ออกใบสั่งซื้อไปยัง ${s.name}`)}>
+              <Button variant="outline" size="sm" className="text-xs py-1" onClick={() => navigate('/app/purchase-orders')}>
                 สร้างใบสั่งซื้อ
               </Button>
             </div>
@@ -192,17 +183,6 @@ export function SuppliersPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">รายการวัตถุดิบที่ส่ง (คั่นด้วยจุลภาค)</label>
-                <input
-                  type="text"
-                  placeholder="เช่น เมล็ดกาแฟ, ชาไทย, ผงโกโก้"
-                  value={ingredientsText}
-                  onChange={(e) => setIngredientsText(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none text-xs"
-                />
-              </div>
-
               <div className="pt-2 flex justify-end gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
                   ยกเลิก
@@ -225,48 +205,35 @@ export function PurchaseOrdersPage() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [supplierName, setSupplierName] = useState('บริษัท กาแฟไทย จำกัด')
-  const [ingredientName, setIngredientName] = useState('เมล็ดกาแฟ Arabica')
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [supplierId, setSupplierId] = useState('')
+  const [ingredientId, setIngredientId] = useState('')
   const [quantity, setQuantity] = useState('10')
   const [unit, setUnit] = useState<IngredientUnit>('kg')
   const [unitCost, setUnitCost] = useState('800')
   const [successToast, setSuccessToast] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
-    purchaseOrdersService.getAll().then((data) => {
+    Promise.all([purchaseOrdersService.getAll(), suppliersService.getAll(), inventoryService.getAll()]).then(([data, availableSuppliers, availableIngredients]) => {
       setOrders(data)
+      setSuppliers(availableSuppliers); setIngredients(availableIngredients)
+      setSupplierId(availableSuppliers[0]?.id || ''); setIngredientId(availableIngredients[0]?.id || '')
+      if (availableIngredients[0]) { setUnit(availableIngredients[0].unit); setUnitCost(String(availableIngredients[0].averageCost)) }
       setLoading(false)
-    })
+    }).catch((error) => { setLoadError(error instanceof Error ? error.message : 'โหลดใบสั่งซื้อไม่สำเร็จ'); setLoading(false) })
   }, [])
 
-  const handleCreatePO = (e: React.FormEvent) => {
+  const handleCreatePO = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!supplierName || !ingredientName) return
+    if (!supplierId || !ingredientId) return
 
     const qty = parseFloat(quantity) || 1
     const cost = parseFloat(unitCost) || 0
-    const total = qty * cost
-
-    const newPO: PurchaseOrder = {
-      id: `PO-${new Date().getFullYear()}${(new Date().getMonth() + 1).toString().padStart(2, '0')}-${(orders.length + 1).toString().padStart(3, '0')}`,
-      supplierId: 'sup_1',
-      supplierName,
-      status: 'ordered',
-      orderDate: new Date().toISOString().split('T')[0],
-      items: [
-        {
-          ingredientId: 'ing_1',
-          ingredientName,
-          quantity: qty,
-          unit,
-          unitCost: cost,
-          totalCost: total,
-        }
-      ],
-      totalCost: total,
-    }
-
-    setOrders([newPO, ...orders])
+    try { await purchaseOrdersService.create(supplierId, [{ ingredientId, quantity: qty, unitCost: cost }]); setOrders(await purchaseOrdersService.getAll()) }
+    catch (error) { setActionError(error instanceof Error ? error.message : 'ออกใบสั่งซื้อไม่สำเร็จ'); return }
     setIsModalOpen(false)
     setSuccessToast(true)
     setTimeout(() => setSuccessToast(false), 3000)
@@ -292,6 +259,8 @@ export function PurchaseOrdersPage() {
           </Button>
         }
       />
+      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
+      {actionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
 
       {successToast && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">
@@ -364,26 +333,19 @@ export function PurchaseOrdersPage() {
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">เลือกซัพพลายเออร์</label>
                 <select
-                  value={supplierName}
-                  onChange={(e) => setSupplierName(e.target.value)}
+                  value={supplierId}
+                  onChange={(e) => setSupplierId(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none bg-white text-xs"
                 >
-                  <option value="บริษัท กาแฟไทย จำกัด">บริษัท กาแฟไทย จำกัด</option>
-                  <option value="ฟาร์มนมสด ชนบท">ฟาร์มนมสด ชนบท</option>
-                  <option value="บริษัท ซัพพลายเออร์ทั่วไป">บริษัท ซัพพลายเออร์ทั่วไป</option>
+                  {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">วัตถุดิบที่ต้องการสั่ง</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="เช่น เมล็ดกาแฟ Arabica"
-                  value={ingredientName}
-                  onChange={(e) => setIngredientName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
-                />
+                <select required value={ingredientId} onChange={(e) => { const item = ingredients.find((i) => i.id === e.target.value); setIngredientId(e.target.value); if (item) { setUnit(item.unit); setUnitCost(String(item.averageCost)) } }} className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-green-500 focus:outline-none">
+                  {ingredients.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

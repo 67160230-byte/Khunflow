@@ -91,7 +91,9 @@ export function ExpirationPage() {
 
   const getUrgency = (dateStr?: string) => {
     if (!dateStr) return { label: 'ไม่มีข้อมูล', variant: 'neutral' as const, days: 999 }
-    const now = new Date('2026-08-29').getTime()
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const now = today.getTime()
     const target = new Date(dateStr).getTime()
     const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24))
 
@@ -133,48 +135,36 @@ export function ExpirationPage() {
   }
 
   // Action 5: Update Expiration Date
-  const handleUpdateDate = (e: React.FormEvent) => {
+  const handleUpdateDate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingItem || !newExpDate) return
 
-    setAllData((prev) =>
-      prev.map((item) =>
-        item.id === editingItem.id ? { ...item, expirationDate: newExpDate } : item
-      )
-    )
+    try {
+    const updatedItem = await inventoryService.updateExpiration(editingItem.id, newExpDate)
+    setAllData((prev) => prev.map((item) => item.id === editingItem.id ? updatedItem : item))
     const updatedResolved = resolvedIds.filter((i) => i !== editingItem.id)
     saveResolved(updatedResolved)
     showToast(`📅 อัปเดตวันหมดอายุของ "${editingItem.name}" เป็น ${newExpDate} เรียบร้อย`)
     setEditingItem(null)
     setNewExpDate('')
+    } catch (error) { showToast(error instanceof Error ? error.message : 'บันทึกวันหมดอายุไม่สำเร็จ') }
   }
 
   // Action 6: Add New Expiration Item
-  const handleAddNewItem = (e: React.FormEvent) => {
+  const handleAddNewItem = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newIngName || !newIngDate) return
 
     const stock = parseFloat(newIngStock) || 1
-    const newIng: Ingredient = {
-      id: `ing_${Date.now()}`,
-      name: newIngName,
-      category: 'beverage_base',
-      unit: newIngUnit as any,
-      currentStock: stock,
-      minimumStock: 2,
-      averageCost: 50,
-      stockValue: stock * 50,
-      status: 'normal',
-      expirationDate: newIngDate,
-      createdAt: new Date().toISOString(),
-    }
-
-    setAllData([newIng, ...allData])
+    try {
+    const newIng = await inventoryService.create({ name: newIngName, category: 'beverage_base', unit: newIngUnit as Ingredient['unit'], currentStock: stock, minimumStock: 2, averageCost: 50, expirationDate: newIngDate })
+    setAllData((current) => [newIng, ...current])
     setAddModalOpen(false)
     setNewIngName('')
     setNewIngStock('')
     setNewIngDate('')
     showToast(`✨ เพิ่ม "${newIngName}" เข้าสู่ระบบติดตามวันหมดอายุแล้ว`)
+    } catch (error) { showToast(error instanceof Error ? error.message : 'เพิ่มวัตถุดิบไม่สำเร็จ') }
   }
 
   // Action 7: Reset All (Restore Demo Data)

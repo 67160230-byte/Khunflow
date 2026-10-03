@@ -44,6 +44,7 @@ class Business(SQLModel, table=True):
     name: str
     business_type: str = "cafe"
     currency: str = "THB"
+    timezone: str = "Asia/Bangkok"
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class User(SQLModel, table=True):
@@ -57,8 +58,30 @@ class User(SQLModel, table=True):
     is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+class PasswordReset(SQLModel, table=True):
+    __tablename__ = "password_resets"
+    token_hash: str = Field(primary_key=True)
+    email: str = Field(foreign_key="users.email", index=True)
+    expires_at: datetime
+
+
+# Tenant ownership shared by operational records. New records inherit the
+# authenticated user's business and all reads are scoped to that business.
+class BusinessRecord(SQLModel):
+    business_id: Optional[int] = Field(default=None, foreign_key="businesses.id", index=True)
+
+class AuditLog(BusinessRecord, table=True):
+    __tablename__ = "audit_logs"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    actor_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    action: str
+    entity_type: str
+    entity_id: Optional[str] = None
+    detail: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 # ── Inventory & Supplier ──────────────────────────────────────
-class Supplier(SQLModel, table=True):
+class Supplier(BusinessRecord, table=True):
     __tablename__ = "suppliers"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
@@ -68,7 +91,7 @@ class Supplier(SQLModel, table=True):
     payment_terms: str = "COD"
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-class Ingredient(SQLModel, table=True):
+class Ingredient(BusinessRecord, table=True):
     __tablename__ = "ingredients"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True)
@@ -82,7 +105,7 @@ class Ingredient(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 # ── Product & Recipe ──────────────────────────────────────────
-class Product(SQLModel, table=True):
+class Product(BusinessRecord, table=True):
     __tablename__ = "products"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True)
@@ -93,7 +116,7 @@ class Product(SQLModel, table=True):
     description: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-class Recipe(SQLModel, table=True):
+class Recipe(BusinessRecord, table=True):
     __tablename__ = "recipes"
     id: Optional[int] = Field(default=None, primary_key=True)
     product_id: int = Field(foreign_key="products.id", unique=True)
@@ -112,7 +135,7 @@ class RecipeItem(SQLModel, table=True):
     total_cost: float
 
 # ── Order ─────────────────────────────────────────────────────
-class Order(SQLModel, table=True):
+class Order(BusinessRecord, table=True):
     __tablename__ = "orders"
     id: Optional[int] = Field(default=None, primary_key=True)
     total_amount: float = 0.0
@@ -130,7 +153,7 @@ class OrderItem(SQLModel, table=True):
     subtotal: float
 
 # ── Waste & Stock Count ───────────────────────────────────────
-class WasteRecord(SQLModel, table=True):
+class WasteRecord(BusinessRecord, table=True):
     __tablename__ = "waste_records"
     id: Optional[int] = Field(default=None, primary_key=True)
     ingredient_id: int = Field(foreign_key="ingredients.id")
@@ -142,7 +165,7 @@ class WasteRecord(SQLModel, table=True):
     staff_id: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-class StockCount(SQLModel, table=True):
+class StockCount(BusinessRecord, table=True):
     __tablename__ = "stock_counts"
     id: Optional[int] = Field(default=None, primary_key=True)
     staff_id: Optional[int] = Field(default=None, foreign_key="users.id")
@@ -160,7 +183,7 @@ class StockCountItem(SQLModel, table=True):
     reason: str = "unknown"
 
 # ── Purchasing & Receiving ────────────────────────────────────
-class PurchaseOrder(SQLModel, table=True):
+class PurchaseOrder(BusinessRecord, table=True):
     __tablename__ = "purchase_orders"
     id: Optional[int] = Field(default=None, primary_key=True)
     supplier_id: int = Field(foreign_key="suppliers.id")
@@ -178,11 +201,12 @@ class PurchaseOrderItem(SQLModel, table=True):
     unit_cost: float
     total_cost: float
 
-class GoodsReceiving(SQLModel, table=True):
+class GoodsReceiving(BusinessRecord, table=True):
     __tablename__ = "goods_receivings"
     id: Optional[int] = Field(default=None, primary_key=True)
     supplier_id: int = Field(foreign_key="suppliers.id")
     ingredient_id: int = Field(foreign_key="ingredients.id")
+    purchase_order_id: Optional[int] = Field(default=None, foreign_key="purchase_orders.id")
     quantity: float
     unit_cost: float
     total_cost: float

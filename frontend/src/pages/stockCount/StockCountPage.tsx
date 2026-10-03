@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { inventoryService } from '@/services'
+import { inventoryService, stockCountService } from '@/services'
 import type { Ingredient, VarianceReason } from '@/types'
 import { Card, Button, Badge, LoadingSpinner, SectionHeader, KPICard } from '@/components/ui'
 import { CheckCircle2, AlertCircle, Save, RotateCcw } from 'lucide-react'
@@ -31,6 +31,7 @@ export default function StockCountPage() {
   const [loading, setLoading] = useState(true)
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [actionError, setActionError] = useState('')
 
   useEffect(() => {
     inventoryService.getAll().then((data) => {
@@ -72,9 +73,12 @@ export default function StockCountPage() {
 
   const handleSubmit = async () => {
     setSaving(true)
-    await new Promise((r) => setTimeout(r, 600))
-    setSaving(false)
-    setSubmitted(true)
+    setActionError('')
+    try {
+      await stockCountService.create(rows.map((row) => ({ ingredientId: row.ingredient.id, countedStock: row.countedStock, reason: row.reason })))
+      setSubmitted(true)
+    } catch (error) { setActionError(error instanceof Error ? error.message : 'บันทึกผลตรวจนับไม่สำเร็จ') }
+    finally { setSaving(false) }
   }
 
   const handleReset = () => {
@@ -113,6 +117,7 @@ export default function StockCountPage() {
           </div>
         }
       />
+      {actionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
 
       {/* Summary KPI */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
