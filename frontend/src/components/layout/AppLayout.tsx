@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { businessService, isDemoMode } from '@/services'
+import { businessService, isDemoMode, platformAdminService } from '@/services'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -108,7 +108,7 @@ function getRoleLabel(roleStr: string): string {
   return 'พนักงาน'
 }
 
-function SidebarContent({ onClose }: { onClose?: () => void }) {
+function SidebarContent({ onClose, isPlatformAdmin = false }: { onClose?: () => void; isPlatformAdmin?: boolean }) {
   const location = useLocation()
   const [collapsed, setCollapsed] = useState<string[]>([])
 
@@ -198,6 +198,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             </div>
           )
         })}
+        {isPlatformAdmin && <div className="mt-4 border-t border-gray-800 pt-3"><p className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-amber-400">แพลตฟอร์ม</p><Link to="/app/platform-admin" onClick={onClose} className={clsx('flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors', location.pathname === '/app/platform-admin' ? 'bg-amber-600 text-white font-medium' : 'text-gray-300 hover:bg-gray-800 hover:text-white')}><ShieldAlert size={18} /><span>จัดการสมาชิก KhumFlow</span></Link></div>}
       </nav>
 
       {/* Logged in User Profile Footer */}
@@ -219,7 +220,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => void; demoMode: boolean; onToggleDemo: () => void }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const [businesses, setBusinesses] = useState<Array<{ id: string; name: string }>>([])
+  const [businesses, setBusinesses] = useState<Array<{ id: string; name: string; role: string }>>([])
   const [activeBusinessId, setActiveBusinessId] = useState(localStorage.getItem('khumflow_business_id') || '')
 
   useEffect(() => {
@@ -227,11 +228,28 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
     businessService.getAll().then((items) => {
       setBusinesses(items)
       const saved = localStorage.getItem('khumflow_business_id')
-      if (saved && items.some((business) => business.id === saved)) setActiveBusinessId(saved)
-      else if (items[0]) {
-        localStorage.removeItem('khumflow_business_id')
-        setActiveBusinessId(items[0].id)
+      const activeBusiness = items.find((business) => business.id === saved) || items[0]
+      if (!activeBusiness) return
+
+      setActiveBusinessId(activeBusiness.id)
+      // A user's role belongs to a business membership. Keep the cached UI role
+      // aligned with the selected business so owners are not shown staff-only
+      // navigation (and staff do not see owner-only controls) after switching.
+      const storedUser = localStorage.getItem('khumflow_user')
+      if (storedUser) {
+        try {
+          const user = JSON.parse(storedUser)
+          if (user.role !== activeBusiness.role) {
+            localStorage.setItem('khumflow_user', JSON.stringify({ ...user, role: activeBusiness.role }))
+            localStorage.setItem('khumflow_business_id', activeBusiness.id)
+            window.location.reload()
+            return
+          }
+        } catch {
+          // Ignore stale cached user data; the API still enforces permissions.
+        }
       }
+      if (saved !== activeBusiness.id) localStorage.setItem('khumflow_business_id', activeBusiness.id)
     }).catch(() => setBusinesses([]))
   }, [demoMode])
 
@@ -255,7 +273,7 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
       </button>
       <h2 className="font-semibold text-gray-800 text-sm md:text-base">{getTitle()}</h2>
       <div className="ml-auto flex items-center gap-2">
-        {!demoMode && businesses.length > 1 && <select aria-label="เลือกธุรกิจ" value={activeBusinessId} onChange={(event) => { localStorage.setItem('khumflow_business_id', event.target.value); setActiveBusinessId(event.target.value); window.location.reload() }} className="max-w-48 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700"><option value="" disabled>เลือกธุรกิจ</option>{businesses.map((business) => <option key={business.id} value={business.id}>{business.name}</option>)}</select>}
+        {!demoMode && businesses.length > 1 && <select aria-label="เลือกธุรกิจ" value={activeBusinessId} onChange={(event) => { const selected = businesses.find((business) => business.id === event.target.value); localStorage.setItem('khumflow_business_id', event.target.value); if (selected) { const storedUser = localStorage.getItem('khumflow_user'); if (storedUser) { try { localStorage.setItem('khumflow_user', JSON.stringify({ ...JSON.parse(storedUser), role: selected.role })) } catch { /* Ignore stale cached user data. */ } } } setActiveBusinessId(event.target.value); window.location.reload() }} className="max-w-48 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700"><option value="" disabled>เลือกธุรกิจ</option>{businesses.map((business) => <option key={business.id} value={business.id}>{business.name}</option>)}</select>}
         <button onClick={onToggleDemo} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${demoMode ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : 'bg-green-50 text-green-800 hover:bg-green-100'}`}>
           {demoMode ? 'กลับข้อมูลร้าน' : 'ดูข้อมูลตัวอย่าง'}
         </button>
@@ -274,7 +292,21 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [demoMode, setDemoMode] = useState(isDemoMode)
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  const [platformAdminChecked, setPlatformAdminChecked] = useState(false)
   const location = useLocation()
+
+  useEffect(() => {
+    if (demoMode) { setIsPlatformAdmin(false); setPlatformAdminChecked(true); return }
+    platformAdminService.getMe().then(({ is_admin }) => {
+      setIsPlatformAdmin(is_admin)
+      setPlatformAdminChecked(true)
+      const stored = localStorage.getItem('khumflow_user')
+      if (stored) {
+        try { localStorage.setItem('khumflow_user', JSON.stringify({ ...JSON.parse(stored), is_platform_admin: is_admin })) } catch { /* Ignore stale cached user data. */ }
+      }
+    }).catch(() => { setIsPlatformAdmin(false); setPlatformAdminChecked(true) })
+  }, [demoMode])
 
   const currentUser = (() => {
     try {
@@ -290,6 +322,7 @@ export function AppLayout() {
   // Check if current route is allowed for this role
   const isRouteAllowed = () => {
     const currentPath = location.pathname
+    if (currentPath === '/app/platform-admin') return isPlatformAdmin && !demoMode
     // Check if visiting Analytics or Forecast
     if (currentPath.includes('/analytics/') || currentPath.includes('/forecast') || currentPath.includes('/reports')) {
       return userRole.includes('owner') || userRole.includes('manager') || userRole === 'admin'
@@ -322,12 +355,13 @@ export function AppLayout() {
   }
 
   if (!localStorage.getItem('khumflow_token') || !currentUser) return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  if (location.pathname === '/app/platform-admin' && !platformAdminChecked) return <div className="p-8 text-sm text-gray-500">กำลังตรวจสอบสิทธิ์ผู้ดูแลแพลตฟอร์ม…</div>
 
   return (
     <div className={location.pathname.startsWith('/app/reports') ? 'print-report-layout' : undefined} style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f9fafb' }}>
       {/* Desktop Sidebar */}
       <aside className="hidden lg:block flex-shrink-0">
-        <SidebarContent />
+        <SidebarContent isPlatformAdmin={isPlatformAdmin && !demoMode} />
       </aside>
 
       {/* Mobile overlay */}
@@ -344,7 +378,7 @@ export function AppLayout() {
         className="fixed inset-y-0 left-0 z-50 lg:hidden transition-transform duration-300"
         style={{ transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)' }}
       >
-        <SidebarContent onClose={() => setMobileOpen(false)} />
+        <SidebarContent isPlatformAdmin={isPlatformAdmin && !demoMode} onClose={() => setMobileOpen(false)} />
       </aside>
 
       {/* Main Content */}

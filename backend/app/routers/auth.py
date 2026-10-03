@@ -9,7 +9,8 @@ from app.schemas import (
     ChangePasswordRequest, UserUpdate, PaginatedUsers
 )
 from app.services.auth_service import (
-    verify_password, get_password_hash, create_access_token, get_current_user
+    verify_password, get_password_hash, create_access_token, get_current_user,
+    ensure_business_subscription,
 )
 from app.config import settings
 from app.services.auth_service import log_activity
@@ -36,6 +37,10 @@ async def login(req: LoginRequest, session: AsyncSession = Depends(get_session))
             status_code=status.HTTP_403_FORBIDDEN,
             detail="บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ"
         )
+
+    platform_admins = {value.strip().lower() for value in settings.PLATFORM_ADMIN_EMAILS.split(",") if value.strip()}
+    if user.email.lower() not in platform_admins and user.business_id is not None:
+        await ensure_business_subscription(session, user.business_id)
 
     token = create_access_token({"sub": user.email, "role": str(user.role.value if hasattr(user.role, 'value') else user.role)})
     return Token(

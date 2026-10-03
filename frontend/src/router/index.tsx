@@ -18,6 +18,7 @@ import { UsersPage, BusinessInfoPage } from '@/pages/settings/SettingsPages'
 import RolesPage from '@/pages/settings/RolesPage'
 import AuditPage from '@/pages/settings/AuditPage'
 import ReportsPage from '@/pages/reports/ReportsPage'
+import PlatformAdminPage from '@/pages/platformAdmin/PlatformAdminPage'
 
 export default function AppRouter() {
   return (
@@ -51,6 +52,7 @@ export default function AppRouter() {
           <Route path="settings/roles" element={<RolesPage />} />
           <Route path="settings/business" element={<BusinessInfoPage />} />
           <Route path="settings/audit" element={<AuditPage />} />
+          <Route path="platform-admin" element={<PlatformAdminPage />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Route>
 

@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     EMAILS_FROM_NAME: str = "KhumFlow Security"
     FRONTEND_URL: str = "https://khunflow.vercel.app"
 
+    # Comma-separated exact account emails allowed into platform operations.
+    # Keep empty by default; never grant platform access based on a shop role.
+    PLATFORM_ADMIN_EMAILS: str = ""
+
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def assemble_db_url(cls, v: str) -> str:

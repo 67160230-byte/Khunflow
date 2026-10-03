@@ -68,6 +68,25 @@ class User(SQLModel, table=True):
     is_active: bool = True
     created_at: datetime = Field(default_factory=utc_now)
 
+class PlatformSubscription(SQLModel, table=True):
+    __tablename__ = "platform_subscriptions"
+    user_id: int = Field(foreign_key="users.id", primary_key=True)
+    plan: str = "trial"
+    status: str = "trial"
+    period_ends_at: Optional[datetime] = None
+    note: Optional[str] = None
+    updated_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    updated_at: datetime = Field(default_factory=utc_now)
+
+class PlatformAuditLog(SQLModel, table=True):
+    __tablename__ = "platform_audit_logs"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    actor_user_id: int = Field(foreign_key="users.id", index=True)
+    target_user_id: int = Field(foreign_key="users.id", index=True)
+    action: str
+    detail: str = ""
+    created_at: datetime = Field(default_factory=utc_now)
+
 class PasswordReset(SQLModel, table=True):
     __tablename__ = "password_resets"
     token_hash: str = Field(primary_key=True)

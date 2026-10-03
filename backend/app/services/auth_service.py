@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.config import settings
 from app.database import get_session
-from app.models import User, UserRole, AuditLog, BusinessMembership
+from app.models import User, UserRole, AuditLog, BusinessMembership, PlatformSubscription
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -18,6 +18,35 @@ def require_role(user: User, *roles: UserRole) -> None:
 
 def log_activity(session: AsyncSession, user: User, action: str, entity_type: str, entity_id: object | None, detail: str = "") -> None:
     session.add(AuditLog(business_id=user.business_id, actor_id=user.id, action=action, entity_type=entity_type, entity_id=str(entity_id) if entity_id is not None else None, detail=detail))
+
+async def ensure_business_subscription(session: AsyncSession, business_id: int) -> None:
+    owner_ids = (await session.execute(
+        select(BusinessMembership.user_id).where(
+            BusinessMembership.business_id == business_id,
+            BusinessMembership.role == UserRole.OWNER,
+        )
+    )).scalars().all()
+    if not owner_ids:
+        return
+    subscriptions = (await session.execute(
+        select(PlatformSubscription).where(PlatformSubscription.user_id.in_(owner_ids))
+    )).scalars().all()
+    if not subscriptions:
+        return  # Existing businesses without a billing record remain in trial.
+    now = datetime.now(timezone.utc)
+    for subscription in subscriptions:
+        end = subscription.period_ends_at
+        if end is not None and end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        expired = end is not None and end <= now
+        if subscription.status == "suspended":
+            continue
+        if subscription.status in ("trial", "active") and expired:
+            continue
+        if subscription.status in ("past_due", "canceled") and (end is None or expired):
+            continue
+        return
+    raise HTTPException(status_code=402, detail="แพ็กเกจของธุรกิจหมดอายุหรือถูกระงับ กรุณาติดต่อผู้ดูแล KhumFlow")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
@@ -76,6 +105,13 @@ async def get_current_user(
     )).scalar_one_or_none()
     if membership is None:
         raise HTTPException(status_code=403, detail="คุณไม่มีสิทธิ์เข้าถึงธุรกิจนี้")
+
+    # Subscription belongs to the business owner account. Staff access is
+    # blocked with the shop when its owner's paid period expires; platform
+    # administrators are exempt so they can restore access from the console.
+    platform_admins = {value.strip().lower() for value in settings.PLATFORM_ADMIN_EMAILS.split(",") if value.strip()}
+    if user.email.lower() not in platform_admins:
+        await ensure_business_subscription(session, active_business_id)
 
     # Return a request-scoped identity rather than changing User.business_id in
     # the ORM session; that column remains the user's default business.

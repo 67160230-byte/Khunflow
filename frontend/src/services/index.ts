@@ -282,6 +282,17 @@ export const businessService = {
   create: (name: string) => api<any>('/businesses', { method: 'POST', body: JSON.stringify({ name }) }),
 }
 
+export const platformAdminService = {
+  getMe: () => api<{ is_admin: boolean }>('/platform-admin/me'),
+  getAccounts: () => api<Array<{
+    id: number; name: string; email: string; created_at: string; is_active: boolean;
+    businesses: string[]; plan: string; subscription_status: string; subscription_expired: boolean;
+    period_ends_at: string | null; note: string | null
+  }>>('/platform-admin/accounts'),
+  updateSubscription: (id: number, data: { plan: string; status: string; period_ends_at: string | null; note: string }) => api<{ message: string }>(`/platform-admin/accounts/${id}/subscription`, { method: 'PUT', body: JSON.stringify(data) }),
+  setAccountAccess: (id: number, isActive: boolean) => api<{ message: string }>(`/platform-admin/accounts/${id}/access`, { method: 'PATCH', body: JSON.stringify({ is_active: isActive }) }),
+}
+
 // ── Forecast ──────────────────────────────────────────────────
 export const forecastService = {
   getAll: async (): Promise<ForecastData[]> => {

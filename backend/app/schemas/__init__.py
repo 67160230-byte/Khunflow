@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import date, datetime
 from app.models import UserRole, ProductCategory, IngredientUnit, OrderStatus
 
@@ -29,6 +29,15 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
+
+class PlatformSubscriptionUpdate(BaseModel):
+    plan: Literal["trial", "monthly", "yearly", "lifetime"]
+    status: Literal["trial", "active", "past_due", "suspended", "canceled"]
+    period_ends_at: Optional[datetime] = None
+    note: Optional[str] = Field(default=None, max_length=500)
+
+class PlatformAccessUpdate(BaseModel):
+    is_active: bool
 
 class UserResponse(BaseModel):
     id: int
