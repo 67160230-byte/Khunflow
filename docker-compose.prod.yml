@@ -21,6 +21,7 @@ services:
       - DATABASE_URL=postgresql://khumflow:${DB_PASSWORD}@postgres:5432/khumflow
       - JWT_SECRET=${JWT_SECRET}
       - ENVIRONMENT=production
+      - DEMO_MODE=${DEMO_MODE:-false}
     depends_on:
       postgres:
         condition: service_healthy

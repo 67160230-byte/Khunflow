@@ -17,7 +17,6 @@ from app.services.auth_service import log_activity
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-
 # ── POST /auth/login ──────────────────────────────────────────────
 @router.post("/login", response_model=Token, summary="เข้าสู่ระบบ")
 async def login(req: LoginRequest, session: AsyncSession = Depends(get_session)):
@@ -348,6 +347,13 @@ async def forgot_password(
             "email_sent": False
         }
 
+    if settings.DEMO_MODE:
+        return {
+            "message": "บัญชีพร้อมตั้งรหัสผ่านใหม่",
+            "email_sent": False,
+            "demo_password_reset": True,
+        }
+
     # ใช้ token แบบสุ่ม 256 บิต เพื่อป้องกันการเดารหัส
     token = secrets.token_hex(32).upper()
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -364,7 +370,44 @@ async def forgot_password(
         user_name=user.full_name
     )
 
-    return {"message": "หากอีเมลนี้ลงทะเบียนไว้ ระบบจะส่งรหัสสำหรับตั้งรหัสผ่านใหม่ให้ภายในไม่กี่นาที", "email_sent": email_sent, "expires_in_minutes": 15}
+    return {
+        "message": "หากอีเมลนี้ลงทะเบียนไว้ ระบบจะส่งรหัสสำหรับตั้งรหัสผ่านใหม่ให้ภายในไม่กี่นาที",
+        "email_sent": email_sent,
+        "expires_in_minutes": 15,
+    }
+
+
+# ── POST /auth/demo-reset-password ───────────────────────────────
+@router.post("/demo-reset-password", summary="ตั้งรหัสผ่านใหม่ในโหมดเดโม")
+async def demo_reset_password(
+    body: dict,
+    session: AsyncSession = Depends(get_session)
+):
+    if not settings.DEMO_MODE:
+        raise HTTPException(status_code=404, detail="ไม่พบ endpoint นี้")
+
+    email = str(body.get("email", "")).strip().lower()
+    new_password = str(body.get("new_password", "")).strip()
+    if not email:
+        raise HTTPException(status_code=422, detail="กรุณาระบุ email")
+    if len(new_password) < 8 or len(new_password) > 72:
+        raise HTTPException(status_code=422, detail="รหัสผ่านใหม่ต้องมี 8–72 ตัวอักษร")
+
+    user = (await session.execute(
+        select(User).where(User.email == email)
+    )).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="ไม่พบอีเมลนี้ในระบบ")
+
+    user.hashed_password = get_password_hash(new_password)
+    old_tokens = (await session.execute(
+        select(PasswordReset).where(PasswordReset.email == email)
+    )).scalars().all()
+    for old_token in old_tokens:
+        await session.delete(old_token)
+    session.add(user)
+    await session.commit()
+    return {"message": "ตั้งรหัสผ่านใหม่สำเร็จ"}
 
 
 # ── POST /auth/reset-password ─────────────────────────────────────

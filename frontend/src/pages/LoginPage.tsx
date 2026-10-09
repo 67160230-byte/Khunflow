@@ -14,7 +14,7 @@ function GoogleIcon() {
   )
 }
 
-type ForgotStep = 'email' | 'token' | 'done'
+type ForgotStep = 'email' | 'demo-reset' | 'token' | 'done'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -174,14 +174,41 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'เกิดข้อผิดพลาด')
+      if (data.demo_password_reset) {
+        setForgotSuccess('โหมดตัวอย่าง: กำหนดรหัสผ่านใหม่ได้เลย โดยไม่ต้องใช้ OTP')
+        setForgotStep('demo-reset')
+        return
+      }
       if (!data.email_sent) {
         setForgotError('ระบบส่งอีเมลรีเซ็ตรหัสผ่านไม่สำเร็จ กรุณาลองใหม่ภายหลังหรือติดต่อผู้ดูแลระบบ')
         return
       }
-      setForgotSuccess(`ส่งรหัสตั้งรหัสผ่านไปยัง ${forgotEmail} แล้ว กรุณาตรวจสอบกล่องข้อความ`)
+      setForgotSuccess(`ส่งลิงก์ตั้งรหัสผ่านไปยัง ${forgotEmail} แล้ว กรุณาตรวจสอบกล่องข้อความ`)
       setForgotStep('token')
     } catch (err: any) {
       setForgotError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
+  const handleDemoPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setForgotError('')
+    if (!forgotEmail || !newPassword) { setForgotError('กรุณากรอกอีเมลและรหัสผ่านใหม่'); return }
+    setForgotLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/api/auth/demo-reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail, new_password: newPassword })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'ตั้งรหัสผ่านใหม่ไม่สำเร็จ')
+      setForgotSuccess('ตั้งรหัสผ่านใหม่สำเร็จ! กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่')
+      setForgotStep('done')
+    } catch (err: any) {
+      setForgotError(err.message || 'ตั้งรหัสผ่านใหม่ไม่สำเร็จ')
     } finally {
       setForgotLoading(false)
     }
@@ -453,7 +480,7 @@ export default function LoginPage() {
                     {forgotLoading ? (
                       <><RefreshCw size={14} className="animate-spin" /> กำลังส่ง...</>
                     ) : (
-                      'ขอรหัส Reset Token'
+                      'ดำเนินการต่อ'
                     )}
                   </button>
                 </form>
@@ -474,7 +501,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-                  กรุณาคัดลอกรหัสจากอีเมลที่ส่งไปยัง {forgotEmail} รหัสมีอายุ 15 นาที
+                  {forgotSuccess || `กรุณาคัดลอกรหัสจากอีเมลที่ส่งไปยัง ${forgotEmail} รหัสมีอายุ 15 นาที`}
                 </div>
 
                 <form onSubmit={handleResetPassword} className="space-y-3.5">
@@ -498,8 +525,66 @@ export default function LoginPage() {
                         required
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="อย่างน้อย 6 ตัวอักษร"
-                        minLength={6}
+                        placeholder="อย่างน้อย 8 ตัวอักษร"
+                        minLength={8}
+                        className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPw(!showNewPw)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showNewPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </div>
+                  {forgotError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg p-2.5">
+                      {forgotError}
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="w-full bg-green-700 hover:bg-green-800 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    {forgotLoading ? (
+                      <><RefreshCw size={14} className="animate-spin" /> กำลังรีเซ็ต...</>
+                    ) : (
+                      'ตั้งรหัสผ่านใหม่'
+                    )}
+                  </button>
+                </form>
+              </>
+            )}
+
+            {forgotStep === 'demo-reset' && (
+              <>
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <KeyRound size={18} className="text-green-700" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900">ตั้งรหัสผ่านใหม่</h3>
+                    <p className="text-xs text-gray-500">{forgotEmail}</p>
+                  </div>
+                </div>
+
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                  {forgotSuccess}
+                </div>
+
+                <form onSubmit={handleDemoPasswordReset} className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">รหัสผ่านใหม่</label>
+                    <div className="relative">
+                      <input
+                        type={showNewPw ? 'text' : 'password'}
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="อย่างน้อย 8 ตัวอักษร"
+                        minLength={8}
                         className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                       />
                       <button

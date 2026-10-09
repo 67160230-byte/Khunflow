@@ -36,6 +36,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://khumflow:khumflow_secret@postgres:5432/khumflow
       - JWT_SECRET=khumflow_super_secret_jwt_key_change_in_production_12345
       - ENVIRONMENT=development
+      - DEMO_MODE=${DEMO_MODE:-false}
       - PLATFORM_ADMIN_EMAILS=${PLATFORM_ADMIN_EMAILS:-}
     depends_on:
       seed:

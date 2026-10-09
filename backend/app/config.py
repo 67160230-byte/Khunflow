@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "KhumFlow API"
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
+    # Explicit opt-in for password-only email reset in a disposable demo environment.
+    DEMO_MODE: bool = False
 
     # Database — default ใช้สำหรับ Docker Compose
     DATABASE_URL: str = "postgresql+asyncpg://khumflow:khumflow_secret@postgres:5432/khumflow"
