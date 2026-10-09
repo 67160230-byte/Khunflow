@@ -1,3 +1,4 @@
+import { storeShopPreferences } from '@/services/formatting'
 import { useState } from 'react'
 import { useEffect } from 'react'
 import { usersService, businessService, isDemoMode } from '@/services'
@@ -227,6 +228,7 @@ export function BusinessInfoPage() {
     setError('')
     try { await businessService.update({ name: storeName, businessType, currency, timezone }) }
     catch (e) { setError(e instanceof Error ? e.message : 'บันทึกข้อมูลร้านไม่สำเร็จ'); return }
+    storeShopPreferences(currency, timezone)
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
@@ -249,7 +251,7 @@ export function BusinessInfoPage() {
             const active = business.id === activeId
             return active
               ? <div key={business.id} className="flex min-h-14 items-center justify-between rounded-xl border border-green-300 bg-green-50 px-3 sm:px-4"><span className="text-sm font-semibold text-gray-900">{business.name}</span><Badge variant="success">กำลังใช้งาน</Badge></div>
-              : <button key={business.id} type="button" aria-label={`เปิดธุรกิจ ${business.name}`} onClick={() => { localStorage.setItem('khumflow_business_id', business.id); window.location.assign('/app/dashboard') }} className="group flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 text-left transition hover:border-green-400 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 sm:px-4"><span className="text-sm font-medium text-gray-800">{business.name}</span><span className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-green-700 px-4 text-sm font-semibold text-white shadow-sm transition group-hover:bg-green-800">เปิดธุรกิจ</span></button>
+              : <button key={business.id} type="button" aria-label={`เปิดธุรกิจ ${business.name}`} onClick={() => { if (!isDemoMode()) localStorage.setItem('khumflow_business_id', business.id); window.location.assign('/app/dashboard') }} className="group flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 text-left transition hover:border-green-400 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 sm:px-4"><span className="text-sm font-medium text-gray-800">{business.name}</span><span className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-green-700 px-4 text-sm font-semibold text-white shadow-sm transition group-hover:bg-green-800">เปิดธุรกิจ</span></button>
           })}
         </div>
         {!isDemoMode() ? <form onSubmit={handleCreateBusiness} className="mt-4 flex flex-col gap-2 sm:flex-row">
@@ -296,6 +298,7 @@ export function BusinessInfoPage() {
                 <option value="EUR">EUR (€) — ยูโร</option>
                 <option value="SGD">SGD (S$) — ดอลลาร์สิงคโปร์</option>
               </select>
+              <p className="mt-1 text-xs text-gray-500">การเปลี่ยนสกุลเงินไม่แปลงตัวเลขราคาหรือยอดย้อนหลัง</p>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">เขตเวลา (Timezone)</label>

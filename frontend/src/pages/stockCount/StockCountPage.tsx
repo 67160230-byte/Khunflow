@@ -1,3 +1,5 @@
+import { formatMoney } from '@/services/formatting'
+import LoadError from '@/components/LoadError'
 import { useState, useEffect } from 'react'
 import { inventoryService, stockCountService } from '@/services'
 import type { Ingredient, VarianceReason } from '@/types'
@@ -22,19 +24,20 @@ const varianceReasons: { value: VarianceReason; label: string }[] = [
   { value: 'unknown', label: 'ไม่ทราบสาเหตุ' },
 ]
 
-function formatBaht(n: number) {
-  return `฿${Math.abs(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+const formatBaht = formatMoney
 
 export default function StockCountPage() {
   const [rows, setRows] = useState<CountRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState('')
 
   useEffect(() => {
+    let active = true
     inventoryService.getAll().then((data) => {
+      if (!active) return
       const initial = data.map((ing) => ({
         ingredient: ing,
         countedStock: ing.currentStock,
@@ -44,7 +47,8 @@ export default function StockCountPage() {
       }))
       setRows(initial)
       setLoading(false)
-    })
+    }).catch(error => { if (active) setLoadError(error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ') }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
   }, [])
 
   const handleCountChange = (index: number, val: number) => {
@@ -76,12 +80,23 @@ export default function StockCountPage() {
     setActionError('')
     try {
       await stockCountService.create(rows.map((row) => ({ ingredientId: row.ingredient.id, countedStock: row.countedStock, reason: row.reason })))
+      setRows(previous => previous.map(row => ({ ...row, ingredient: { ...row.ingredient, currentStock: row.countedStock } })))
       setSubmitted(true)
     } catch (error) { setActionError(error instanceof Error ? error.message : 'บันทึกผลตรวจนับไม่สำเร็จ') }
     finally { setSaving(false) }
   }
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    if (submitted) {
+      setLoading(true); setLoadError('')
+      try {
+        const ingredients = await inventoryService.getAll()
+        setRows(ingredients.map(ingredient => ({ ingredient, countedStock: ingredient.currentStock, variance: 0, varianceCost: 0, reason: 'unknown' })))
+        setSubmitted(false)
+      } catch (e) { setLoadError(e instanceof Error ? e.message : 'โหลดสต็อกล่าสุดไม่สำเร็จ') }
+      finally { setLoading(false) }
+      return
+    }
     setRows((prev) =>
       prev.map((r) => ({
         ...r,
@@ -95,6 +110,7 @@ export default function StockCountPage() {
   }
 
   if (loading) return <LoadingSpinner />
+  if (loadError) return <LoadError error={loadError} />
 
   const totalVarianceCost = rows.reduce((sum, r) => sum + (r.variance < 0 ? Math.abs(r.varianceCost) : 0), 0)
   const discrepancyCount = rows.filter((r) => r.variance !== 0).length
@@ -154,7 +170,7 @@ export default function StockCountPage() {
               </p>
             </div>
           </div>
-          <Button size="sm" variant="secondary" onClick={() => setSubmitted(false)}>
+          <Button size="sm" variant="secondary" onClick={handleReset}>
             ตรวจนับรอบใหม่
           </Button>
         </div>

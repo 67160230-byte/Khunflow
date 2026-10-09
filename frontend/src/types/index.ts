@@ -181,6 +181,7 @@ export interface PurchaseOrderItem {
   ingredientId: string
   ingredientName: string
   quantity: number
+  remainingQuantity?: number
   unit: IngredientUnit
   unitCost: number
   totalCost: number
@@ -193,6 +194,7 @@ export interface PurchaseOrder {
   items: PurchaseOrderItem[]
   totalCost: number
   status: PurchaseOrderStatus
+  canReopen?: boolean
   orderDate: string
   expectedDate?: string
   receivedDate?: string
@@ -245,9 +247,9 @@ export interface DashboardKPI {
   foodCostPercent: number
   grossProfit: number
   wasteValue: number
-  salesChangePercent: number
-  foodCostChangePercent: number
-  profitChangePercent: number
+  salesChangePercent: number | null
+  foodCostChangePercent: number | null
+  profitChangePercent: number | null
 }
 
 // ── Forecast ─────────────────────────────────────────────────

@@ -1,12 +1,12 @@
+import { currentPermissions } from '@/services/permissions'
+import { formatMoney } from '@/services/formatting'
 import { useState, useEffect } from 'react'
 import { recipesService, productsService, inventoryService, isDemoMode } from '@/services'
 import type { Recipe, RecipeItem, IngredientUnit, Product, Ingredient } from '@/types'
 import { Card, LoadingSpinner, SectionHeader, Button, EmptyState } from '@/components/ui'
 import { Plus, ChevronDown, ChevronRight, X, BookOpen, Trash2, Check } from 'lucide-react'
 
-function formatBaht(n: number) {
-  return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+const formatBaht = formatMoney
 
 const unitLabel: Record<string, string> = {
   g: 'กรัม', kg: 'กก.', ml: 'มล.', l: 'ลิตร', piece: 'ชิ้น', pack: 'แพ็ก', bottle: 'ขวด',
@@ -84,6 +84,7 @@ export default function RecipesPage() {
   const [productId, setProductId] = useState('')
   const [items, setItems] = useState<Array<{ ingredientId: string; quantity: string; unit: IngredientUnit }>>([])
   const [successToast, setSuccessToast] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [loadError, setLoadError] = useState('')
   const [deletingRecipeId, setDeletingRecipeId] = useState<string | null>(null)
@@ -91,7 +92,7 @@ export default function RecipesPage() {
     try { const user = localStorage.getItem('khumflow_user'); return user ? JSON.parse(user) : null } catch { return null }
   })()
   const role = currentUser?.role?.toLowerCase() || 'owner'
-  const canManageRecipes = role.includes('owner') || role.includes('manager') || role === 'admin'
+  const canManageRecipes = !!currentPermissions(role).products
 
   useEffect(() => {
     Promise.all([recipesService.getAll(), productsService.getAll(), inventoryService.getAll()]).then(([data, catalog, stock]) => {
@@ -129,7 +130,10 @@ export default function RecipesPage() {
 
   const handleAddRecipe = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!productId || items.length === 0) return
+    if (!productId || items.length === 0) { setFormError('กรุณาเลือกสินค้าและเพิ่มวัตถุดิบอย่างน้อยหนึ่งรายการ'); return }
+    if (saving) return
+    setSaving(true)
+    setFormError('')
     try {
     await recipesService.create(productId, items.map((it) => ({ ingredientId: it.ingredientId, quantity: Number(it.quantity), unit: it.unit })))
     setRecipes(await recipesService.getAll())
@@ -138,6 +142,7 @@ export default function RecipesPage() {
     setSuccessToast(true)
     setTimeout(() => setSuccessToast(false), 3000)
     } catch (error) { setFormError(error instanceof Error ? error.message : 'บันทึกสูตรไม่สำเร็จ') }
+    finally { setSaving(false) }
   }
 
   const handleDeleteRecipe = async (recipe: Recipe) => {
@@ -202,6 +207,7 @@ export default function RecipesPage() {
             </h3>
             <p className="text-xs text-gray-500 mb-4">กำหนดสัดส่วนวัตถุดิบ ระบบจะคำนวณต้นทุนต่อแก้ว/จานให้อัตโนมัติ</p>
 
+            {formError && <p role="alert" className="mb-3 text-sm text-red-700">{formError}</p>}
             <form onSubmit={handleAddRecipe} className="space-y-4 text-sm">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">ชื่อเมนู / สินค้า</label>
@@ -273,8 +279,8 @@ export default function RecipesPage() {
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
                   ยกเลิก
                 </Button>
-                <Button type="submit" size="sm">
-                  บันทึกสูตรอาหาร
+                <Button type="submit" size="sm" disabled={saving}>
+                  {saving ? 'กำลังบันทึก…' : 'บันทึกสูตรอาหาร'}
                 </Button>
               </div>
             </form>

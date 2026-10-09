@@ -1,11 +1,14 @@
 from app.services.history import history_rows, orders_payload, waste_payload, receiving_payload, purchase_payload, audit_payload
 from typing import List
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from sqlalchemy import func
+from app.services.recipe_costs import refresh_recipe_costs
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.database import get_session
-from app.models import Product, Ingredient, Recipe, RecipeItem, GoodsReceiving, Supplier, PurchaseOrder, PurchaseOrderItem, User, UserRole, POStatus, Business, BusinessMembership, AuditLog
-from app.schemas import ProductCreate, IngredientCreate, IngredientUpdate, RecipeCreate, GoodsReceivingCreate
+from app.models import Product, Ingredient, Recipe, RecipeItem, GoodsReceiving, Supplier, PurchaseOrder, PurchaseOrderItem, User, UserRole, POStatus, Business, BusinessMembership, AuditLog, IngredientExpirationState
+from app.schemas import ProductCreate, IngredientCreate, IngredientUpdate, RecipeCreate, GoodsReceivingCreate, PurchaseCreate
 from app.services.auth_service import get_current_user, require_role, log_activity
 from app.services.unit_conversion import convert_quantity
 
@@ -27,6 +30,7 @@ async def create_business(data: dict, current_user: User = Depends(get_current_u
     name = str(data.get("name", "")).strip()
     if not name or len(name) > 120:
         raise HTTPException(status_code=422, detail="กรุณาระบุชื่อธุรกิจ 1–120 ตัวอักษร")
+    validate_business_preferences(data)
     business = Business(
         name=name,
         business_type=str(data.get("business_type", "cafe")),
@@ -56,11 +60,19 @@ async def business_profile(current_user: User = Depends(get_current_user), sessi
     if not business: raise HTTPException(status_code=404, detail="ไม่พบข้อมูลร้าน")
     return business
 
+def validate_business_preferences(data):
+    if "timezone" in data:
+        try: ZoneInfo(str(data["timezone"]))
+        except (ZoneInfoNotFoundError, ValueError): raise HTTPException(422, "เขตเวลาไม่ถูกต้อง")
+    if "currency" in data and data["currency"] not in ("THB", "USD", "EUR", "JPY", "CNY", "GBP", "SGD"):
+        raise HTTPException(422, "สกุลเงินไม่รองรับ")
+
 @router.put("/business")
 async def update_business(data: dict, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER)
     business = (await session.execute(select(Business).where(Business.id == current_user.business_id))).scalar_one_or_none()
     if not business: raise HTTPException(status_code=404, detail="ไม่พบข้อมูลร้าน")
+    validate_business_preferences(data)
     if "name" in data: business.name = str(data["name"]).strip()
     if "business_type" in data: business.business_type = str(data["business_type"])
     if "currency" in data: business.currency = str(data["currency"])
@@ -123,6 +135,8 @@ async def update_ingredient(ingredient_id: int, req: IngredientUpdate, current_u
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
     ingredient = (await session.execute(select(Ingredient).where(Ingredient.id == ingredient_id, Ingredient.business_id == current_user.business_id))).scalar_one_or_none()
     if not ingredient: raise HTTPException(status_code=404, detail="ไม่พบวัตถุดิบในร้านนี้")
+    state = await session.get(IngredientExpirationState, ingredient.id)
+    if state: state.status = 'active'
     ingredient.expiration_date = req.expiration_date
     log_activity(session, current_user, "update", "ingredient", ingredient.id, f"วันหมดอายุ {req.expiration_date}")
     await session.commit(); await session.refresh(ingredient)
@@ -180,18 +194,19 @@ async def receive_goods(req: GoodsReceivingCreate, current_user: User = Depends(
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
     if req.quantity <= 0 or req.unit_cost < 0:
         raise HTTPException(status_code=422, detail="จำนวนต้องมากกว่า 0 และต้นทุนห้ามติดลบ")
-    ing = (await session.execute(select(Ingredient).where(Ingredient.id == req.ingredient_id, Ingredient.business_id == current_user.business_id))).scalar_one_or_none()
+    ing = (await session.execute(select(Ingredient).where(Ingredient.id == req.ingredient_id, Ingredient.business_id == current_user.business_id).with_for_update())).scalar_one_or_none()
     supplier = (await session.execute(select(Supplier).where(Supplier.id == req.supplier_id, Supplier.business_id == current_user.business_id))).scalar_one_or_none()
     if not ing or not supplier:
         raise HTTPException(status_code=404, detail="ไม่พบวัตถุดิบหรือซัพพลายเออร์ในร้านนี้")
     purchase_order = None
     if req.purchase_order_id is not None:
-        purchase_order = (await session.execute(select(PurchaseOrder).where(PurchaseOrder.id == req.purchase_order_id, PurchaseOrder.business_id == current_user.business_id))).scalar_one_or_none()
+        purchase_order = (await session.execute(select(PurchaseOrder).where(PurchaseOrder.id == req.purchase_order_id, PurchaseOrder.business_id == current_user.business_id).with_for_update())).scalar_one_or_none()
         if not purchase_order or purchase_order.status != POStatus.ORDERED or purchase_order.supplier_id != supplier.id:
             raise HTTPException(status_code=409, detail="ใบสั่งซื้อไม่อยู่ในสถานะรับสินค้า หรือซัพพลายเออร์ไม่ตรงกัน")
-        ordered_item = (await session.execute(select(PurchaseOrderItem).where(PurchaseOrderItem.po_id == purchase_order.id, PurchaseOrderItem.ingredient_id == ing.id))).scalar_one_or_none()
-        if not ordered_item or req.quantity > ordered_item.quantity:
-            raise HTTPException(status_code=422, detail="จำนวนรับต้องไม่เกินจำนวนในใบสั่งซื้อ")
+        ordered_qty = (await session.execute(select(func.sum(PurchaseOrderItem.quantity)).where(PurchaseOrderItem.po_id == purchase_order.id, PurchaseOrderItem.ingredient_id == ing.id))).scalar_one()
+        received_qty = (await session.execute(select(func.coalesce(func.sum(GoodsReceiving.quantity), 0)).where(GoodsReceiving.purchase_order_id == purchase_order.id, GoodsReceiving.ingredient_id == ing.id, GoodsReceiving.business_id == current_user.business_id))).scalar_one()
+        if ordered_qty is None or req.quantity > ordered_qty - received_qty + 1e-9:
+            raise HTTPException(status_code=422, detail="จำนวนรับต้องไม่เกินจำนวนคงเหลือในใบสั่งซื้อ")
     rc = GoodsReceiving(
         supplier_id=req.supplier_id,
         ingredient_id=req.ingredient_id,
@@ -214,10 +229,16 @@ async def receive_goods(req: GoodsReceivingCreate, current_user: User = Depends(
     ing.current_stock = new_total_qty
     if req.expiration_date:
         ing.expiration_date = req.expiration_date
+        state = await session.get(IngredientExpirationState, ing.id)
+        if state: state.status, state.expiration_date = 'active', req.expiration_date
     session.add(ing)
+    await session.flush()
+    await refresh_recipe_costs(session, current_user.business_id, ing.id)
     if purchase_order:
-        purchase_order.status = POStatus.RECEIVED
-        session.add(purchase_order)
+        ordered = dict((await session.execute(select(PurchaseOrderItem.ingredient_id, func.sum(PurchaseOrderItem.quantity)).where(PurchaseOrderItem.po_id == purchase_order.id).group_by(PurchaseOrderItem.ingredient_id))).all())
+        received = dict((await session.execute(select(GoodsReceiving.ingredient_id, func.sum(GoodsReceiving.quantity)).where(GoodsReceiving.purchase_order_id == purchase_order.id, GoodsReceiving.business_id == current_user.business_id).group_by(GoodsReceiving.ingredient_id))).all())
+        if all(received.get(key, 0) + 1e-9 >= qty for key, qty in ordered.items()):
+            purchase_order.status = POStatus.RECEIVED
     log_activity(session, current_user, "receive", "goods", rc.id, f"{req.quantity} {ing.unit}; มูลค่า {rc.total_cost:.2f}")
         
     await session.commit()
@@ -281,17 +302,21 @@ async def list_purchase_orders(status: POStatus | None = None, current_user: Use
     return await purchase_payload(session, rows, current_user.business_id)
 
 @router.post("/purchase-orders")
-async def create_purchase_order(data: dict, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+async def create_purchase_order(data: PurchaseCreate, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
-    supplier = (await session.execute(select(Supplier).where(Supplier.id == data.get("supplier_id"), Supplier.business_id == current_user.business_id))).scalar_one_or_none()
+    supplier = (await session.execute(select(Supplier).where(Supplier.id == data.supplier_id, Supplier.business_id == current_user.business_id))).scalar_one_or_none()
     if not supplier: raise HTTPException(status_code=404, detail="ไม่พบซัพพลายเออร์ในร้านนี้")
-    items = data.get("items", [])
+    items = data.items
     if not items: raise HTTPException(status_code=422, detail="กรุณาเพิ่มวัตถุดิบอย่างน้อย 1 รายการ")
     po = PurchaseOrder(supplier_id=supplier.id, business_id=current_user.business_id, status=POStatus.ORDERED)
     session.add(po); await session.flush(); total = 0.0
     for item in items:
-        ing = (await session.execute(select(Ingredient).where(Ingredient.id == item.get("ingredient_id"), Ingredient.business_id == current_user.business_id))).scalar_one_or_none()
-        qty = float(item.get("quantity", 0)); cost = float(item.get("unit_cost", 0))
+        ing = (await session.execute(select(Ingredient).where(Ingredient.id == item.ingredient_id, Ingredient.business_id == current_user.business_id))).scalar_one_or_none()
+        qty = item.quantity; cost = item.unit_cost
+        if ing and item.unit:
+            factor = convert_quantity(1, item.unit, ing.unit)
+            qty *= factor
+            cost /= factor
         if not ing or qty <= 0 or cost < 0: raise HTTPException(status_code=422, detail="รายการวัตถุดิบหรือจำนวนสั่งซื้อไม่ถูกต้อง")
         line_total = qty * cost; total += line_total
         session.add(PurchaseOrderItem(po_id=po.id, ingredient_id=ing.id, quantity=qty, unit_cost=cost, total_cost=line_total))
@@ -299,3 +324,18 @@ async def create_purchase_order(data: dict, current_user: User = Depends(get_cur
     log_activity(session, current_user, "create", "purchase_order", po.id, f"ยอดรวม {total:.2f}")
     await session.commit(); await session.refresh(po)
     return {"id": po.id, "supplier_id": supplier.id, "supplier_name": supplier.name, "status": po.status, "total_cost": total, "order_date": po.order_date}
+
+@router.post('/purchase-orders/{po_id}/reopen')
+async def reopen_partial_purchase(po_id: int, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    require_role(user, UserRole.OWNER, UserRole.MANAGER, strict=True)
+    po = (await session.execute(select(PurchaseOrder).where(PurchaseOrder.id == po_id, PurchaseOrder.business_id == user.business_id).with_for_update())).scalar_one_or_none()
+    if not po: raise HTTPException(404, 'ไม่พบใบสั่งซื้อในร้านนี้')
+    if po.status != POStatus.RECEIVED: raise HTTPException(409, 'เปิดรับต่อได้เฉพาะใบสั่งซื้อเก่าที่ปิดก่อนรับครบ')
+    ordered = dict((await session.execute(select(PurchaseOrderItem.ingredient_id, func.sum(PurchaseOrderItem.quantity)).where(PurchaseOrderItem.po_id == po.id).group_by(PurchaseOrderItem.ingredient_id))).all())
+    received = dict((await session.execute(select(GoodsReceiving.ingredient_id, func.sum(GoodsReceiving.quantity)).where(GoodsReceiving.purchase_order_id == po.id, GoodsReceiving.business_id == user.business_id).group_by(GoodsReceiving.ingredient_id))).all())
+    if not received or not any(received.get(key, 0) + 1e-9 < quantity for key, quantity in ordered.items()):
+        raise HTTPException(409, 'ไม่พบยอดรับคงเหลือที่ยืนยันจากประวัติรับของได้')
+    po.status = POStatus.ORDERED
+    log_activity(session, user, 'restore', 'purchase_order', po.id, 'เปิดรับส่วนที่ยังไม่ครบจากประวัติรับของเดิม')
+    await session.commit()
+    return {'message': 'เปิดรับส่วนที่ยังไม่ครบแล้ว สต็อกและยอดรับเดิมไม่ถูกเปลี่ยนแปลง'}

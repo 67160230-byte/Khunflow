@@ -120,14 +120,14 @@ interface KPICardProps {
   title: string
   value: string | number
   subtitle?: string
-  changePercent?: number
+  changePercent?: number | null
   icon: ReactNode
   iconBg?: string
 }
 
 export function KPICard({ title, value, subtitle, changePercent, icon, iconBg = 'bg-green-100' }: KPICardProps) {
-  const isPositive = changePercent !== undefined && changePercent >= 0
-  const isNegative = changePercent !== undefined && changePercent < 0
+  const isPositive = changePercent != null && changePercent >= 0
+  const isNegative = changePercent != null && changePercent < 0
   return (
     <Card className="p-5">
       <div className="flex items-start justify-between">
@@ -135,7 +135,7 @@ export function KPICard({ title, value, subtitle, changePercent, icon, iconBg = 
           <p className="text-sm text-gray-500 font-medium truncate">{title}</p>
           <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{value}</p>
           {subtitle && <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>}
-          {changePercent !== undefined && (
+          {changePercent != null && (
             <p
               className={clsx(
                 'mt-2 text-xs font-medium flex items-center gap-0.5',

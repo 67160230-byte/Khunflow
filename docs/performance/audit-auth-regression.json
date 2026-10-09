@@ -1,0 +1,187 @@
+[
+  {
+    "path": "/auth/permissions",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/dashboard",
+    "status": 403,
+    "expected": 403
+  },
+  {
+    "path": "/orders/paged",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/orders/1/cancel",
+    "status": 403,
+    "expected": 403
+  },
+  {
+    "path": "/orders/10/restore",
+    "status": 403,
+    "expected": 403
+  },
+  {
+    "path": "/waste/paged",
+    "status": 403,
+    "expected": 403
+  },
+  {
+    "path": "/waste",
+    "status": 403,
+    "expected": 403
+  },
+  {
+    "path": "/stock-counts",
+    "status": 403,
+    "expected": 403
+  },
+  {
+    "path": "/recipes",
+    "status": 403,
+    "expected": 403
+  },
+  {
+    "path": "/auth/permissions",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/recipes",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/purchase-orders/1/reopen",
+    "status": 403,
+    "expected": 403
+  },
+  {
+    "path": "/ingredients",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/products",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/auth/permissions",
+    "status": 403,
+    "expected": 403
+  },
+  {
+    "path": "/auth/permissions",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/auth/permissions",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/dashboard",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/analytics/variance",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/auth/permissions",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/recipes",
+    "status": 403,
+    "expected": 403
+  },
+  {
+    "path": "/auth/permissions",
+    "status": 400,
+    "expected": 400
+  },
+  {
+    "path": "/ingredients/1",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/expiration-status",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/expiration-status",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/dashboard",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/expiration-status",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/expiration-status",
+    "status": 404,
+    "expected": 404
+  },
+  {
+    "path": "/expiration-status",
+    "status": 403,
+    "expected": 403
+  },
+  {
+    "path": "/ingredients/1",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/expiration-status",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/dashboard",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/expiration-status",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/receiving",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/expiration-status",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/expiration-status",
+    "status": 200,
+    "expected": 200
+  },
+  {
+    "path": "/auth/permissions",
+    "status": 422,
+    "expected": 422
+  }
+]

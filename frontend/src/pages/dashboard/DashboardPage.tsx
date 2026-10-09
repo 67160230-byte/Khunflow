@@ -1,3 +1,5 @@
+import { shopTimezone } from '@/services/formatting'
+import { formatMoney } from '@/services/formatting'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import StoreSetupGuide, { getCurrentRole } from '@/components/StoreSetupGuide'
@@ -33,12 +35,10 @@ function shortDate(dateStr: string) {
   return `${d.getDate()}/${d.getMonth() + 1}`
 }
 
-function formatBaht(n: number) {
-  return `฿${n.toLocaleString('th-TH')}`
-}
+const formatBaht = formatMoney
 
 function dateKeyInBangkok(value: string | Date) {
-  const parts = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(value))
+  const parts = new Intl.DateTimeFormat('en', { timeZone: shopTimezone(), year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(value))
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value || ''
   return `${part('year')}-${part('month')}-${part('day')}`
 }
@@ -167,7 +167,7 @@ export default function DashboardPage() {
   const demoMode = isDemoMode()
   const sampleDay = sales[sales.length - 1]?.date
   const today = overviewDate || (demoMode && sampleDay ? sampleDay.slice(0, 10) : dateKeyInBangkok(new Date()))
-  const displayDate = new Date(`${today}T12:00:00+07:00`).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Bangkok' })
+  const displayDate = new Date(`${today}T12:00:00Z`).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
 
   return (
     <div className="space-y-6">

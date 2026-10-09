@@ -5,7 +5,7 @@ import os
 from app.config import settings
 from app.database import init_db
 from app.services.performance_indexes import ensure_performance_indexes
-from app.routers import auth, inventory, operations, platform_admin, history
+from app.routers import auth, inventory, operations, platform_admin, history, preferences
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,6 +39,7 @@ app.add_middleware(
 
 # Register Routers
 app.include_router(history.router, prefix="/api")
+app.include_router(preferences.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(inventory.router, prefix="/api")
 app.include_router(operations.router, prefix="/api")

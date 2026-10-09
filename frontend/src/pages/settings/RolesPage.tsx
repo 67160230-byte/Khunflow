@@ -1,4 +1,7 @@
-import { useState } from 'react'
+import { permissionsService } from '@/services'
+import { defaultPermissions } from '@/services/permissions'
+import LoadError from '@/components/LoadError'
+import { useState, useEffect } from 'react'
 import { Card, SectionHeader, Button } from '@/components/ui'
 import { Shield, Check, Save, RotateCcw } from 'lucide-react'
 
@@ -109,14 +112,21 @@ const DEFAULT_ROLES: RoleDef[] = [
 ]
 
 export default function RolesPage() {
-  const [roles, setRoles] = useState<RoleDef[]>(() => {
-    const saved = localStorage.getItem('khumflow_roles_permissions')
-    return saved ? JSON.parse(saved) : DEFAULT_ROLES
-  })
-
+  const [roles, setRoles] = useState<RoleDef[]>(DEFAULT_ROLES.map(role => ({ ...role, permissions: defaultPermissions[role.id] })))
   const [savedSuccess, setSavedSuccess] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    let active = true
+    permissionsService.get().then(data => { if (active) { setRoles(DEFAULT_ROLES.map(role => ({ ...role, permissions: data.roles[role.id] }))); setLoaded(true) } }).catch(e => { if (active) setError(e.message) }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
 
   const togglePermission = (roleId: string, permKey: string) => {
+    if (roleId === 'owner' || saving) return
+    setSavedSuccess(false)
     setRoles((prev) =>
       prev.map((role) => {
         if (role.id !== roleId) return role
@@ -131,18 +141,15 @@ export default function RolesPage() {
     )
   }
 
-  const handleSave = () => {
-    localStorage.setItem('khumflow_roles_permissions', JSON.stringify(roles))
-    setSavedSuccess(true)
-    setTimeout(() => setSavedSuccess(false), 3000)
+  const handleSave = async () => {
+    setSaving(true); setError(''); setSavedSuccess(false)
+    try { await permissionsService.save(Object.fromEntries(roles.map(role => [role.id, role.permissions]))); setSavedSuccess(true) }
+    catch (e) { setError(e instanceof Error ? e.message : 'บันทึกสิทธิ์ไม่สำเร็จ') }
+    finally { setSaving(false) }
   }
-
-  const handleReset = () => {
-    setRoles(DEFAULT_ROLES)
-    localStorage.removeItem('khumflow_roles_permissions')
-    setSavedSuccess(true)
-    setTimeout(() => setSavedSuccess(false), 3000)
-  }
+  const handleReset = () => { setRoles(DEFAULT_ROLES.map(role => ({ ...role, permissions: defaultPermissions[role.id] }))); setSavedSuccess(false) }
+  if (loading) return <p>กำลังโหลดสิทธิ์…</p>
+  if (!loaded) return <LoadError error={error || 'โหลดสิทธิ์ไม่สำเร็จ'} />
 
   return (
     <div className="space-y-6">
@@ -151,19 +158,20 @@ export default function RolesPage() {
         subtitle="เจ้าของร้านสามารถคลิกเปิด-ปิดสิทธิ์ของแต่ละบทบาทได้ตามต้องการ"
         action={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleReset}>
+            <Button variant="outline" size="sm" disabled={saving} onClick={handleReset}>
               <RotateCcw size={15} /> รีเซ็ตค่าเริ่มต้น
             </Button>
-            <Button size="sm" onClick={handleSave} className="flex items-center gap-1.5">
+            <Button size="sm" disabled={saving} onClick={handleSave} className="flex items-center gap-1.5">
               <Save size={16} /> บันทึกการตั้งค่าสิทธิ์
             </Button>
           </div>
         }
       />
 
+      {error && <LoadError error={error} />}
       {savedSuccess && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 animate-in fade-in">
-          <Check size={18} /> บันทึกการตั้งค่าสิทธิ์เรียบร้อยแล้ว! มีผลบังคับใช้กับผู้ใช้งานในระบบทันที
+          <Check size={18} /> บันทึกการตั้งค่าสิทธิ์เรียบร้อยแล้ว! API จะตรวจสิทธิ์ใหม่ทุกคำขอ พนักงานจะเห็นเมนูใหม่เมื่อเปลี่ยนหน้าหรือรีเฟรช
         </div>
       )}
 
@@ -221,7 +229,7 @@ export default function RolesPage() {
               </div>
 
               <div className="p-3 bg-gray-50 border-t border-gray-100 text-[11px] text-gray-500 text-center">
-                คลิกที่แถวเพื่อ เปิด/ปิด สิทธิ์
+                {role.id === 'owner' ? 'คงสิทธิ์เจ้าของร้านเพื่อป้องกันการเข้าไม่ได้' : 'คลิกเปิด/ปิด แล้วกดบันทึก'}
               </div>
             </Card>
           )
@@ -232,7 +240,7 @@ export default function RolesPage() {
         <Shield size={18} className="text-amber-700 flex-shrink-0 mt-0.5" />
         <div>
           <p className="font-bold text-amber-900 mb-0.5">กำหนดสิทธิ์การทำงานของพนักงาน</p>
-          <p>เมื่อเจ้าของร้านปรับเปลี่ยนสิทธิ์และกด <strong>"บันทึกการตั้งค่าสิทธิ์"</strong> ระบบจะอัปเดตสิทธิ์การเข้าถึงเมนูและการใช้งานของพนักงานในแต่ละบทบาททันที</p>
+          <p>เมื่อเจ้าของร้านปรับเปลี่ยนสิทธิ์และกด <strong>"บันทึกการตั้งค่าสิทธิ์"</strong> ระบบจะบันทึกสิทธิ์เฉพาะร้านนี้และตรวจที่ API ทุกครั้ง พนักงานรีเฟรชเพื่อปรับเมนูให้ตรงสิทธิ์ล่าสุด</p>
         </div>
       </div>
     </div>

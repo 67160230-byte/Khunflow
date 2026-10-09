@@ -1,3 +1,5 @@
+import { formatMoney } from '@/services/formatting'
+import LoadError from '@/components/LoadError'
 import { useState, useEffect } from 'react'
 import { analyticsService } from '@/services'
 import type { VarianceData, FoodCostData } from '@/types'
@@ -6,9 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 
-function formatBaht(n: number) {
-  return `฿${n.toLocaleString('th-TH')}`
-}
+const formatBaht = formatMoney
 function shortDate(s: string) {
   const d = new Date(s)
   return `${d.getDate()}/${d.getMonth() + 1}`
@@ -22,16 +22,21 @@ export default function CostAnalysisPage() {
   const [variance, setVariance] = useState<VarianceData[]>([])
   const [foodCost, setFoodCost] = useState<FoodCostData[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
+    let active = true
     Promise.all([analyticsService.getVariance(), analyticsService.getFoodCostTrend()]).then(([v, f]) => {
+      if (!active) return
       setVariance(v)
       setFoodCost(f)
       setLoading(false)
-    })
+    }).catch(error => { if (active) setLoadError(error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ') }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
   }, [])
 
   if (loading) return <LoadingSpinner />
+  if (loadError) return <LoadError error={loadError} />
 
   const chartData = foodCost.map((d) => ({ date: shortDate(d.date), expected: d.expectedFoodCost }))
 

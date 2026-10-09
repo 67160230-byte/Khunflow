@@ -40,7 +40,7 @@ def register_history(path, model, timestamp, serializer, roles, value_column=Non
 
 inventory_roles = (UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
 register_history('/orders/paged', Order, Order.created_at, orders_payload, (UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER), Order.total_amount)
-register_history('/waste/paged', WasteRecord, WasteRecord.created_at, waste_payload, (), WasteRecord.cost)
+register_history('/waste/paged', WasteRecord, WasteRecord.created_at, waste_payload, inventory_roles, WasteRecord.cost)
 register_history('/receiving/paged', GoodsReceiving, GoodsReceiving.received_at, receiving_payload, inventory_roles, GoodsReceiving.total_cost)
 register_history('/purchase-orders/paged', PurchaseOrder, PurchaseOrder.created_at, purchase_payload, inventory_roles, PurchaseOrder.total_cost)
 register_history('/auth/audit-logs/paged', AuditLog, AuditLog.created_at, audit_payload, (UserRole.OWNER, UserRole.MANAGER))

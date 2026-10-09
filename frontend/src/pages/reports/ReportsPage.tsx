@@ -1,11 +1,11 @@
+import { shopTimezone } from '@/services/formatting'
+import { formatMoney } from '@/services/formatting'
 import { useEffect, useState } from 'react'
 import { dashboardService, isDemoMode } from '@/services'
 import { Card, SectionHeader, KPICard } from '@/components/ui'
 import { FileText, Download, TrendingUp, Calendar, DollarSign } from 'lucide-react'
 
-function formatBaht(n: number) {
-  return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`
-}
+const formatBaht = formatMoney
 
 function percentOf(total: number, base: number) {
   return base > 0 ? ((total / base) * 100).toFixed(1) : '0.0'
@@ -13,7 +13,7 @@ function percentOf(total: number, base: number) {
 
 const PERIODS = ['7 วันล่าสุด', '31 วันล่าสุด', '31 วันก่อนหน้า']
 const formatReportDate = (value: string, options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' }) =>
-  new Date(`${value.slice(0, 10)}T12:00:00+07:00`).toLocaleDateString('th-TH', { ...options, timeZone: 'Asia/Bangkok' })
+  new Date(`${value.slice(0, 10)}T12:00:00Z`).toLocaleDateString('th-TH', { ...options, timeZone: 'UTC' })
 
 export default function ReportsPage() {
   const [period, setPeriod] = useState(0)
@@ -22,8 +22,13 @@ export default function ReportsPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    let active = true
     setLoading(true)
-    dashboardService.getDailySales(period === 0 ? 7 : 31, period === 2 ? 31 : 0).then((data) => setReportRows(data.map((d) => ({ date: d.date, revenue: d.revenue, foodCost: d.foodCost, gross: d.grossProfit, waste: d.wasteValue, orders: d.orders })))).catch((e) => setError(e instanceof Error ? e.message : 'โหลดรายงานไม่สำเร็จ')).finally(() => setLoading(false))
+    setError('')
+    dashboardService.getDailySales(period === 0 ? 7 : 31, period === 2 ? 31 : 0).then(data => {
+      if (active) setReportRows(data.map(d => ({ date: d.date, revenue: d.revenue, foodCost: d.foodCost, gross: d.grossProfit, waste: d.wasteValue, orders: d.orders })))
+    }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'โหลดรายงานไม่สำเร็จ') }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
   }, [period])
 
   const totalRevenue = reportRows.reduce((s, r) => s + r.revenue, 0)
@@ -48,7 +53,7 @@ export default function ReportsPage() {
           </div>
           <div className="text-right text-xs text-gray-500">
             <p>{isDemoMode() ? 'ข้อมูลตัวอย่าง' : 'ข้อมูลร้านจริง'}</p>
-            <p>จัดทำเมื่อ {new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' }).format(new Date())}</p>
+            <p>จัดทำเมื่อ {new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'long', year: 'numeric', timeZone: shopTimezone() }).format(new Date())}</p>
           </div>
         </div>
       </div>

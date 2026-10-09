@@ -1,0 +1,672 @@
+[
+  {
+    "check": "GET /health",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /products",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /ingredients",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /recipes",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /suppliers",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /orders/paged",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /waste/paged",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /receiving/paged",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /purchase-orders/paged",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /stock-counts",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /analytics/variance",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /dashboard",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /forecast",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /purchase-recommendations",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /setup-status",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /business",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /businesses",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /auth/users",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /auth/audit-logs/paged",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "Dashboard change matches daily sales",
+    "passed": false,
+    "details": {
+      "actual": 0,
+      "expected": 400.0
+    }
+  },
+  {
+    "check": "GET /ingredients",
+    "passed": true,
+    "details": {
+      "status": 403,
+      "expected": 403,
+      "error": "{\"detail\":\"คุณไม่มีสิทธิ์ทำรายการนี้\"}"
+    }
+  },
+  {
+    "check": "GET /suppliers",
+    "passed": true,
+    "details": {
+      "status": 403,
+      "expected": 403,
+      "error": "{\"detail\":\"คุณไม่มีสิทธิ์ทำรายการนี้\"}"
+    }
+  },
+  {
+    "check": "GET /recipes",
+    "passed": true,
+    "details": {
+      "status": 403,
+      "expected": 403,
+      "error": "{\"detail\":\"คุณไม่มีสิทธิ์ทำรายการนี้\"}"
+    }
+  },
+  {
+    "check": "GET /analytics/variance",
+    "passed": true,
+    "details": {
+      "status": 403,
+      "expected": 403,
+      "error": "{\"detail\":\"คุณไม่มีสิทธิ์ทำรายการนี้\"}"
+    }
+  },
+  {
+    "check": "GET /auth/users",
+    "passed": true,
+    "details": {
+      "status": 403,
+      "expected": 403,
+      "error": "{\"detail\":\"เฉพาะ Owner และ Manager เท่านั้นที่ดูรายชื่อ user ทั้งหมดได้\"}"
+    }
+  },
+  {
+    "check": "GET /recipes",
+    "passed": true,
+    "details": {
+      "status": 403,
+      "expected": 403,
+      "error": "{\"detail\":\"คุณไม่มีสิทธิ์ทำรายการนี้\"}"
+    }
+  },
+  {
+    "check": "GET /analytics/variance",
+    "passed": true,
+    "details": {
+      "status": 403,
+      "expected": 403,
+      "error": "{\"detail\":\"คุณไม่มีสิทธิ์ทำรายการนี้\"}"
+    }
+  },
+  {
+    "check": "GET /auth/users",
+    "passed": true,
+    "details": {
+      "status": 403,
+      "expected": 403,
+      "error": "{\"detail\":\"เฉพาะ Owner และ Manager เท่านั้นที่ดูรายชื่อ user ทั้งหมดได้\"}"
+    }
+  },
+  {
+    "check": "POST /products",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /ingredients",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /ingredients",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /suppliers",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /recipes",
+    "passed": false,
+    "details": {
+      "status": 422,
+      "expected": 200,
+      "error": "{\"detail\":\"หน่วยในสูตรไม่ตรงกับหน่วยสต็อก\"}"
+    }
+  },
+  {
+    "check": "Recipe grams to kg cost",
+    "passed": false,
+    "details": {
+      "actual": 0.0,
+      "expected": 2
+    }
+  },
+  {
+    "check": "POST /recipes",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /orders",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "Order stock deduction",
+    "passed": true,
+    "details": null
+  },
+  {
+    "check": "POST /orders/9005/cancel",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /orders/9005/restore",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /waste",
+    "passed": false,
+    "details": {
+      "status": 422,
+      "expected": 200,
+      "error": "{\"detail\":\"หน่วยในสูตรไม่ตรงกับหน่วยสต็อก\"}"
+    }
+  },
+  {
+    "check": "POST /waste",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "Waste cost computed server-side",
+    "passed": true,
+    "details": null
+  },
+  {
+    "check": "POST /stock-counts",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "PUT /ingredients/21",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /purchase-orders",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /receiving",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "Partial receiving keeps PO open",
+    "passed": false,
+    "details": {
+      "actual": "received",
+      "expected": "ordered; 1 of 10 on first of 2 lines received"
+    }
+  },
+  {
+    "check": "Can receive remaining PO line",
+    "passed": false,
+    "details": {
+      "status": 409
+    }
+  },
+  {
+    "check": "Product recipe cost reflects new average cost",
+    "passed": false,
+    "details": {
+      "product_cost": 2.0,
+      "expected": 2.1
+    }
+  },
+  {
+    "check": "POST /purchase-orders",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "PO unit selection is validated or preserved",
+    "passed": false,
+    "details": {
+      "sent": "l",
+      "returned": "kg",
+      "note": "UI service omits selected unit entirely"
+    }
+  },
+  {
+    "check": "POST /purchase-orders",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "Receiving PO with duplicate ingredient lines",
+    "passed": false,
+    "details": {
+      "status": 500
+    }
+  },
+  {
+    "check": "POST /purchase-orders",
+    "passed": false,
+    "details": {
+      "status": 500,
+      "expected": 422,
+      "error": "Internal Server Error"
+    }
+  },
+  {
+    "check": "POST /ingredients",
+    "passed": true,
+    "details": {
+      "status": 422,
+      "expected": 422,
+      "error": "{\"detail\":\"จำนวนสต็อกและต้นทุนห้ามติดลบ\"}"
+    }
+  },
+  {
+    "check": "POST /recipes",
+    "passed": false,
+    "details": {
+      "status": 200,
+      "expected": 422,
+      "error": null
+    }
+  },
+  {
+    "check": "PATCH /products/9003/status",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /orders",
+    "passed": true,
+    "details": {
+      "status": 404,
+      "expected": 404,
+      "error": "{\"detail\":\"ไม่พบสินค้าในร้านนี้\"}"
+    }
+  },
+  {
+    "check": "PATCH /products/9003/status",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "DELETE /recipes/21",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "Recipe deletion removes recipe",
+    "passed": true,
+    "details": null
+  },
+  {
+    "check": "POST /auth/users",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /auth/forgot-password",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /auth/demo-reset-password",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /platform-admin/accounts",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "PUT /platform-admin/accounts/9002/subscription",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "PATCH /platform-admin/accounts/9002/access",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "PATCH /platform-admin/accounts/9002/access",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "DELETE /auth/users/9002",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /businesses",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "PUT /business",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "POST /products",
+    "passed": true,
+    "details": {
+      "status": 422,
+      "expected": 422,
+      "error": "{\"detail\":\"ราคาขายต้องมากกว่า 0 และต้นทุนห้ามติดลบ\"}"
+    }
+  },
+  {
+    "check": "PUT /business",
+    "passed": false,
+    "details": {
+      "status": 200,
+      "expected": 422,
+      "error": null
+    }
+  },
+  {
+    "check": "GET /products",
+    "passed": true,
+    "details": {
+      "status": 200,
+      "expected": 200,
+      "error": null
+    }
+  },
+  {
+    "check": "PUT /ingredients/21",
+    "passed": true,
+    "details": {
+      "status": 404,
+      "expected": 404,
+      "error": "{\"detail\":\"ไม่พบวัตถุดิบในร้านนี้\"}"
+    }
+  },
+  {
+    "check": "Users page returns current-shop membership role",
+    "passed": false,
+    "details": {
+      "actual": "owner",
+      "expected": "cashier"
+    }
+  },
+  {
+    "check": "Dynamic role settings API exists",
+    "passed": false,
+    "details": {
+      "note": "Frontend role save only writes localStorage"
+    }
+  }
+]

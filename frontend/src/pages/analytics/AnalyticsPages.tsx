@@ -1,5 +1,8 @@
+import { shopDate } from '@/services/formatting'
+import { formatMoney } from '@/services/formatting'
+import LoadError from '@/components/LoadError'
 import { useState, useEffect } from 'react'
-import { inventoryService, analyticsService, productsService } from '@/services'
+import { inventoryService, analyticsService, productsService, expirationService } from '@/services'
 import type { Ingredient, FoodCostData, Product } from '@/types'
 import { Card, Badge, LoadingSpinner, SectionHeader, Button } from '@/components/ui'
 import { CalendarClock, AlertTriangle, Trash2, CheckCircle2, RefreshCw, X, Award, RotateCcw, Plus, Check } from 'lucide-react'
@@ -14,9 +17,7 @@ import {
   Legend,
 } from 'recharts'
 
-function formatBaht(n: number) {
-  return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+const formatBaht = formatMoney
 
 function shortDate(dateStr: string) {
   const d = new Date(dateStr)
@@ -27,26 +28,11 @@ function shortDate(dateStr: string) {
 export function ExpirationPage() {
   const [allData, setAllData] = useState<Ingredient[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   
-  // 1. Resolved / Checked IDs
-  const [resolvedIds, setResolvedIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('khumflow_resolved_expirations')
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
-
-  // 2. Permanently Deleted IDs (never show anywhere)
-  const [deletedIds, setDeletedIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('khumflow_permanently_deleted_expirations')
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
+  const [resolvedIds, setResolvedIds] = useState<string[]>([])
+  const [deletedIds, setDeletedIds] = useState<string[]>([])
+  const [actionBusy, setActionBusy] = useState(false)
 
   const [activeTab, setActiveTab] = useState<'active' | 'resolved'>('active')
   const [toast, setToast] = useState<string | null>(null)
@@ -63,76 +49,57 @@ export function ExpirationPage() {
   const [newIngDate, setNewIngDate] = useState('')
 
   useEffect(() => {
-    inventoryService.getAll().then((data) => {
+    let active = true
+    Promise.all([inventoryService.getAll(), expirationService.get()]).then(([data, statuses]) => {
+      if (!active) return
+      setResolvedIds(Object.keys(statuses).filter(id => statuses[id] === 'resolved'))
+      setDeletedIds(Object.keys(statuses).filter(id => statuses[id] === 'hidden'))
       const sorted = [...data]
         .filter((i) => i.expirationDate)
         .sort((a, b) => new Date(a.expirationDate!).getTime() - new Date(b.expirationDate!).getTime())
       setAllData(sorted)
       setLoading(false)
-    })
+    }).catch(error => { if (active) setLoadError(error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ') }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
   }, [])
 
   if (loading) return <LoadingSpinner />
+  if (loadError) return <LoadError error={loadError} />
 
   const showToast = (msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3500)
   }
 
-  const saveResolved = (list: string[]) => {
-    setResolvedIds(list)
-    localStorage.setItem('khumflow_resolved_expirations', JSON.stringify(list))
-  }
-
-  const saveDeleted = (list: string[]) => {
-    setDeletedIds(list)
-    localStorage.setItem('khumflow_permanently_deleted_expirations', JSON.stringify(list))
+  const changeStatus = async (ids: string[], status: 'active' | 'resolved' | 'hidden') => {
+    if (actionBusy) return
+    setActionBusy(true)
+    try {
+      await expirationService.update(ids, status)
+      setResolvedIds(previous => [...previous.filter(id => !ids.includes(id)), ...(status === 'resolved' ? ids : [])])
+      setDeletedIds(previous => [...previous.filter(id => !ids.includes(id)), ...(status === 'hidden' ? ids : [])])
+      showToast('บันทึกสถานะตรวจสอบแล้ว จำนวนสต็อกไม่ถูกเปลี่ยนแปลง')
+    } catch (error) { showToast(error instanceof Error ? error.message : 'บันทึกสถานะไม่สำเร็จ') }
+    finally { setActionBusy(false) }
   }
 
   const getUrgency = (dateStr?: string) => {
     if (!dateStr) return { label: 'ไม่มีข้อมูล', variant: 'neutral' as const, days: 999 }
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const now = today.getTime()
-    const target = new Date(dateStr).getTime()
+    const now = new Date(`${shopDate()}T00:00:00Z`).getTime()
+    const target = new Date(`${dateStr}T00:00:00Z`).getTime()
     const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24))
 
-    if (diffDays <= 0) return { label: 'หมดอายุแล้ว', variant: 'danger' as const, days: diffDays }
+    if (diffDays === 0) return { label: 'หมดอายุวันนี้', variant: 'danger' as const, days: 0 }
+    if (diffDays < 0) return { label: 'หมดอายุแล้ว', variant: 'danger' as const, days: diffDays }
     if (diffDays <= 7) return { label: `วิกฤต (อีก ${diffDays} วัน)`, variant: 'danger' as const, days: diffDays }
     if (diffDays <= 30) return { label: `ใกล้หมดอายุ (อีก ${diffDays} วัน)`, variant: 'warning' as const, days: diffDays }
     return { label: `ปกติ (อีก ${diffDays} วัน)`, variant: 'success' as const, days: diffDays }
   }
 
-  // Action 1: Move from Active to Resolved
-  const handleCheckAndResolve = (ing: Ingredient) => {
-    const updated = [...resolvedIds, ing.id]
-    saveResolved(updated)
-    showToast(`✅ ย้าย "${ing.name}" ไปยังประวัติที่เคลียร์แล้ว`)
-  }
-
-  // Action 2: Permanent Delete (Wipes from both active and resolved completely)
-  const handlePermanentDelete = (id: string, name: string) => {
-    const updatedDeleted = [...deletedIds, id]
-    saveDeleted(updatedDeleted)
-    const updatedResolved = resolvedIds.filter((i) => i !== id)
-    saveResolved(updatedResolved)
-    showToast(`🗑️ ลบ "${name}" ทิ้งถาวรเรียบร้อยแล้ว`)
-  }
-
-  // Action 3: Clear All Resolved History Permanently
-  const handleClearAllResolved = () => {
-    const newlyDeleted = [...deletedIds, ...resolvedIds]
-    saveDeleted(newlyDeleted)
-    saveResolved([])
-    showToast(`🧹 ล้างประวัติที่เคลียร์แล้วทั้งหมดถาวรเรียบร้อย!`)
-  }
-
-  // Action 4: Restore from Resolved back to Active
-  const handleRestoreToActive = (id: string, name: string) => {
-    const updated = resolvedIds.filter((i) => i !== id)
-    saveResolved(updated)
-    showToast(`↩️ ย้าย "${name}" กลับมาในรายการต้องตรวจสอบแล้ว`)
-  }
+  const handleCheckAndResolve = (ing: Ingredient) => changeStatus([ing.id], 'resolved')
+  const handlePermanentDelete = (id: string, _name: string) => changeStatus([id], 'hidden')
+  const handleClearAllResolved = () => changeStatus(resolvedIds, 'hidden')
+  const handleRestoreToActive = (id: string, _name: string) => changeStatus([id], 'active')
 
   // Action 5: Update Expiration Date
   const handleUpdateDate = async (e: React.FormEvent) => {
@@ -143,7 +110,7 @@ export function ExpirationPage() {
     const updatedItem = await inventoryService.updateExpiration(editingItem.id, newExpDate)
     setAllData((prev) => prev.map((item) => item.id === editingItem.id ? updatedItem : item))
     const updatedResolved = resolvedIds.filter((i) => i !== editingItem.id)
-    saveResolved(updatedResolved)
+    setResolvedIds(updatedResolved)
     showToast(`📅 อัปเดตวันหมดอายุของ "${editingItem.name}" เป็น ${newExpDate} เรียบร้อย`)
     setEditingItem(null)
     setNewExpDate('')
@@ -167,20 +134,7 @@ export function ExpirationPage() {
     } catch (error) { showToast(error instanceof Error ? error.message : 'เพิ่มวัตถุดิบไม่สำเร็จ') }
   }
 
-  // Action 7: Reset All (Restore Demo Data)
-  const handleResetAll = () => {
-    localStorage.removeItem('khumflow_resolved_expirations')
-    localStorage.removeItem('khumflow_permanently_deleted_expirations')
-    setResolvedIds([])
-    setDeletedIds([])
-    inventoryService.getAll().then((data) => {
-      const sorted = [...data]
-        .filter((i) => i.expirationDate)
-        .sort((a, b) => new Date(a.expirationDate!).getTime() - new Date(b.expirationDate!).getTime())
-      setAllData(sorted)
-    })
-    showToast(`🔄 รีเซ็ตและกู้คืนรายการทั้งหมดกลับมาเริ่มต้นแล้ว`)
-  }
+  const handleResetAll = () => changeStatus([...resolvedIds, ...deletedIds], 'active')
 
   // Filter Lists
   const nonDeleted = allData.filter((i) => !deletedIds.includes(i.id))
@@ -191,11 +145,11 @@ export function ExpirationPage() {
     <div className="space-y-6">
       <SectionHeader
         title="ติดตามวันหมดอายุวัตถุดิบ (Expiration Tracking)"
-        subtitle="ระบบเตือนภัยล่วงหน้า สามารถตรวจสอบ เคลียร์รายการ หรือลบสินค้าทิ้งถาวรได้ตามต้องการ"
+        subtitle="ติดตามวันหมดอายุและบันทึกผลตรวจสอบ การซ่อนแจ้งเตือนไม่เปลี่ยนจำนวนสต็อก หากทิ้งวัตถุดิบให้บันทึกที่เมนูของเสีย"
         action={
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={handleResetAll}>
-              <RotateCcw size={14} /> รีเซ็ตค่าเริ่มต้น
+              <RotateCcw size={14} /> คืนรายการแจ้งเตือนทั้งหมด
             </Button>
             <Button size="sm" onClick={() => setAddModalOpen(true)}>
               <Plus size={16} /> + เพิ่มวัตถุดิบติดตาม
@@ -230,7 +184,7 @@ export function ExpirationPage() {
               activeTab === 'resolved' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            เอาออก/เคลียร์แล้ว ({resolvedList.length})
+            ตรวจสอบแล้ว ({resolvedList.length})
           </button>
         </div>
 
@@ -241,7 +195,7 @@ export function ExpirationPage() {
             onClick={handleClearAllResolved}
             className="text-xs text-red-600 hover:bg-red-50 hover:border-red-200 flex items-center gap-1"
           >
-            <Trash2 size={14} /> ล้างประวัติทั้งหมดถาวร
+            <Trash2 size={14} /> ซ่อนประวัติที่ตรวจแล้วทั้งหมด
           </Button>
         )}
       </div>
@@ -287,7 +241,7 @@ export function ExpirationPage() {
                         onClick={() => handleCheckAndResolve(ing)}
                         className="flex-1 text-xs py-2 bg-green-600 hover:bg-green-700 text-white font-medium flex items-center justify-center gap-1.5 shadow-sm"
                       >
-                        <Check size={14} /> เช็คแล้ว / เอาออก
+                        <Check size={14} /> ตรวจสอบแล้ว
                       </Button>
 
                       <Button
@@ -307,7 +261,7 @@ export function ExpirationPage() {
                         type="button"
                         onClick={() => handlePermanentDelete(ing.id, ing.name)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="ลบทิ้งถาวร"
+                        title="ซ่อนการแจ้งเตือน"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -362,9 +316,9 @@ export function ExpirationPage() {
                             size="sm"
                             onClick={() => handlePermanentDelete(ing.id, ing.name)}
                             className="text-xs py-1.5 px-3 bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-1 shadow-sm"
-                            title="ลบรายการนี้ทิ้งถาวร ไม่ให้แสดงอีก"
+                            title="ซ่อนการแจ้งเตือนนี้ คืนรายการได้ภายหลัง"
                           >
-                            <Trash2 size={13} /> ลบออกถาวร
+                            <Trash2 size={13} /> ซ่อนแจ้งเตือน
                           </Button>
                         </div>
                       </td>
@@ -505,20 +459,27 @@ export function ProfitPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [sales, setSales] = useState<FoodCostData[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
+    let active = true
     Promise.all([productsService.getAll(), analyticsService.getFoodCostTrend()]).then(([p, s]) => {
+      if (!active) return
       setProducts(p)
       setSales(s)
       setLoading(false)
-    })
+    }).catch(error => { if (active) setLoadError(error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ') }).finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
   }, [])
 
   if (loading) return <LoadingSpinner />
+  if (loadError) return <LoadError error={loadError} />
 
-  const sortedByMargin = [...products].sort((a, b) => b.grossMargin - a.grossMargin)
+  const costedProducts = products.filter(product => product.foodCost > 0)
+  const unknownCostCount = products.length - costedProducts.length
+  const sortedByMargin = [...costedProducts].sort((a, b) => b.grossMargin - a.grossMargin)
   const topProfit = sortedByMargin.slice(0, 5)
-  const lowProfit = [...products].sort((a, b) => a.grossMargin - b.grossMargin).slice(0, 5)
+  const lowProfit = [...costedProducts].sort((a, b) => a.grossMargin - b.grossMargin).slice(0, 5)
 
   const chartData = sales.map((d) => ({
     date: shortDate(d.date),
@@ -533,6 +494,8 @@ export function ProfitPage() {
         subtitle="ประเมินกำไรขั้นต้น แยกตามเมนูและแนวโน้มภาพรวมธุรกิจ"
       />
 
+      {unknownCostCount > 0 && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">สินค้า {unknownCostCount} รายการยังไม่มีต้นทุน จึงไม่จัดอันดับกำไร ยอดกำไรรวมเป็นประมาณการและอาจสูงกว่าความจริง</p>}
+      {costedProducts.length === 0 && <p className="text-sm text-gray-600">ยังไม่มีสินค้าที่ต้นทุนพร้อมสำหรับจัดอันดับ</p>}
       {/* Chart */}
       <Card className="p-5">
         <h3 className="text-sm font-semibold text-gray-800 mb-4">แนวโน้มรายได้ vs กำไรขั้นต้น (7 วันล่าสุด)</h3>

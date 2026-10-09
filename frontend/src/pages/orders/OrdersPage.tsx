@@ -1,3 +1,5 @@
+import { shopTimezone } from '@/services/formatting'
+import { formatMoney } from '@/services/formatting'
 import { usePagedHistory } from '@/hooks/usePagedHistory'
 import HistoryControls from '@/components/HistoryControls'
 import { useState, useEffect } from 'react'
@@ -6,9 +8,7 @@ import type { Order, Product, ProductCategory } from '@/types'
 import { Card, Button, Badge, LoadingSpinner, SectionHeader, KPICard, EmptyState } from '@/components/ui'
 import { Plus, ShoppingBag, Clock, CheckCircle2, X, Sparkles, LayoutGrid, ShieldAlert, Check, Ban, RotateCcw } from 'lucide-react'
 
-function formatBaht(n: number) {
-  return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+const formatBaht = formatMoney
 
 interface OrderCartItem {
   id: string
@@ -238,7 +238,7 @@ export default function OrdersPage() {
                   <tr key={ord.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-semibold text-green-800">#{ord.id}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                      {new Date(ord.date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                      {new Date(ord.date).toLocaleTimeString('th-TH', { timeZone: shopTimezone(), hour: '2-digit', minute: '2-digit' })} น.
                     </td>
                     <td className="px-4 py-3 text-gray-800">
                       {ord.items.map((it, idx) => (
@@ -354,7 +354,7 @@ export default function OrdersPage() {
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-700 mb-1">ราคาขายต่อหน่วย (฿)</label>
+                        <label className="block text-[11px] font-semibold text-gray-700 mb-1">ราคาขายต่อหน่วย (สกุลเงินร้าน)</label>
                         <input
                           type="number"
                           step="0.5"
@@ -436,7 +436,7 @@ export default function OrdersPage() {
                   ยกเลิก
                 </Button>
                 <Button size="sm" onClick={handleCreateOrder} disabled={cartItems.length === 0 || savingOrder}>
-                  {savingOrder ? 'กำลังบันทึก…' : `บันทึกออเดอร์ (฿${calculateTotal().toFixed(2)})`}
+                  {savingOrder ? 'กำลังบันทึก…' : `บันทึกออเดอร์ (${formatBaht(calculateTotal())})`}
                 </Button>
               </div>
             </div>

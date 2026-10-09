@@ -1,3 +1,5 @@
+import { shopTimezone } from './formatting'
+import { defaultPermissions } from './permissions'
 import { scopedGet, resetApiRequests } from './requestPool'
 export { resetApiRequests } from './requestPool'
 // ============================================================
@@ -47,7 +49,9 @@ async function performApi<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('khumflow_token')
   let response: Response
   try {
-    const businessId = localStorage.getItem('khumflow_business_id')
+    const savedBusinessId = localStorage.getItem('khumflow_business_id')
+    const businessId = savedBusinessId && /^\d+$/.test(savedBusinessId) ? savedBusinessId : null
+    if (savedBusinessId && !businessId && !isDemoMode()) localStorage.removeItem('khumflow_business_id')
     response = await fetch(`${API_URL}/api${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(businessId ? { 'X-Business-Id': businessId } : {}), ...init.headers } })
   } catch (error) {
     if (init.signal?.aborted) throw error
@@ -65,7 +69,7 @@ const toId = (v: unknown) => String(v ?? '')
 const productFromApi = (p: any): Product => ({ id: toId(p.id), name: p.name, category: p.category, sellingPrice: p.selling_price, foodCost: p.food_cost, grossProfit: p.selling_price - p.food_cost, grossMargin: p.selling_price ? (p.selling_price - p.food_cost) / p.selling_price * 100 : 0, status: p.is_active ? 'active' : 'inactive', description: p.description, createdAt: p.created_at })
 const ingredientFromApi = (i: any): Ingredient => {
   const ingredient: Ingredient = { id: toId(i.id), name: i.name, category: i.category, unit: i.unit, currentStock: i.current_stock, minimumStock: i.minimum_stock, averageCost: i.average_cost, stockValue: i.current_stock * i.average_cost, status: 'normal', expirationDate: i.expiration_date, supplierId: toId(i.supplier_id), createdAt: i.created_at }
-  const dateParts = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+  const dateParts = new Intl.DateTimeFormat('en', { timeZone: shopTimezone(), year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
   const datePart = (type: Intl.DateTimeFormatPartTypes) => dateParts.find((part) => part.type === type)?.value || ''
   const today = `${datePart('year')}-${datePart('month')}-${datePart('day')}`
   ingredient.status = getIngredientStatus(ingredient, today)
@@ -221,8 +225,13 @@ export const wasteService = {
 export const dashboardService = {
   getOverview: async (days = 7, offsetDays = 0) => {
     if (!isDemoMode()) return api<{ kpi: DashboardKPI; alerts: DashboardAlert[]; dailySales: DailySales[]; foodCostTrend: FoodCostData[]; topSellers: Array<{productId: string; productName: string; quantity: number; revenue: number}>; today: string }>(`/dashboard?days=${days}&offset_days=${offsetDays}`)
-    const dailySales = demoCopy(getDemoDailySales().slice(-days))
-    const today = dailySales[dailySales.length - 1]?.date.slice(0, 10) || new Date().toISOString().slice(0, 10)
+    const samples = getDemoDailySales()
+    const today = samples[samples.length - 1]?.date.slice(0, 10) || new Date().toISOString().slice(0, 10)
+    const anchor = new Date(`${today}T00:00:00Z`)
+    const dailySales: DailySales[] = Array.from({ length: days }, (_, index) => {
+      const date = new Date(anchor.getTime() - (offsetDays + days - index - 1) * 86400000).toISOString().slice(0, 10)
+      return demoCopy(samples.find(row => row.date === date) || { date, revenue: 0, orders: 0, foodCost: 0, grossProfit: 0, wasteValue: 0 })
+    })
     const totals = new Map<string, { productId: string; productName: string; quantity: number; revenue: number }>()
     for (const order of mockOrders.filter((o) => o.status === 'completed' && o.date.slice(0, 10) === today)) for (const item of order.items) {
       const row = totals.get(item.productId) || { productId: item.productId, productName: item.productName, quantity: 0, revenue: 0 }
@@ -266,6 +275,7 @@ export const suppliersService = {
 
 // ── Purchase Orders ───────────────────────────────────────────
 export const purchaseOrdersService = {
+  reopen: (id: string) => api(`/purchase-orders/${id}/reopen`, { method: 'POST' }),
   getReceivingPaged: (params: HistoryParams) => pagedHistory('/receiving', params, receivingFromApi, () => purchaseOrdersService.getReceiving()),
   getOutstanding: async (): Promise<PurchaseOrder[]> => isDemoMode() ? demoCopy(mockPurchaseOrders.filter((p) => p.status === 'ordered')) : (await api<any[]>('/purchase-orders?status=ordered')).map(purchaseFromApi),
   getPaged: (params: HistoryParams) => pagedHistory("/purchase-orders", params, purchaseFromApi, () => purchaseOrdersService.getAll()),
@@ -273,7 +283,7 @@ export const purchaseOrdersService = {
     if (isDemoMode()) return demoCopy(mockPurchaseOrders)
     return (await api<any[]>('/purchase-orders')).map(purchaseFromApi)
   },
-  create: async (supplierId: string, items: Array<{ ingredientId: string; quantity: number; unitCost: number }>) => api('/purchase-orders', { method: 'POST', body: JSON.stringify({ supplier_id: Number(supplierId), items: items.map((i) => ({ ingredient_id: Number(i.ingredientId), quantity: i.quantity, unit_cost: i.unitCost })) }) }),
+  create: async (supplierId: string, items: Array<{ ingredientId: string; quantity: number; unitCost: number; unit?: Ingredient['unit'] }>) => api('/purchase-orders', { method: 'POST', body: JSON.stringify({ supplier_id: Number(supplierId), items: items.map((i) => ({ ingredient_id: Number(i.ingredientId), quantity: i.quantity, unit_cost: i.unitCost, unit: i.unit })) }) }),
   receive: async (data: { supplierId: string; ingredientId: string; quantity: number; unitCost: number; lotNumber: string; expirationDate?: string; purchaseOrderId?: string }) => api('/receiving', { method: 'POST', body: JSON.stringify({ supplier_id: Number(data.supplierId), ingredient_id: Number(data.ingredientId), purchase_order_id: data.purchaseOrderId ? Number(data.purchaseOrderId) : null, quantity: data.quantity, unit_cost: data.unitCost, lot_number: data.lotNumber, expiration_date: data.expirationDate || null }) }),
   getReceiving: async () => isDemoMode() ? demoCopy([
     { id: 'gr1', date: '2026-08-28T09:30:00', supplierName: 'บริษัท กาแฟไทย จำกัด', ingredientName: 'เมล็ดกาแฟ Arabica', quantity: 5, unit: 'kg', lotNo: 'LOT-260828', expirationDate: '2027-02-28', unitCost: 800, totalCost: 4000 },
@@ -344,7 +354,7 @@ const orderFromApi = (o: any): Order => ({ id: toId(o.id), date: o.created_at, i
 
 const wasteFromApi = (w: any): WasteRecord => ({ id: toId(w.id), ingredientId: toId(w.ingredient_id), ingredientName: w.ingredient_name, quantity: w.quantity, unit: w.unit, reason: w.reason, cost: w.cost, note: w.note, date: w.created_at, staffId: toId(w.staff_id), staffName: w.staff_name })
 
-const purchaseFromApi = (p: any): PurchaseOrder => ({ id: toId(p.id), supplierId: toId(p.supplier_id), supplierName: p.supplier_name || `ซัพพลายเออร์ #${p.supplier_id}`, items: (p.items || []).map((i: any) => ({ ingredientId: toId(i.ingredient_id), ingredientName: i.ingredient_name, quantity: i.quantity, unit: i.unit, unitCost: i.unit_cost, totalCost: i.total_cost })), totalCost: p.total_cost, status: p.status, orderDate: p.order_date })
+const purchaseFromApi = (p: any): PurchaseOrder => ({ id: toId(p.id), supplierId: toId(p.supplier_id), supplierName: p.supplier_name || `ซัพพลายเออร์ #${p.supplier_id}`, items: (p.items || []).map((i: any) => ({ ingredientId: toId(i.ingredient_id), ingredientName: i.ingredient_name, quantity: i.quantity, remainingQuantity: i.remaining_quantity, unit: i.unit, unitCost: i.unit_cost, totalCost: i.total_cost })), totalCost: p.total_cost, status: p.status, canReopen: p.can_reopen, orderDate: p.order_date })
 
 const receivingFromApi = (r: any) => ({ id: toId(r.id), date: r.created_at, supplierName: r.supplier_name, ingredientName: r.ingredient_name, quantity: r.quantity, unit: r.unit, lotNo: r.lot_number, expirationDate: r.expiration_date || '—', unitCost: r.unit_cost, totalCost: r.total_cost })
 
@@ -375,4 +385,16 @@ export const setupService = {
     steps: [mockIngredients.length > 0, true, mockProducts.length > 0, mockRecipes.length > 0, mockOrders.some((o) => o.status === 'completed')],
     costWarning: mockIngredients.some((i) => i.currentStock > 0 && i.averageCost <= 0) || mockProducts.some((p) => p.foodCost <= 0),
   } : api('/setup-status'),
+}
+
+export const permissionsService = {
+  get: async (): Promise<{ roles: Record<string, Record<string, boolean>>; permissions: Record<string, boolean> }> => {
+    if (isDemoMode()) { const user = JSON.parse(localStorage.getItem('khumflow_user') || '{}'); return demoCopy({ roles: defaultPermissions, permissions: defaultPermissions[user.role] || {} }) }
+    return api('/auth/permissions')
+  },
+  save: (roles: Record<string, Record<string, boolean>>) => api('/auth/permissions', { method: 'PUT', body: JSON.stringify({ roles }) }),
+}
+export const expirationService = {
+  get: async (): Promise<Record<string, string>> => isDemoMode() ? {} : api('/expiration-status'),
+  update: (ids: string[], status: 'active' | 'resolved' | 'hidden') => api('/expiration-status', { method: 'PUT', body: JSON.stringify({ ingredient_ids: ids.map(Number), status }) }),
 }

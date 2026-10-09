@@ -1,3 +1,4 @@
+import { homeForRole } from '@/services/permissions'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Leaf, UserPlus, LogIn, KeyRound, X, RefreshCw } from 'lucide-react'
@@ -77,7 +78,7 @@ export default function LoginPage() {
         role
       }))
       window.history.replaceState({}, '', '/login')
-      navigate('/app/dashboard')
+      navigate(homeForRole(role))
     }
   }, [navigate])
 
@@ -133,7 +134,7 @@ export default function LoginPage() {
         localStorage.setItem('khumflow_user', JSON.stringify(loginData))
 
         setSuccess('สมัครสมาชิกและสร้างร้านสำเร็จ! กำลังเข้าสู่ระบบ...')
-        setTimeout(() => navigate('/app/dashboard'), 800)
+        setTimeout(() => navigate(homeForRole(loginData.role)), 800)
       } else {
         const res = await fetch(`${API_URL}/api/auth/login`, {
           method: 'POST',
@@ -150,7 +151,7 @@ export default function LoginPage() {
         localStorage.setItem('khumflow_token', data.access_token)
         localStorage.removeItem('khumflow_business_id')
         localStorage.setItem('khumflow_user', JSON.stringify(data))
-        navigate('/app/dashboard')
+        navigate(homeForRole(data.role))
       }
     } catch (err: any) {
       setError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์')

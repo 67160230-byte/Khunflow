@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlmodel import select
 from app.models import (Business, Order, OrderItem, Product, Ingredient, User,
-    WasteRecord, GoodsReceiving, Supplier, PurchaseOrder, PurchaseOrderItem, AuditLog)
+    WasteRecord, GoodsReceiving, Supplier, PurchaseOrder, PurchaseOrderItem, AuditLog, POStatus)
 
 
 async def business_timezone(session, business_id):
@@ -69,10 +69,17 @@ async def purchase_payload(session, rows, business_id):
     if not rows: return []
     suppliers = dict((await session.execute(select(Supplier.id, Supplier.name).where(Supplier.business_id == business_id, Supplier.id.in_({r.supplier_id for r in rows})))).all())
     grouped = defaultdict(list)
-    lines = (await session.execute(select(PurchaseOrderItem, Ingredient).outerjoin(Ingredient, (Ingredient.id == PurchaseOrderItem.ingredient_id) & (Ingredient.business_id == business_id)).where(PurchaseOrderItem.po_id.in_([r.id for r in rows])).order_by(PurchaseOrderItem.id))).all()
-    for line, ingredient in lines:
-        grouped[line.po_id].append({'ingredient_id': line.ingredient_id, 'ingredient_name': ingredient.name if ingredient else '', 'quantity': line.quantity, 'unit': ingredient.unit if ingredient else '', 'unit_cost': line.unit_cost, 'total_cost': line.total_cost})
-    return [{'id': r.id, 'supplier_id': r.supplier_id, 'supplier_name': suppliers.get(r.supplier_id, ''), 'status': r.status, 'total_cost': r.total_cost, 'order_date': r.order_date, 'items': grouped[r.id]} for r in rows]
+    po_ids = [r.id for r in rows]
+    received_totals = select(GoodsReceiving.purchase_order_id.label('po_id'), GoodsReceiving.ingredient_id.label('ingredient_id'), func.sum(GoodsReceiving.quantity).label('quantity')).where(GoodsReceiving.business_id == business_id, GoodsReceiving.purchase_order_id.in_(po_ids)).group_by(GoodsReceiving.purchase_order_id, GoodsReceiving.ingredient_id).subquery()
+    lines = (await session.execute(select(PurchaseOrderItem, Ingredient, func.coalesce(received_totals.c.quantity, 0)).outerjoin(Ingredient, (Ingredient.id == PurchaseOrderItem.ingredient_id) & (Ingredient.business_id == business_id)).outerjoin(received_totals, (received_totals.c.po_id == PurchaseOrderItem.po_id) & (received_totals.c.ingredient_id == PurchaseOrderItem.ingredient_id)).where(PurchaseOrderItem.po_id.in_(po_ids)).order_by(PurchaseOrderItem.id))).all()
+    received = {}
+    for line, ingredient, received_total in lines:
+        key = (line.po_id, line.ingredient_id)
+        received.setdefault(key, received_total)
+        received_on_line = min(line.quantity, received.get(key, 0))
+        received[key] = max(0, received.get(key, 0) - received_on_line)
+        grouped[line.po_id].append({'ingredient_id': line.ingredient_id, 'ingredient_name': ingredient.name if ingredient else '', 'quantity': line.quantity, 'remaining_quantity': max(0, line.quantity - received_on_line), 'unit': ingredient.unit if ingredient else '', 'unit_cost': line.unit_cost, 'total_cost': line.total_cost})
+    return [{'id': r.id, 'supplier_id': r.supplier_id, 'supplier_name': suppliers.get(r.supplier_id, ''), 'status': r.status, 'can_reopen': r.status == POStatus.RECEIVED and any(i['remaining_quantity'] > 1e-9 for i in grouped[r.id]) and any(i['remaining_quantity'] < i['quantity'] for i in grouped[r.id]), 'total_cost': r.total_cost, 'order_date': r.order_date, 'items': grouped[r.id]} for r in rows]
 
 
 async def audit_payload(session, rows, business_id):

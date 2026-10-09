@@ -1,3 +1,5 @@
+import { currentPermissions } from '@/services/permissions'
+import { formatMoney } from '@/services/formatting'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { forecastService, recommendationsService, purchaseOrdersService, inventoryService } from '@/services'
@@ -15,9 +17,7 @@ import {
   Legend,
 } from 'recharts'
 
-function formatBaht(n: number) {
-  return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+const formatBaht = formatMoney
 
 function shortDate(dateStr: string) {
   const d = new Date(dateStr)
@@ -25,10 +25,13 @@ function shortDate(dateStr: string) {
 }
 
 export default function ForecastPage() {
+  const canPurchase = currentPermissions(JSON.parse(localStorage.getItem('khumflow_user') || '{}').role || '').purchasing
   const [forecasts, setForecasts] = useState<ForecastData[]>([])
   const [recommendations, setRecommendations] = useState<PurchaseRecommendation[]>([])
   const [loading, setLoading] = useState(true)
   const [orderedItems, setOrderedItems] = useState<Record<string, boolean>>({})
+  const [pendingOrders, setPendingOrders] = useState<Record<string, boolean>>({})
+  const [orderErrors, setOrderErrors] = useState<Record<string, string>>({})
   const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
@@ -41,13 +44,16 @@ export default function ForecastPage() {
 
   const handleCreatePO = async (ingredientId: string) => {
     const rec = recommendations.find((item) => item.ingredientId === ingredientId)
-    if (!rec?.supplierId) return
+    if (!canPurchase || !rec?.supplierId || pendingOrders[ingredientId] || orderedItems[ingredientId]) return
+    setPendingOrders(prev => ({ ...prev, [ingredientId]: true }))
+    setOrderErrors(prev => ({ ...prev, [ingredientId]: '' }))
     try {
       const ingredient = (await inventoryService.getAll()).find((item) => item.id === ingredientId)
       if (!ingredient) throw new Error('ไม่พบวัตถุดิบในคลัง')
       await purchaseOrdersService.create(rec.supplierId, [{ ingredientId, quantity: rec.recommendedOrder, unitCost: ingredient.averageCost }])
       setOrderedItems((prev) => ({ ...prev, [ingredientId]: true }))
-    } catch { setOrderedItems((prev) => ({ ...prev, [`error-${ingredientId}`]: true })) }
+    } catch (error) { setOrderErrors(prev => ({ ...prev, [ingredientId]: error instanceof Error ? error.message : 'ออกใบสั่งซื้อไม่สำเร็จ' })) }
+    finally { setPendingOrders(prev => ({ ...prev, [ingredientId]: false })) }
   }
 
   if (loading) return <LoadingSpinner />
@@ -76,6 +82,7 @@ export default function ForecastPage() {
       />
       {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
 
+      {Object.entries(orderErrors).filter(([, message]) => message).map(([id, message]) => <p key={id} role="alert" className="text-sm text-red-700">{message}</p>)}
       {/* KPI Top Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KPICard
@@ -188,10 +195,10 @@ export default function ForecastPage() {
                           size="sm"
                           variant="secondary"
                           onClick={() => handleCreatePO(rec.ingredientId)}
-                          disabled={!rec.supplierId || orderedItems[`error-${rec.ingredientId}`]}
+                          disabled={!canPurchase || !rec.supplierId || pendingOrders[rec.ingredientId]}
                           className="text-xs py-1"
                         >
-                          <ShoppingCart size={14} /> {orderedItems[`error-${rec.ingredientId}`] ? 'ออกใบสั่งซื้อไม่สำเร็จ' : rec.supplierId ? 'ออกใบสั่งซื้อ (PO)' : 'เพิ่มซัพพลายเออร์ก่อน'}
+                          <ShoppingCart size={14} /> {!canPurchase ? 'ต้องมีสิทธิ์จัดซื้อ' : pendingOrders[rec.ingredientId] ? 'กำลังออกใบสั่งซื้อ…' : orderErrors[rec.ingredientId] ? 'ลองสั่งซื้ออีกครั้ง' : rec.supplierId ? 'ออกใบสั่งซื้อ (PO)' : 'เพิ่มซัพพลายเออร์ก่อน'}
                         </Button>
                       )}
                     </td>

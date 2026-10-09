@@ -1,3 +1,4 @@
+import { shopTimezone } from '@/services/formatting'
 import { usePagedHistory } from '@/hooks/usePagedHistory'
 import HistoryControls from '@/components/HistoryControls'
 import { activityService } from '@/services'
@@ -55,8 +56,8 @@ export default function AuditPage() {
                 return (
                   <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                      <div>{t.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</div>
-                      <div className="text-gray-400">{t.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</div>
+                      <div>{t.toLocaleDateString('th-TH', { timeZone: shopTimezone(), day: 'numeric', month: 'short' })}</div>
+                      <div className="text-gray-400">{t.toLocaleTimeString('th-TH', { timeZone: shopTimezone(), hour: '2-digit', minute: '2-digit' })} น.</div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">

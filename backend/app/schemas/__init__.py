@@ -1,7 +1,10 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel as PydanticBaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List, Literal
 from datetime import date, datetime
 from app.models import UserRole, ProductCategory, IngredientUnit, OrderStatus
+
+class BaseModel(PydanticBaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
 
 # ── Auth Schemas ──────────────────────────────────────────────
 class Token(BaseModel):
@@ -69,7 +72,17 @@ class RecipeItemCreate(BaseModel):
 
 class RecipeCreate(BaseModel):
     product_id: int
-    items: List[RecipeItemCreate]
+    items: List[RecipeItemCreate] = Field(min_length=1)
+
+class PurchaseItemCreate(BaseModel):
+    ingredient_id: int
+    quantity: float = Field(gt=0, allow_inf_nan=False)
+    unit_cost: float = Field(ge=0, allow_inf_nan=False)
+    unit: Optional[IngredientUnit] = None
+
+class PurchaseCreate(BaseModel):
+    supplier_id: int
+    items: List[PurchaseItemCreate] = Field(min_length=1)
 
 # ── Ingredient & Receiving Schemas ────────────────────────────
 class IngredientCreate(BaseModel):

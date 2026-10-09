@@ -1,3 +1,4 @@
+import { formatMoney } from '@/services/formatting'
 import { useState, useEffect } from 'react'
 import { Plus, Search, X, Package, Check, EyeOff, RotateCcw } from 'lucide-react'
 import { productsService, isDemoMode } from '@/services'
@@ -11,9 +12,7 @@ import {
   SectionHeader,
 } from '@/components/ui'
 
-function formatBaht(n: number) {
-  return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+const formatBaht = formatMoney
 
 const categoryLabel: Record<string, string> = {
   beverage: 'เครื่องดื่ม',
@@ -256,7 +255,7 @@ export default function ProductsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">ราคาขาย (฿)</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">ราคาขาย (สกุลเงินร้าน)</label>
                   <input
                     type="number"
                     step="0.5"
@@ -268,7 +267,7 @@ export default function ProductsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">ต้นทุนวัตถุดิบ (฿)</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">ต้นทุนวัตถุดิบ (สกุลเงินร้าน)</label>
                   <input
                     type="number"
                     step="0.5"
@@ -285,7 +284,7 @@ export default function ProductsPage() {
                   <div className="flex justify-between">
                     <span>กำไรขั้นต้นต่อชิ้น:</span>
                     <span className="font-bold text-green-700">
-                      ฿{(parseFloat(sellingPrice || '0') - parseFloat(foodCost || '0')).toFixed(2)}
+                      {formatBaht(parseFloat(sellingPrice || '0') - parseFloat(foodCost || '0'))}
                     </span>
                   </div>
                   <div className="flex justify-between">

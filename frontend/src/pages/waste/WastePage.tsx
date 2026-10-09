@@ -1,3 +1,5 @@
+import { shopTimezone } from '@/services/formatting'
+import { formatMoney } from '@/services/formatting'
 import { usePagedHistory } from '@/hooks/usePagedHistory'
 import HistoryControls from '@/components/HistoryControls'
 import { useState, useEffect } from 'react'
@@ -6,9 +8,7 @@ import type { WasteRecord, WasteReason, IngredientUnit, Ingredient } from '@/typ
 import { Card, LoadingSpinner, SectionHeader, Button, EmptyState, Badge } from '@/components/ui'
 import { Plus, X, Trash2, Check } from 'lucide-react'
 
-function formatBaht(n: number) {
-  return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+const formatBaht = formatMoney
 
 const reasonLabel: Record<string, { label: string; variant: 'warning' | 'danger' | 'neutral' }> = {
   expired: { label: 'หมดอายุ', variant: 'danger' },
@@ -112,7 +112,7 @@ export default function WastePage() {
                   return (
                     <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                        {new Date(r.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                        {new Date(r.date).toLocaleDateString('th-TH', { timeZone: shopTimezone(), day: 'numeric', month: 'short' })}
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900">{r.ingredientName}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-gray-700">

@@ -1,3 +1,4 @@
+import { formatMoney } from '@/services/formatting'
 import { usePagedHistory } from '@/hooks/usePagedHistory'
 import HistoryControls from '@/components/HistoryControls'
 import { useState, useEffect } from 'react'
@@ -7,9 +8,7 @@ import type { Supplier, PurchaseOrder, IngredientUnit, Ingredient } from '@/type
 import { Card, Button, Badge, LoadingSpinner, SectionHeader } from '@/components/ui'
 import { Truck, Plus, Phone, Mail, FileText, X, Check } from 'lucide-react'
 
-function formatBaht(n: number) {
-  return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+const formatBaht = formatMoney
 
 export function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -24,6 +23,7 @@ export function SuppliersPage() {
   const [email, setEmail] = useState('')
   const [paymentTerms, setPaymentTerms] = useState('Net 15')
   const [successToast, setSuccessToast] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState('')
 
   useEffect(() => {
@@ -205,6 +205,9 @@ export function PurchaseOrdersPage() {
   const history = usePagedHistory(purchaseOrdersService.getPaged)
   const { items: orders } = history
   const [loading, setLoading] = useState(true)
+  const [reopening, setReopening] = useState<string | null>(null)
+  const role = JSON.parse(localStorage.getItem('khumflow_user') || '{}').role
+  const canReopen = role === 'owner' || role === 'manager'
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -216,6 +219,7 @@ export function PurchaseOrdersPage() {
   const [unit, setUnit] = useState<IngredientUnit>('kg')
   const [unitCost, setUnitCost] = useState('800')
   const [successToast, setSuccessToast] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState('')
   const [loadError, setLoadError] = useState('')
 
@@ -230,12 +234,16 @@ export function PurchaseOrdersPage() {
 
   const handleCreatePO = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!supplierId || !ingredientId) return
+    if (!supplierId || !ingredientId) { setActionError('กรุณาเพิ่มและเลือกซัพพลายเออร์กับวัตถุดิบก่อนออกใบสั่งซื้อ'); return }
 
-    const qty = parseFloat(quantity) || 1
-    const cost = parseFloat(unitCost) || 0
-    try { await purchaseOrdersService.create(supplierId, [{ ingredientId, quantity: qty, unitCost: cost }]); await history.refresh().catch(() => {}) }
+    if (saving) return
+    setActionError('')
+    setSaving(true)
+    const qty = Number(quantity)
+    const cost = Number(unitCost)
+    try { await purchaseOrdersService.create(supplierId, [{ ingredientId, quantity: qty, unitCost: cost, unit }]); await history.refresh().catch(() => {}) }
     catch (error) { setActionError(error instanceof Error ? error.message : 'ออกใบสั่งซื้อไม่สำเร็จ'); return }
+    finally { setSaving(false) }
     setIsModalOpen(false)
     setSuccessToast(true)
     setTimeout(() => setSuccessToast(false), 3000)
@@ -307,6 +315,7 @@ export function PurchaseOrdersPage() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <Badge variant={st.variant}>{st.label}</Badge>
+                      {po.canReopen && canReopen && <Button variant="outline" size="sm" disabled={!!reopening} onClick={async () => { setReopening(po.id); setActionError(''); try { await purchaseOrdersService.reopen(po.id); await history.refresh() } catch (e) { setActionError(e instanceof Error ? e.message : 'เปิดรับต่อไม่สำเร็จ') } finally { setReopening(null) } }}>{reopening === po.id ? 'กำลังเปิดรับ…' : 'เปิดรับส่วนที่ยังไม่ครบ'}</Button>}
                     </td>
                   </tr>
                 )
@@ -332,6 +341,8 @@ export function PurchaseOrdersPage() {
             </h3>
             <p className="text-xs text-gray-500 mb-4">ส่งคำสั่งซื้อไปยังซัพพลายเออร์</p>
 
+            {!suppliers.length && <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">ยังไม่มีซัพพลายเออร์ กรุณาเพิ่มผู้ขายที่เมนูซัพพลายเออร์ก่อนออกใบสั่งซื้อ</p>}
+            {actionError && <p role="alert" className="mb-3 text-sm text-red-700">{actionError}</p>}
             <form onSubmit={handleCreatePO} className="space-y-3.5 text-sm">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">เลือกซัพพลายเออร์</label>
@@ -368,20 +379,16 @@ export function PurchaseOrdersPage() {
                   <label className="block text-xs font-semibold text-gray-700 mb-1">หน่วยนับ</label>
                   <select
                     value={unit}
-                    onChange={(e) => setUnit(e.target.value as IngredientUnit)}
+                    onChange={(e) => { const chosen = e.target.value as IngredientUnit; setUnit(chosen); const ingredient = ingredients.find(item => item.id === ingredientId); if (ingredient) { const factors: Record<string, number> = { 'g:kg': .001, 'kg:g': 1000, 'ml:l': .001, 'l:ml': 1000 }; setUnitCost(String(ingredient.averageCost * (chosen === ingredient.unit ? 1 : factors[`${chosen}:${ingredient.unit}`] || 1))) } }}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none bg-white text-xs"
                   >
-                    <option value="kg">กก. (kg)</option>
-                    <option value="l">ลิตร (l)</option>
-                    <option value="pack">แพ็ก (pack)</option>
-                    <option value="bottle">ขวด (bottle)</option>
-                    <option value="piece">ชิ้น (piece)</option>
+                    {(['kg', 'g', 'l', 'ml', 'pack', 'bottle', 'piece'] as IngredientUnit[]).filter(candidate => { const stockUnit = ingredients.find(item => item.id === ingredientId)?.unit; return candidate === stockUnit || (['g', 'kg'].includes(candidate) && ['g', 'kg'].includes(stockUnit || '')) || (['ml', 'l'].includes(candidate) && ['ml', 'l'].includes(stockUnit || '')) }).map(candidate => <option key={candidate} value={candidate}>{candidate}</option>)}
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">ราคาต่อหน่วยประมาณการ (฿)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">ราคาต่อหน่วยประมาณการ (สกุลเงินร้าน)</label>
                 <input
                   type="number"
                   step="1"
@@ -404,8 +411,8 @@ export function PurchaseOrdersPage() {
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
                   ยกเลิก
                 </Button>
-                <Button type="submit" size="sm">
-                  ยืนยันออกใบสั่งซื้อ
+                <Button type="submit" size="sm" disabled={saving || !supplierId || !ingredientId}>
+                  {saving ? 'กำลังบันทึก…' : 'ยืนยันออกใบสั่งซื้อ'}
                 </Button>
               </div>
             </form>

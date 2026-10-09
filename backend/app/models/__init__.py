@@ -3,6 +3,7 @@ from datetime import datetime, date, timezone
 from typing import Optional, List
 from enum import Enum
 from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy import Column, JSON
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -57,6 +58,17 @@ class BusinessMembership(SQLModel, table=True):
     business_id: int = Field(foreign_key="businesses.id", primary_key=True, index=True)
     role: UserRole = Field(default=UserRole.CASHIER)
     created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
+
+class BusinessRolePermissions(SQLModel, table=True):
+    __tablename__ = 'business_role_permissions'
+    business_id: int = Field(foreign_key='businesses.id', primary_key=True)
+    permissions: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+
+class IngredientExpirationState(SQLModel, table=True):
+    __tablename__ = 'ingredient_expiration_states'
+    ingredient_id: int = Field(foreign_key='ingredients.id', primary_key=True)
+    expiration_date: Optional[date] = None
+    status: str = 'active'
 
 class User(SQLModel, table=True):
     __tablename__ = "users"

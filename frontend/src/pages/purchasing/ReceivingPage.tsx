@@ -1,3 +1,5 @@
+import { shopTimezone } from '@/services/formatting'
+import { formatMoney } from '@/services/formatting'
 import { usePagedHistory } from '@/hooks/usePagedHistory'
 import HistoryControls from '@/components/HistoryControls'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
@@ -7,9 +9,7 @@ import type { Supplier, Ingredient, PurchaseOrder } from '@/types'
 import { Card, Button, Badge, LoadingSpinner, SectionHeader, KPICard } from '@/components/ui'
 import { PackageCheck, CheckCircle2, FileText } from 'lucide-react'
 
-function formatBaht(value: number) {
-  return `฿${value.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+const formatBaht = formatMoney
 
 interface ReceiveHistory {
   id: string
@@ -65,7 +65,9 @@ export default function ReceivingPage() {
   const handleIngredientSelect = (id: string) => {
     setIngredientId(id)
     const selected = ingredients.find((item) => item.id === id)
-    setUnitCost(selected ? selected.averageCost : '')
+    const line = purchaseOrders.find(order => order.id === purchaseOrderId)?.items.find(item => item.ingredientId === id && (item.remainingQuantity ?? item.quantity) > 0)
+    setUnitCost(line ? line.unitCost : selected ? selected.averageCost : '')
+    if (line) setQuantity(line.remainingQuantity ?? line.quantity)
   }
 
   const handleReceive = async (event: FormEvent) => {
@@ -110,6 +112,7 @@ export default function ReceivingPage() {
   if (loading) return <LoadingSpinner />
   const totalReceivedValue = historyPage.summary?.amount || 0
   const selectedIngredient = ingredients.find((item) => item.id === ingredientId)
+  const remainingQuantity = purchaseOrders.find(order => order.id === purchaseOrderId)?.items.filter(item => item.ingredientId === ingredientId).reduce((sum, item) => sum + (item.remainingQuantity ?? item.quantity), 0)
   const previewTotal = Number(quantity || 0) * Number(unitCost || 0)
 
   return <div className="space-y-5">
@@ -136,23 +139,23 @@ export default function ReceivingPage() {
       {!ingredients.length && <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><p className="font-semibold">ยังไม่มีวัตถุดิบในคลัง</p><p className="mt-1 text-xs">เพิ่มวัตถุดิบก่อน จึงจะรับสินค้าเข้าสต็อกได้</p><Link to="/app/inventory" className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-amber-700 px-4 text-sm font-semibold text-white hover:bg-amber-800">ไปเพิ่มวัตถุดิบ</Link></div>}
       <form onSubmit={handleReceive} className="grid gap-x-6 gap-y-4 md:grid-cols-2">
         <Field label="ใบสั่งซื้อ (ไม่บังคับ)" help={purchaseOrders.length ? 'เลือกใบสั่งซื้อเพื่อเติมผู้ขายและวัตถุดิบให้อัตโนมัติ' : 'ไม่มีใบสั่งซื้อที่รอรับ สามารถรับของโดยไม่อ้างอิงใบสั่งซื้อได้'}>
-          <select value={purchaseOrderId} onChange={(event) => { const order = purchaseOrders.find((item) => item.id === event.target.value); setPurchaseOrderId(event.target.value); if (order?.items[0]) { setSupplierId(order.supplierId); handleIngredientSelect(order.items[0].ingredientId); setQuantity(order.items[0].quantity); setUnitCost(order.items[0].unitCost) } }} className={inputClass}>
+          <select value={purchaseOrderId} onChange={(event) => { const order = purchaseOrders.find((item) => item.id === event.target.value); setPurchaseOrderId(event.target.value); const line = order?.items.find(item => (item.remainingQuantity ?? item.quantity) > 0); if (order && line) { setSupplierId(order.supplierId); setIngredientId(line.ingredientId); setQuantity(line.remainingQuantity ?? line.quantity); setUnitCost(line.unitCost) } }} className={inputClass}>
             <option value="">รับของโดยไม่ใช้ใบสั่งซื้อ</option>{purchaseOrders.map((order) => <option key={order.id} value={order.id}>ใบสั่งซื้อ #{order.id} · {order.supplierName}</option>)}
           </select>
         </Field>
         <Field label="ผู้ขาย / ซัพพลายเออร์ *" help="ต้องเลือกผู้ขายเพื่อบันทึกว่าได้รับของจากที่ใด">
-          <select required value={supplierId} onChange={(event) => setSupplierId(event.target.value)} className={inputClass} disabled={!suppliers.length}>
+          <select required value={supplierId} onChange={(event) => setSupplierId(event.target.value)} className={inputClass} disabled={!suppliers.length || !!purchaseOrderId}>
             <option value="">เลือกผู้ขาย</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
           </select>
         </Field>
         <Field label="วัตถุดิบที่รับ *" help="ยอดคงเหลือปัจจุบันแสดงไว้ในรายการ">
           <select required value={ingredientId} onChange={(event) => handleIngredientSelect(event.target.value)} className={inputClass} disabled={!ingredients.length}>
-            <option value="">เลือกวัตถุดิบ</option>{ingredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} · เหลือ {ingredient.currentStock} {ingredient.unit}</option>)}
+            <option value="">เลือกวัตถุดิบ</option>{ingredients.filter(ingredient => !purchaseOrderId || purchaseOrders.find(order => order.id === purchaseOrderId)?.items.some(line => line.ingredientId === ingredient.id && (line.remainingQuantity ?? line.quantity) > 0)).map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} · เหลือ {ingredient.currentStock} {ingredient.unit}</option>)}
           </select>
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label={`จำนวนที่รับ *${selectedIngredient ? ` (${selectedIngredient.unit})` : ''}`} help="ใส่จำนวนที่ได้รับจริง">
-            <input type="number" min="0.01" step="0.01" required placeholder="เช่น 5" value={quantity} onChange={(event) => setQuantity(event.target.value === '' ? '' : parseFloat(event.target.value))} className={inputClass} />
+          <Field label={`จำนวนที่รับ *${selectedIngredient ? ` (${selectedIngredient.unit})` : ''}`} help={remainingQuantity != null ? `คงเหลือตามใบสั่งซื้อ ${remainingQuantity} ${selectedIngredient?.unit || ''}` : 'ใส่จำนวนที่ได้รับจริง'}>
+            <input type="number" min="0.01" step="0.01" max={remainingQuantity} required placeholder="เช่น 5" value={quantity} onChange={(event) => setQuantity(event.target.value === '' ? '' : parseFloat(event.target.value))} className={inputClass} />
           </Field>
           <Field label="ราคาซื้อต่อหน่วย *" help="ระบบจะใช้คำนวณต้นทุนเฉลี่ยใหม่">
             <div className="relative"><input type="number" min="0" step="0.01" required placeholder="เช่น 120" value={unitCost} onChange={(event) => setUnitCost(event.target.value === '' ? '' : parseFloat(event.target.value))} className={`${inputClass} pr-12`} /><span className="absolute right-3 top-3 text-xs text-gray-500">บาท</span></div>
@@ -173,7 +176,7 @@ export default function ReceivingPage() {
       <div className="p-5 pb-3"><h3 className="text-base font-bold text-gray-900">ประวัติรับสินค้า</h3><p className="mt-1 text-xs text-gray-500">รายการที่บันทึกแล้ว พร้อมจำนวนและมูลค่า</p></div>
       {!history.length ? <div className="px-4 py-12 text-center"><PackageCheck size={30} className="mx-auto text-gray-300" /><p className="mt-3 text-sm font-medium text-gray-600">ยังไม่มีรายการรับสินค้า</p><p className="mt-1 text-xs text-gray-500">เมื่อบันทึกรับของแล้ว ประวัติจะแสดงที่นี่</p></div> : <div className="overflow-x-auto">
         <table className="w-full min-w-[700px] text-xs"><thead><tr className="border-y border-gray-100 bg-gray-50 text-left text-gray-500"><th className="px-3 py-3">วันรับ</th><th className="px-3 py-3">วัตถุดิบ</th><th className="px-3 py-3">ผู้ขาย / เลขล็อต</th><th className="px-3 py-3 text-right">จำนวน</th><th className="px-3 py-3 text-right">ยอดรวม</th><th className="px-3 py-3">วันหมดอายุ</th></tr></thead>
-          <tbody className="divide-y divide-gray-50">{history.map((item) => <tr key={item.id} className="hover:bg-gray-50"><td className="whitespace-nowrap px-3 py-3 text-gray-600">{new Date(item.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}</td><td className="px-3 py-3 font-medium text-gray-900">{item.ingredientName}</td><td className="px-3 py-3"><p className="font-medium text-gray-800">{item.supplierName || '—'}</p><p className="font-mono text-[10px] text-gray-400">{item.lotNo}</p></td><td className="px-3 py-3 text-right font-semibold tabular-nums">{item.quantity} {item.unit}</td><td className="px-3 py-3 text-right font-bold text-green-700 tabular-nums">{formatBaht(item.totalCost)}</td><td className="px-3 py-3 text-gray-600">{item.expirationDate || '—'}</td></tr>)}</tbody>
+          <tbody className="divide-y divide-gray-50">{history.map((item) => <tr key={item.id} className="hover:bg-gray-50"><td className="whitespace-nowrap px-3 py-3 text-gray-600">{new Date(item.date).toLocaleDateString('th-TH', { timeZone: shopTimezone(), day: 'numeric', month: 'short', year: 'numeric' })}</td><td className="px-3 py-3 font-medium text-gray-900">{item.ingredientName}</td><td className="px-3 py-3"><p className="font-medium text-gray-800">{item.supplierName || '—'}</p><p className="font-mono text-[10px] text-gray-400">{item.lotNo}</p></td><td className="px-3 py-3 text-right font-semibold tabular-nums">{item.quantity} {item.unit}</td><td className="px-3 py-3 text-right font-bold text-green-700 tabular-nums">{formatBaht(item.totalCost)}</td><td className="px-3 py-3 text-gray-600">{item.expirationDate || '—'}</td></tr>)}</tbody>
         </table>
       </div>}
     </Card>

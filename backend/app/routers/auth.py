@@ -160,13 +160,13 @@ async def list_users(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ):
-    if current_user.role not in (UserRole.OWNER, UserRole.MANAGER):
+    if not getattr(current_user, "permissions", {}).get("users", current_user.role in (UserRole.OWNER, UserRole.MANAGER)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="เฉพาะ Owner และ Manager เท่านั้นที่ดูรายชื่อ user ทั้งหมดได้"
         )
 
-    stmt = select(User).join(BusinessMembership, BusinessMembership.user_id == User.id).where(BusinessMembership.business_id == current_user.business_id)
+    stmt = select(User, BusinessMembership.role).join(BusinessMembership, BusinessMembership.user_id == User.id).where(BusinessMembership.business_id == current_user.business_id)
     count_stmt = select(func.count(User.id)).join(BusinessMembership, BusinessMembership.user_id == User.id).where(BusinessMembership.business_id == current_user.business_id)
 
     if role:
@@ -178,7 +178,8 @@ async def list_users(
             raise HTTPException(status_code=400, detail=f"role '{role}' ไม่ถูกต้อง")
 
     total = (await session.execute(count_stmt)).scalar_one()
-    users = (await session.execute(stmt.offset((page - 1) * limit).limit(limit))).scalars().all()
+    rows = (await session.execute(stmt.order_by(User.id).offset((page - 1) * limit).limit(limit))).all()
+    users = [UserResponse(id=u.id, email=u.email, full_name=u.full_name, role=member_role, is_active=u.is_active) for u, member_role in rows]
 
     return {
         "total": total,
@@ -197,7 +198,7 @@ async def get_user(
     session: AsyncSession = Depends(get_session)
 ):
     # ดูข้อมูลตัวเองได้เสมอ; ถ้าจะดูคนอื่นต้องเป็น Owner/Manager
-    if current_user.id != user_id and current_user.role not in (UserRole.OWNER, UserRole.MANAGER):
+    if current_user.id != user_id and not getattr(current_user, "permissions", {}).get("users", current_user.role in (UserRole.OWNER, UserRole.MANAGER)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="ไม่มีสิทธิ์ดูข้อมูลผู้ใช้รายอื่น"
@@ -205,11 +206,12 @@ async def get_user(
     user = (await session.execute(select(User).join(BusinessMembership, BusinessMembership.user_id == User.id).where(User.id == user_id, BusinessMembership.business_id == current_user.business_id))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail=f"ไม่พบ user id={user_id}")
-    return user
+    membership = await session.get(BusinessMembership, (user.id, current_user.business_id))
+    return UserResponse(id=user.id, email=user.email, full_name=user.full_name, role=membership.role, is_active=user.is_active)
 
 @router.post("/users", response_model=UserResponse, summary="เพิ่มพนักงานในร้าน")
 async def create_employee(req: UserCreate, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    if current_user.role not in (UserRole.OWNER, UserRole.MANAGER):
+    if not getattr(current_user, "permissions", {}).get("users", current_user.role in (UserRole.OWNER, UserRole.MANAGER)):
         raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์เพิ่มพนักงาน")
     if req.role == UserRole.OWNER and current_user.role != UserRole.OWNER:
         raise HTTPException(status_code=403, detail="เฉพาะเจ้าของร้านเท่านั้นที่เพิ่ม Owner ได้")
@@ -222,7 +224,7 @@ async def create_employee(req: UserCreate, current_user: User = Depends(get_curr
 
 @router.get("/audit-logs")
 async def list_audit_logs(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    if current_user.role not in (UserRole.OWNER, UserRole.MANAGER):
+    if not getattr(current_user, "permissions", {}).get("settings", current_user.role in (UserRole.OWNER, UserRole.MANAGER)):
         raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์ดูประวัติกิจกรรม")
     records = (await session.execute(select(AuditLog).where(AuditLog.business_id == current_user.business_id).order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(200))).scalars().all()
     return await audit_payload(session, records, current_user.business_id)
@@ -236,7 +238,7 @@ async def update_user(
     session: AsyncSession = Depends(get_session)
 ):
     # แก้ข้อมูลตัวเองได้; เปลี่ยน role / is_active ต้องเป็น Owner เท่านั้น
-    if current_user.id != user_id and current_user.role not in (UserRole.OWNER, UserRole.MANAGER):
+    if current_user.id != user_id and not getattr(current_user, "permissions", {}).get("users", current_user.role in (UserRole.OWNER, UserRole.MANAGER)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="ไม่มีสิทธิ์แก้ไขข้อมูลผู้ใช้รายอื่น"
@@ -256,7 +258,7 @@ async def update_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="เฉพาะ Owner เท่านั้นที่สามารถเปลี่ยน Role ได้"
             )
-        user.role = req.role
+        if user.business_id == current_user.business_id: user.role = req.role
         membership = (await session.execute(select(BusinessMembership).where(BusinessMembership.user_id == user.id, BusinessMembership.business_id == current_user.business_id))).scalar_one()
         membership.role = req.role
 
@@ -271,7 +273,8 @@ async def update_user(
     session.add(user)
     await session.commit()
     await session.refresh(user)
-    return user
+    membership = await session.get(BusinessMembership, (user.id, current_user.business_id))
+    return UserResponse(id=user.id, email=user.email, full_name=user.full_name, role=membership.role, is_active=user.is_active)
 
 
 # ── DELETE /auth/users/{id} ───────────────────────────────────────

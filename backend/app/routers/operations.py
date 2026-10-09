@@ -59,9 +59,22 @@ async def dashboard(days: int = 7, offset_days: int = 0, current_user: User = De
     days = max(1, min(days, 31)); offset_days = max(0, min(offset_days, 365))
     daily, today, ingredients, current_date, top = await dashboard_data(session, current_user.business_id, days, offset_days)
     alerts = [{"id": f"stock-{i.id}", "type": "critical" if i.current_stock <= 0 else "low_stock", "title": f"สต็อก{('หมด' if i.current_stock <= 0 else 'ใกล้หมด')}: {i.name}", "description": f"เหลือ {i.current_stock:g} {readable_unit(i.unit)} (จุดสั่งซื้อ {i.minimum_stock:g})", "severity": "danger" if i.current_stock <= 0 else "warning", "ingredientId": str(i.id)} for i in ingredients if i.current_stock <= i.minimum_stock]
+    from app.models import IngredientExpirationState
+    checked = (await session.execute(select(IngredientExpirationState).join(Ingredient, Ingredient.id == IngredientExpirationState.ingredient_id)
+        .where(Ingredient.business_id == current_user.business_id, IngredientExpirationState.expiration_date == Ingredient.expiration_date,
+               IngredientExpirationState.status.in_(['resolved', 'hidden'])))).scalars().all()
+    checked_ids = {row.ingredient_id for row in checked}
     for i in ingredients:
+        if i.id in checked_ids: continue
         if i.expiration_date and i.expiration_date <= current_date + timedelta(days=7): alerts.append({"id": f"expiry-{i.id}", "type": "expiring", "title": f"{'หมดอายุ' if i.expiration_date < current_date else 'หมดอายุวันนี้' if i.expiration_date == current_date else 'ใกล้หมดอายุ'}: {i.name}", "description": f"วันหมดอายุ {i.expiration_date.isoformat()}", "severity": "danger" if i.expiration_date <= current_date else "warning", "ingredientId": str(i.id)})
-    return {"kpi": {"todaySales": today["revenue"], "todayOrders": today["orders"], "foodCostPercent": today["foodCost"] / today["revenue"] * 100 if today["revenue"] else 0, "grossProfit": today["grossProfit"], "wasteValue": today["wasteValue"], "salesChangePercent": 0, "foodCostChangePercent": 0, "profitChangePercent": 0}, "alerts": alerts, "dailySales": list(daily.values()), "foodCostTrend": list(daily.values()), "topSellers": top, "today": str(current_date)}
+    previous = daily.get(str(current_date - timedelta(days=1)), {})
+    if not previous:
+        comparison, _, _, _, _ = await dashboard_data(session, current_user.business_id, 2, 0)
+        previous = comparison.get(str(current_date - timedelta(days=1)), {})
+    def change(current, old):
+        return (current - old) / abs(old) * 100 if old else (None if current else 0)
+    food_ratio = lambda row: row.get("foodCost", 0) / row.get("revenue", 1) * 100 if row.get("revenue") else 0
+    return {"kpi": {"todaySales": today["revenue"], "todayOrders": today["orders"], "foodCostPercent": today["foodCost"] / today["revenue"] * 100 if today["revenue"] else 0, "grossProfit": today["grossProfit"], "wasteValue": today["wasteValue"], "salesChangePercent": change(today["revenue"], previous.get("revenue", 0)), "foodCostChangePercent": change(food_ratio(today), food_ratio(previous)), "profitChangePercent": change(today["grossProfit"], previous.get("grossProfit", 0))}, "alerts": alerts, "dailySales": list(daily.values()), "foodCostTrend": list(daily.values()), "topSellers": top, "today": str(current_date)}
 
 @router.get("/analytics/variance")
 async def stock_variance(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
@@ -149,7 +162,7 @@ async def list_orders(current_user: User = Depends(get_current_user), session: A
 
 @router.post("/orders/{order_id}/cancel")
 async def cancel_order(order_id: int, req: OrderCancelRequest, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
+    require_role(current_user, UserRole.OWNER, UserRole.MANAGER, strict=True)
     reason = req.reason.strip()
     if len(reason) < 3:
         raise HTTPException(status_code=422, detail="กรุณาระบุเหตุผลยกเลิกอย่างน้อย 3 ตัวอักษร")
@@ -191,7 +204,7 @@ async def cancel_order(order_id: int, req: OrderCancelRequest, current_user: Use
 
 @router.post("/orders/{order_id}/restore")
 async def restore_order(order_id: int, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
+    require_role(current_user, UserRole.OWNER, UserRole.MANAGER, strict=True)
     order = (await session.execute(
         select(Order).where(Order.id == order_id, Order.business_id == current_user.business_id).with_for_update()
     )).scalar_one_or_none()
@@ -300,10 +313,12 @@ async def record_waste(req: WasteRecordCreate, current_user: User = Depends(get_
 
 @router.get("/waste")
 async def list_waste(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
     rows, _, _ = await history_rows(session, WasteRecord, current_user.business_id, WasteRecord.created_at)
     return await waste_payload(session, rows, current_user.business_id)
 
 @router.get("/stock-counts")
 async def list_stock_counts(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
     counts = (await session.execute(select(StockCount).where(StockCount.business_id == current_user.business_id).order_by(StockCount.created_at.desc()))).scalars().all()
     return [{"id": c.id, "created_at": c.created_at, "staff_id": c.staff_id} for c in counts]

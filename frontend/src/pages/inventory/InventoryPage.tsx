@@ -1,3 +1,4 @@
+import { formatMoney } from '@/services/formatting'
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Search, X, Warehouse, Check, ChevronDown } from 'lucide-react'
@@ -14,9 +15,7 @@ import {
 } from '@/components/ui'
 import { Package, AlertTriangle, CalendarClock, DollarSign } from 'lucide-react'
 
-function formatBaht(n: number) {
-  return `฿${n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+const formatBaht = formatMoney
 
 const categoryLabel: Record<string, string> = {
   dairy: 'นม/ผลิตภัณฑ์นม',

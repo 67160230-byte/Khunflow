@@ -8,11 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.config import settings
 from app.database import get_session
-from app.models import User, UserRole, AuditLog, BusinessMembership, PlatformSubscription
+from app.models import User, UserRole, AuditLog, BusinessMembership, PlatformSubscription, BusinessRolePermissions
+from app.services.permissions import permissions_for, feature_for
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-def require_role(user: User, *roles: UserRole) -> None:
+def require_role(user: User, *roles: UserRole, strict: bool = False) -> None:
+    feature = getattr(user, 'permission_feature', None)
+    if not strict and feature and hasattr(user, 'permissions'):
+        if not getattr(user, 'permission_allowed', user.permissions.get(feature, False)):
+            raise HTTPException(status_code=403, detail="คุณไม่มีสิทธิ์ทำรายการนี้")
+        return
     if user.role not in roles:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="คุณไม่มีสิทธิ์ทำรายการนี้")
 
@@ -129,6 +135,28 @@ async def get_current_user(
     # Return a request-scoped identity rather than changing User.business_id in
     # the ORM session; that column remains the user's default business.
     from types import SimpleNamespace
+    policy = await session.get(BusinessRolePermissions, membership.business_id)
+    permissions = permissions_for(policy.permissions if policy else {}, membership.role.value)
+    feature = feature_for(request.url.path)
+    if '/auth/users' in request.url.path: feature = 'users'
+    if '/auth/audit-logs' in request.url.path: feature = 'settings'
+    if request.method == 'GET' and request.url.path.rstrip('/').endswith('/business'): feature = None
+    # Catalog reads also serve the POS and recipe/purchasing forms.
+    alternatives = [feature] if feature else []
+    if request.method == 'GET' and feature == 'products' and request.url.path.rstrip('/').endswith('/products'):
+        alternatives += ['orders', 'analytics', 'forecast']
+    if request.method == 'GET' and feature == 'inventory' and request.url.path.rstrip('/').endswith('/ingredients'):
+        alternatives += ['products', 'stock_count', 'waste', 'purchasing']
+    if request.method == 'GET' and request.url.path.rstrip('/').endswith('/suppliers'):
+        alternatives += ['inventory']
+    if request.method == 'GET' and request.url.path.rstrip('/').endswith('/purchase-orders'):
+        alternatives += ['inventory']
+    if request.method == 'GET' and request.url.path.rstrip('/').endswith('/purchase-recommendations'):
+        alternatives += ['forecast']
+    if request.method == 'GET' and request.url.path.rstrip('/').endswith('/dashboard'):
+        alternatives += ['analytics']
+    if feature and not any(permissions.get(key, False) for key in alternatives):
+        raise HTTPException(status_code=403, detail="คุณไม่มีสิทธิ์ทำรายการนี้")
     return SimpleNamespace(
         id=user.id,
         email=user.email,
@@ -137,4 +165,7 @@ async def get_current_user(
         business_id=membership.business_id,
         is_active=user.is_active,
         hashed_password=user.hashed_password,
+        permissions=permissions,
+        permission_feature=feature,
+        permission_allowed=any(permissions.get(key, False) for key in alternatives),
     )

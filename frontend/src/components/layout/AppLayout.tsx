@@ -1,7 +1,9 @@
+import { storeShopPreferences } from '@/services/formatting'
+import { currentPermissions, featureForRoute, homeForRole } from '@/services/permissions'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { businessService, isDemoMode, platformAdminService, resetApiRequests } from '@/services'
+import { businessService, isDemoMode, platformAdminService, resetApiRequests, permissionsService } from '@/services'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -125,13 +127,8 @@ function SidebarContent({ onClose, isPlatformAdmin = false }: { onClose?: () => 
   const userRole = currentUser?.role?.toLowerCase() || ''
 
   // Filter sections and items based on role
-  const visibleSections = allNavSections
-    .filter((sec) => !sec.roles || sec.roles.some((r) => userRole.includes(r)))
-    .map((sec) => ({
-      ...sec,
-      items: sec.items.filter((it) => !it.roles || it.roles.some((r) => userRole.includes(r))),
-    }))
-    .filter((sec) => sec.items.length > 0)
+  const permissions = currentPermissions(userRole)
+  const visibleSections = allNavSections.map(sec => ({ ...sec, items: sec.items.filter(item => permissions[featureForRoute(item.path) || ''] && (item.path !== '/app/settings/roles' || userRole === 'owner')) })).filter(sec => sec.items.length > 0)
 
   const toggleSection = (section: string) =>
     setCollapsed((prev) =>
@@ -220,7 +217,7 @@ function SidebarContent({ onClose, isPlatformAdmin = false }: { onClose?: () => 
 function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => void; demoMode: boolean; onToggleDemo: () => void }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const [businesses, setBusinesses] = useState<Array<{ id: string; name: string; role: string }>>([])
+  const [businesses, setBusinesses] = useState<Array<{ id: string; name: string; role: string; currency: string; timezone: string }>>([])
   const [activeBusinessId, setActiveBusinessId] = useState(localStorage.getItem('khumflow_business_id') || '')
 
   useEffect(() => {
@@ -231,6 +228,8 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
       const activeBusiness = items.find((business) => business.id === saved) || items[0]
       if (!activeBusiness) return
 
+      localStorage.setItem('khumflow_business_id', activeBusiness.id)
+      storeShopPreferences(activeBusiness.currency, activeBusiness.timezone)
       setActiveBusinessId(activeBusiness.id)
       // A user's role belongs to a business membership. Keep the cached UI role
       // aligned with the selected business so owners are not shown staff-only
@@ -291,6 +290,8 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
 
 // AppLayout with Route Protection based on Role
 export function AppLayout() {
+  const [permissionsReady, setPermissionsReady] = useState(false)
+  const [, refreshPermissions] = useState(0)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [demoMode, setDemoMode] = useState(isDemoMode)
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
@@ -322,35 +323,37 @@ export function AppLayout() {
 
   // Check if current route is allowed for this role
   const isRouteAllowed = () => {
-    const currentPath = location.pathname
-    if (currentPath === '/app/platform-admin') return isPlatformAdmin && !demoMode
-    // Check if visiting Analytics or Forecast
-    if (currentPath.includes('/analytics/') || currentPath.includes('/forecast') || currentPath.includes('/reports')) {
-      return userRole.includes('owner') || userRole.includes('manager') || userRole === 'admin'
-    }
-    // Check if visiting Settings
-    if (currentPath.includes('/settings/')) {
-      return userRole.includes('owner') || userRole === 'admin'
-    }
-    // Check if Cashier trying to access inventory/recipes/products
-    if (userRole.includes('cashier')) {
-      if (currentPath.includes('/inventory') || currentPath.includes('/recipes') || currentPath.includes('/products') || currentPath.includes('/waste') || currentPath.includes('/suppliers') || currentPath.includes('/stock-count') || currentPath.includes('/receiving') || currentPath.includes('/purchase-orders') || currentPath.includes('/expiration') || currentPath.includes('/purchase-recommendations')) {
-        return false
-      }
-    }
-    // Check if Inventory Staff trying to access orders
-    if (userRole.includes('inventory') || userRole.includes('stock')) {
-      if (currentPath.includes('/orders') || currentPath.includes('/products') || currentPath.includes('/recipes') || currentPath.includes('/analytics/') || currentPath.includes('/forecast') || currentPath.includes('/reports') || currentPath.includes('/settings')) {
-        return false
-      }
-    }
-    return true
+    if (location.pathname === '/app/platform-admin') return isPlatformAdmin && !demoMode
+    if (location.pathname === '/app/settings/roles') return userRole === 'owner'
+    return !!currentPermissions(userRole)[featureForRoute(location.pathname) || '']
   }
+
+  useEffect(() => {
+    let active = true
+    Promise.all([permissionsService.get(), businessService.getAll()]).then(([data, businesses]) => {
+      if (!active) return
+      const activeBusiness = businesses.find(b => b.id === localStorage.getItem('khumflow_business_id')) || businesses[0]
+      if (activeBusiness && !demoMode) { localStorage.setItem('khumflow_business_id', activeBusiness.id); storeShopPreferences(activeBusiness.currency, activeBusiness.timezone) }
+      localStorage.setItem(`khumflow_permissions:${localStorage.getItem('khumflow_business_id') || ''}:${userRole}`, JSON.stringify(data.permissions))
+      refreshPermissions(value => value + 1)
+      setPermissionsReady(true)
+    }).catch(() => { if (active) setPermissionsReady(true) })
+    return () => { active = false }
+  }, [location.pathname, userRole, demoMode])
 
   const allowed = isRouteAllowed()
   const toggleDemoMode = () => {
-    if (demoMode) localStorage.removeItem('khumflow_demo_mode')
-    else localStorage.setItem('khumflow_demo_mode', 'true')
+    resetApiRequests()
+    if (demoMode) {
+      localStorage.removeItem('khumflow_demo_mode')
+      const saved = localStorage.getItem('khumflow_real_business_id')
+      if (saved && /^\d+$/.test(saved)) localStorage.setItem('khumflow_business_id', saved)
+      else localStorage.removeItem('khumflow_business_id')
+    } else {
+      const saved = localStorage.getItem('khumflow_business_id')
+      if (saved && /^\d+$/.test(saved)) localStorage.setItem('khumflow_real_business_id', saved)
+      localStorage.setItem('khumflow_demo_mode', 'true')
+    }
     setDemoMode(!demoMode)
     window.location.reload()
   }
@@ -358,6 +361,11 @@ export function AppLayout() {
   if (!localStorage.getItem('khumflow_token') || !currentUser) return <Navigate to="/login" replace state={{ from: location.pathname }} />
   if (location.pathname === '/app/platform-admin' && !platformAdminChecked) return <div className="p-8 text-sm text-gray-500">กำลังตรวจสอบสิทธิ์ผู้ดูแลแพลตฟอร์ม…</div>
 
+  if (!permissionsReady) return <div className="p-8">กำลังโหลดสิทธิ์การใช้งาน…</div>
+  if (!allowed && location.pathname === '/app/dashboard') {
+    const first = allNavSections.flatMap(section => section.items).find(item => currentPermissions(userRole)[featureForRoute(item.path) || ''])
+    if (first) return <Navigate to={first.path} replace />
+  }
   return (
     <div className={location.pathname.startsWith('/app/reports') ? 'print-report-layout' : undefined} style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f9fafb' }}>
       {/* Desktop Sidebar */}
@@ -396,10 +404,10 @@ export function AppLayout() {
               </div>
               <h3 className="text-base font-bold text-gray-900">ไม่มีสิทธิ์เข้าถึงหน้านี้ (Access Restricted)</h3>
               <p className="text-xs text-gray-500 leading-relaxed">
-                หน้านี้ (การวิเคราะห์, กำไร, หรือการคาดการณ์ยอดขาย) สงวนสิทธิ์เฉพาะ <strong>ผู้จัดการร้าน (Manager)</strong> และ <strong>เจ้าของร้าน (Owner)</strong> เท่านั้น
+                บัญชีของคุณยังไม่มีสิทธิ์ใช้งานหน้านี้ กรุณาติดต่อเจ้าของร้านเพื่อปรับสิทธิ์
               </p>
               <div className="pt-2">
-                <Link to="/app/dashboard" className="inline-block text-xs font-semibold text-green-700 bg-green-50 px-4 py-2 rounded-lg hover:bg-green-100">
+                <Link to={homeForRole(userRole)} className="inline-block text-xs font-semibold text-green-700 bg-green-50 px-4 py-2 rounded-lg hover:bg-green-100">
                   กลับสู่หน้าหลัก
                 </Link>
               </div>
