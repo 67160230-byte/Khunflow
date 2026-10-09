@@ -1,0 +1,19 @@
+{
+  "application_commit": "7a992fb6ccbd912a78c4228ca671dd8249650862",
+  "backend": {
+    "url": "https://khunflow.onrender.com/api/health",
+    "status": "healthy",
+    "environment": "production",
+    "performance_indexes_ready": true,
+    "revision": "7a992fb6ccbd912a78c4228ca671dd8249650862"
+  },
+  "frontend": {
+    "url": "https://khunflow.vercel.app",
+    "entry_asset": "/assets/index-DIhZlc7v.js",
+    "status": 200,
+    "bytes": 286441,
+    "contains_setup_status_api": true,
+    "contains_paged_history_api": true
+  },
+  "note": "Live public responses observed after application push. The first backend check timed out during rollout; the subsequent check confirmed the deployed application revision and index readiness. This is deployment verification, not a production load benchmark."
+}
