@@ -6,8 +6,8 @@ from sqlmodel import SQLModel
 from sqlalchemy import text
 from app.config import settings
 
-def get_async_database_url() -> str:
-    url = str(settings.DATABASE_URL or os.getenv("DATABASE_URL", "")).strip().strip("'\"")
+def get_async_database_url(raw_url: str | None = None) -> str:
+    url = str(raw_url or settings.DATABASE_URL or os.getenv("DATABASE_URL", "")).strip().strip("'\"")
     if url.startswith("postgres://"):
         url = "postgresql+asyncpg://" + url[len("postgres://"):]
     elif url.startswith("postgresql://") and not url.startswith("postgresql+asyncpg://"):

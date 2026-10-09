@@ -1,3 +1,5 @@
+import { usePagedHistory } from '@/hooks/usePagedHistory'
+import HistoryControls from '@/components/HistoryControls'
 import { useState, useEffect } from 'react'
 import { inventoryService, wasteService, isDemoMode } from '@/services'
 import type { WasteRecord, WasteReason, IngredientUnit, Ingredient } from '@/types'
@@ -22,7 +24,8 @@ const unitLabel: Record<string, string> = {
 }
 
 export default function WastePage() {
-  const [records, setRecords] = useState<WasteRecord[]>([])
+  const history = usePagedHistory(wasteService.getPaged)
+  const { items: records } = history
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -38,8 +41,7 @@ export default function WastePage() {
   const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
-    Promise.all([wasteService.getAll(), inventoryService.getAll()]).then(([data, availableIngredients]) => {
-      setRecords(data)
+    inventoryService.getAll().then((availableIngredients) => {
       setIngredients(availableIngredients)
       setIngredientId(availableIngredients[0]?.id || '')
       if (availableIngredients[0]) setUnit(availableIngredients[0].unit)
@@ -53,7 +55,7 @@ export default function WastePage() {
     if (!ingredient || !quantity) return
     try {
     await wasteService.create({ ingredientId, quantity: parseFloat(quantity) || 0, unit: ingredient.unit, reason, note: note || undefined })
-    setRecords(await wasteService.getAll())
+    await history.refresh().catch(() => {})
     setIsModalOpen(false)
     setQuantity('1')
     setNote('')
@@ -64,7 +66,7 @@ export default function WastePage() {
 
   if (loading) return <LoadingSpinner />
 
-  const totalWaste = records.reduce((s, r) => s + r.cost, 0)
+  const totalWaste = history.summary?.amount || 0
 
   return (
     <div className="space-y-5">
@@ -77,7 +79,8 @@ export default function WastePage() {
           </Button>
         }
       />
-      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
+      <HistoryControls history={history} />
+    {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError} <button onClick={() => window.location.reload()} className="font-semibold underline">ลองอีกครั้ง</button></p>}
       {actionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
 
       {successToast && (

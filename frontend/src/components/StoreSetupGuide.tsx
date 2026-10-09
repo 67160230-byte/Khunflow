@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { inventoryService, productsService, recipesService, ordersService, purchaseOrdersService } from '@/services'
+import { setupService } from '@/services'
 
 export function getCurrentRole(): string {
   try { return JSON.parse(localStorage.getItem('khumflow_user') || '{}').role || '' } catch { return '' }
@@ -8,19 +8,20 @@ export function getCurrentRole(): string {
 
 export default function StoreSetupGuide() {
   const [steps, setSteps] = useState<boolean[] | null>(null)
+  const [error, setError] = useState('')
+  const [retry, setRetry] = useState(0)
   const [costWarning, setCostWarning] = useState(false)
   const allowed = ['owner', 'manager', 'admin'].includes(getCurrentRole())
   useEffect(() => {
     if (!allowed) return
     let active = true
-    Promise.all([inventoryService.getAll(), purchaseOrdersService.getReceiving(), productsService.getAll(), recipesService.getAll(), ordersService.getAll()])
-      .then(([ingredients, received, products, recipes, orders]) => {
-        if (!active) return
-        setSteps([ingredients.length > 0, received.length > 0, products.length > 0, recipes.length > 0, orders.some((order) => order.status === 'completed')])
-        setCostWarning(ingredients.some((item) => item.currentStock > 0 && item.averageCost <= 0) || products.some((item) => item.foodCost <= 0))
-      }).catch(() => { /* The main pages report their own loading errors. */ })
+    setError('')
+    setupService.get().then((data) => {
+      if (active) { setSteps(data.steps); setCostWarning(data.costWarning) }
+    }).catch((error) => { if (active) setError(error instanceof Error ? error.message : 'ตรวจความพร้อมร้านไม่สำเร็จ') })
     return () => { active = false }
-  }, [allowed])
+  }, [allowed, retry])
+  if (allowed && error) return <section role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">ตรวจความพร้อมร้านไม่สำเร็จ: {error} <button className="font-semibold underline" onClick={() => setRetry((value) => value + 1)}>ลองอีกครั้ง</button></section>
   if (!steps || (steps.every(Boolean) && !costWarning)) return null
   const labels = ['เพิ่มวัตถุดิบ', 'รับของและราคาซื้อ', 'เพิ่มสินค้า', 'กำหนดสูตรอาหาร', 'บันทึกขายครั้งแรก']
   const paths = ['/app/inventory', '/app/receiving', '/app/products', '/app/recipes', '/app/orders']

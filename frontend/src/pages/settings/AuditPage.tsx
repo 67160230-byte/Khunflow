@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { usePagedHistory } from '@/hooks/usePagedHistory'
+import HistoryControls from '@/components/HistoryControls'
 import { activityService } from '@/services'
-import { Card, SectionHeader, Badge, LoadingSpinner } from '@/components/ui'
+import { Card, SectionHeader, Badge } from '@/components/ui'
 import { History, User, ShoppingCart, Package, Warehouse, ClipboardList } from 'lucide-react'
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -20,24 +21,21 @@ const typeLabel: Record<string, { label: string; variant: 'success' | 'info' | '
 }
 
 export default function AuditPage() {
-  const [logs, setLogs] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  useEffect(() => { activityService.getAll().then(setLogs).catch((e) => setError(e instanceof Error ? e.message : 'โหลดประวัติไม่สำเร็จ')).finally(() => setLoading(false)) }, [])
-  if (loading) return <LoadingSpinner />
+  const history = usePagedHistory(activityService.getPaged)
+  const logs = history.items
   return (
     <div className="space-y-6">
       <SectionHeader
         title="ประวัติการใช้งาน (Audit Logs)"
         subtitle="บันทึกกิจกรรมทั้งหมดในระบบ KhumFlow สำหรับตรวจสอบย้อนหลัง"
       />
-      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      <HistoryControls history={history} />
 
       <Card className="overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
           <History size={18} className="text-gray-500" />
           <h3 className="font-semibold text-gray-800 text-sm">ประวัติกิจกรรมล่าสุด</h3>
-          <span className="ml-auto text-xs text-gray-400">{logs.length} รายการ</span>
+          <span className="ml-auto text-xs text-gray-400">{history.total} รายการ</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

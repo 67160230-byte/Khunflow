@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     # Database — default ใช้สำหรับ Docker Compose
     DATABASE_URL: str = "postgresql+asyncpg://khumflow:khumflow_secret@postgres:5432/khumflow"
     SYNC_DATABASE_URL: str = "postgresql://khumflow:khumflow_secret@postgres:5432/khumflow"
+    # Optional direct/session connection for concurrent DDL; never use a transaction pooler.
+    MIGRATION_DATABASE_URL: str = ""
 
     # JWT
     JWT_SECRET: str = "khumflow_super_secret_jwt_key_change_in_production_12345"

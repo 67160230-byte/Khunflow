@@ -1,12 +1,14 @@
+from app.services.analytics import sold_quantities, dashboard_data
+from app.services.history import business_timezone
+from app.services.history import history_rows, orders_payload, waste_payload, receiving_payload, purchase_payload, audit_payload
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.database import get_session
-from app.models import Order, OrderItem, OrderStockUsage, Product, Recipe, RecipeItem, Ingredient, StockCount, StockCountItem, WasteRecord, User, UserRole, OrderStatus
+from app.models import Order, OrderItem, OrderStockUsage, Product, Recipe, RecipeItem, Ingredient, StockCount, StockCountItem, WasteRecord, User, UserRole, OrderStatus, Supplier
 from app.schemas import OrderCreate, OrderCancelRequest, StockCountCreate, WasteRecordCreate
 from app.services.auth_service import get_current_user, require_role, log_activity
-from app.services.unit_conversion import convert_quantity
 from app.services.unit_conversion import convert_quantity
 
 router = APIRouter(tags=["Operations & Business Logic"])
@@ -20,87 +22,62 @@ def readable_unit(unit):
 @router.get("/forecast")
 async def forecast(days: int = 7, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
-    days = max(1, min(days, 14)); start = datetime.now(timezone.utc) - timedelta(days=30)
-    orders = (await session.execute(select(Order).where(Order.business_id == current_user.business_id, Order.status == OrderStatus.COMPLETED, Order.created_at >= start))).scalars().all()
-    lines = (await session.execute(select(OrderItem).where(OrderItem.order_id.in_([o.id for o in orders])))).scalars().all() if orders else []
-    sold: dict[int, int] = {}
-    for line in lines: sold[line.product_id] = sold.get(line.product_id, 0) + line.quantity
+    days = max(1, min(days, 14))
+    sold = await sold_quantities(session, current_user.business_id)
     products = (await session.execute(select(Product).where(Product.business_id == current_user.business_id, Product.is_active == True))).scalars().all()
-    dates = [(date.today() + timedelta(days=n + 1)).isoformat() for n in range(days)]
-    result = [{"product_id": str(p.id), "product_name": p.name, "forecasts": [{"date": day, "predicted_qty": round(sold.get(p.id, 0) / 30, 1), "confidence": 0.0 if not sold.get(p.id) else 0.5} for day in dates]} for p in products]
-    return result
+    today = datetime.now(await business_timezone(session, current_user.business_id)).date()
+    dates = [(today + timedelta(days=n + 1)).isoformat() for n in range(days)]
+    return [{"product_id": str(p.id), "product_name": p.name, "forecasts": [{"date": day, "predicted_qty": round(sold.get(p.id, 0) / 30, 1), "confidence": 0.0 if not sold.get(p.id) else 0.5} for day in dates]} for p in products]
 
 @router.get("/purchase-recommendations")
 async def purchase_recommendations(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
-    items = (await session.execute(select(Ingredient).where(Ingredient.business_id == current_user.business_id))).scalars().all()
-    orders = (await session.execute(select(Order).where(Order.business_id == current_user.business_id, Order.status == OrderStatus.COMPLETED, Order.created_at >= datetime.now(timezone.utc) - timedelta(days=30)))).scalars().all()
-    lines = (await session.execute(select(OrderItem).where(OrderItem.order_id.in_([o.id for o in orders])))).scalars().all() if orders else []
-    sold: dict[int, int] = {}
-    for line in lines: sold[line.product_id] = sold.get(line.product_id, 0) + line.quantity
-    products = {p.id: p for p in (await session.execute(select(Product).where(Product.business_id == current_user.business_id))).scalars().all()}
-    recipes = (await session.execute(select(Recipe).where(Recipe.business_id == current_user.business_id))).scalars().all()
-    product_recipes: dict[int, list] = {}
-    for recipe in recipes: product_recipes[recipe.product_id] = (await session.execute(select(RecipeItem).where(RecipeItem.recipe_id == recipe.id))).scalars().all()
+    business_id = current_user.business_id
+    items = (await session.execute(select(Ingredient).where(Ingredient.business_id == business_id))).scalars().all()
+    sold = await sold_quantities(session, business_id)
+    recipe_lines = (await session.execute(select(Recipe.product_id, RecipeItem).join(RecipeItem, RecipeItem.recipe_id == Recipe.id).where(Recipe.business_id == business_id))).all()
+    suppliers = {s.id: s for s in (await session.execute(select(Supplier).where(Supplier.business_id == business_id))).scalars().all()}
+    ingredients = {i.id: i for i in items}
+    usages = {}
+    for product_id, line in recipe_lines:
+        ingredient = ingredients.get(line.ingredient_id)
+        if ingredient and sold.get(product_id):
+            usages[ingredient.id] = usages.get(ingredient.id, 0) + convert_quantity(line.quantity, line.unit, ingredient.unit) * sold[product_id] / 30 * 7
     recommended = []
     for ingredient in items:
-        usage = 0.0
-        for product_id, count in sold.items():
-            for recipe_item in product_recipes.get(product_id, []):
-                if recipe_item.ingredient_id == ingredient.id:
-                    usage += convert_quantity(recipe_item.quantity, recipe_item.unit, ingredient.unit) * count / 30 * 7
+        usage = usages.get(ingredient.id, 0.0)
         safety = ingredient.minimum_stock
         quantity = max(0.0, usage + safety - ingredient.current_stock)
         if quantity <= 0: continue
-        supplier = (await session.execute(select(Supplier).where(Supplier.id == ingredient.supplier_id, Supplier.business_id == current_user.business_id))).scalar_one_or_none() if ingredient.supplier_id else None
+        supplier = suppliers.get(ingredient.supplier_id)
         recommended.append({"ingredient_id": str(ingredient.id), "ingredient_name": ingredient.name, "current_stock": ingredient.current_stock, "forecast_usage": round(usage, 2), "safety_stock": safety, "recommended_order": round(quantity, 2), "unit": ingredient.unit, "estimated_cost": round(quantity * ingredient.average_cost, 2), "supplier_id": str(supplier.id) if supplier else None, "supplier_name": supplier.name if supplier else None})
     return recommended
 
 @router.get("/dashboard")
 async def dashboard(days: int = 7, offset_days: int = 0, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
-    days = max(1, min(days, 31))
-    offset_days = max(0, min(offset_days, 365))
-    end = date.today() - timedelta(days=offset_days)
-    start = end - timedelta(days=days - 1)
-    start_at = datetime.combine(start, time.min, tzinfo=timezone.utc)
-    orders = (await session.execute(select(Order).where(Order.business_id == current_user.business_id, Order.status == OrderStatus.COMPLETED, Order.created_at >= start_at))).scalars().all()
-    ingredients = (await session.execute(select(Ingredient).where(Ingredient.business_id == current_user.business_id))).scalars().all()
-    waste = (await session.execute(select(WasteRecord).where(WasteRecord.business_id == current_user.business_id, WasteRecord.created_at >= start_at))).scalars().all()
-    products = {p.id: p for p in (await session.execute(select(Product).where(Product.business_id == current_user.business_id))).scalars().all()}
-    lines = (await session.execute(select(OrderItem).where(OrderItem.order_id.in_([o.id for o in orders])))).scalars().all() if orders else []
-    daily = {}
-    for offset in range(days):
-        key = (start + timedelta(days=offset)).isoformat()
-        daily[key] = {"date": key, "revenue": 0.0, "orders": 0, "foodCost": 0.0, "grossProfit": 0.0, "wasteValue": 0.0, "wasteCost": 0.0}
-    order_dates = {o.id: o.created_at.date().isoformat() for o in orders}
-    for order in orders:
-        row = daily.get(order_dates[order.id])
-        if row: row["orders"] += 1; row["revenue"] += order.total_amount
-    for line in lines:
-        row = daily.get(order_dates.get(line.order_id, "")); product = products.get(line.product_id)
-        if row and product: row["foodCost"] += product.food_cost * line.quantity
-    for row in daily.values(): row["grossProfit"] = row["revenue"] - row["foodCost"]; row["expectedFoodCost"] = row["foodCost"]; row["actualFoodCost"] = row["foodCost"]
-    for record in waste:
-        row = daily.get(record.created_at.date().isoformat())
-        if row: row["wasteValue"] += record.cost; row["wasteCost"] += record.cost
-    today = daily.get(date.today().isoformat(), {"revenue": 0, "orders": 0, "foodCost": 0, "grossProfit": 0, "wasteValue": 0})
+    days = max(1, min(days, 31)); offset_days = max(0, min(offset_days, 365))
+    daily, today, ingredients, current_date, top = await dashboard_data(session, current_user.business_id, days, offset_days)
     alerts = [{"id": f"stock-{i.id}", "type": "critical" if i.current_stock <= 0 else "low_stock", "title": f"สต็อก{('หมด' if i.current_stock <= 0 else 'ใกล้หมด')}: {i.name}", "description": f"เหลือ {i.current_stock:g} {readable_unit(i.unit)} (จุดสั่งซื้อ {i.minimum_stock:g})", "severity": "danger" if i.current_stock <= 0 else "warning", "ingredientId": str(i.id)} for i in ingredients if i.current_stock <= i.minimum_stock]
     for i in ingredients:
-        if i.expiration_date and i.expiration_date <= date.today() + timedelta(days=7): alerts.append({"id": f"expiry-{i.id}", "type": "expiring", "title": f"{'หมดอายุ' if i.expiration_date < date.today() else 'หมดอายุวันนี้' if i.expiration_date == date.today() else 'ใกล้หมดอายุ'}: {i.name}", "description": f"วันหมดอายุ {i.expiration_date.isoformat()}", "severity": "danger" if i.expiration_date <= date.today() else "warning", "ingredientId": str(i.id)})
-    return {"kpi": {"todaySales": today["revenue"], "todayOrders": today["orders"], "foodCostPercent": today["foodCost"] / today["revenue"] * 100 if today["revenue"] else 0, "grossProfit": today["grossProfit"], "wasteValue": today["wasteValue"], "salesChangePercent": 0, "foodCostChangePercent": 0, "profitChangePercent": 0}, "alerts": alerts, "dailySales": list(daily.values()), "foodCostTrend": list(daily.values())}
+        if i.expiration_date and i.expiration_date <= current_date + timedelta(days=7): alerts.append({"id": f"expiry-{i.id}", "type": "expiring", "title": f"{'หมดอายุ' if i.expiration_date < current_date else 'หมดอายุวันนี้' if i.expiration_date == current_date else 'ใกล้หมดอายุ'}: {i.name}", "description": f"วันหมดอายุ {i.expiration_date.isoformat()}", "severity": "danger" if i.expiration_date <= current_date else "warning", "ingredientId": str(i.id)})
+    return {"kpi": {"todaySales": today["revenue"], "todayOrders": today["orders"], "foodCostPercent": today["foodCost"] / today["revenue"] * 100 if today["revenue"] else 0, "grossProfit": today["grossProfit"], "wasteValue": today["wasteValue"], "salesChangePercent": 0, "foodCostChangePercent": 0, "profitChangePercent": 0}, "alerts": alerts, "dailySales": list(daily.values()), "foodCostTrend": list(daily.values()), "topSellers": top, "today": str(current_date)}
 
 @router.get("/analytics/variance")
 async def stock_variance(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
-    counts = (await session.execute(select(StockCount).where(StockCount.business_id == current_user.business_id).order_by(StockCount.created_at.desc()).limit(20))).scalars().all()
+    counts = (await session.execute(select(StockCount).where(StockCount.business_id == current_user.business_id).order_by(StockCount.created_at.desc(), StockCount.id.desc()).limit(20))).scalars().all()
     latest: dict[int, StockCountItem] = {}
+    grouped = {}
+    if counts:
+        lines = (await session.execute(select(StockCountItem).where(StockCountItem.stock_count_id.in_([c.id for c in counts])).order_by(StockCountItem.id))).scalars().all()
+        for line in lines: grouped.setdefault(line.stock_count_id, []).append(line)
     for count in counts:
-        lines = (await session.execute(select(StockCountItem).where(StockCountItem.stock_count_id == count.id))).scalars().all()
-        for line in lines: latest.setdefault(line.ingredient_id, line)
+        for line in grouped.get(count.id, []): latest.setdefault(line.ingredient_id, line)
+    ingredients = {i.id: i for i in (await session.execute(select(Ingredient).where(Ingredient.business_id == current_user.business_id, Ingredient.id.in_(latest.keys())))).scalars().all()} if latest else {}
     result = []
     for ingredient_id, line in latest.items():
-        ingredient = (await session.execute(select(Ingredient).where(Ingredient.id == ingredient_id, Ingredient.business_id == current_user.business_id))).scalar_one_or_none()
+        ingredient = ingredients.get(ingredient_id)
         if not ingredient: continue
         difference = line.counted_stock - line.system_stock
         result.append({"ingredient_id": str(ingredient.id), "ingredient_name": ingredient.name, "expected_usage": line.system_stock, "actual_usage": line.counted_stock, "variance": difference, "variance_cost": line.variance_cost, "variance_percent": difference / line.system_stock * 100 if line.system_stock else 0, "unit": ingredient.unit, "reason": line.reason})
@@ -167,16 +144,8 @@ async def create_order(req: OrderCreate, current_user: User = Depends(get_curren
 @router.get("/orders")
 async def list_orders(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
-    orders = (await session.execute(select(Order).where(Order.business_id == current_user.business_id).order_by(Order.created_at.desc()))).scalars().all()
-    result = []
-    for order in orders:
-        lines = (await session.execute(select(OrderItem).where(OrderItem.order_id == order.id))).scalars().all()
-        items = []
-        for line in lines:
-            product = (await session.execute(select(Product).where(Product.id == line.product_id))).scalar_one_or_none()
-            items.append({"product_id": line.product_id, "product_name": product.name if product else "สินค้า", "quantity": line.quantity, "unit_price": line.unit_price, "subtotal": line.subtotal})
-        result.append({"id": order.id, "created_at": order.created_at, "total_amount": order.total_amount, "status": order.status, "staff_id": order.staff_id, "items": items})
-    return result
+    rows, _, _ = await history_rows(session, Order, current_user.business_id, Order.created_at)
+    return await orders_payload(session, rows, current_user.business_id)
 
 @router.post("/orders/{order_id}/cancel")
 async def cancel_order(order_id: int, req: OrderCancelRequest, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
@@ -331,13 +300,8 @@ async def record_waste(req: WasteRecordCreate, current_user: User = Depends(get_
 
 @router.get("/waste")
 async def list_waste(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    records = (await session.execute(select(WasteRecord).where(WasteRecord.business_id == current_user.business_id).order_by(WasteRecord.created_at.desc()))).scalars().all()
-    result = []
-    for record in records:
-        ing = (await session.execute(select(Ingredient).where(Ingredient.id == record.ingredient_id))).scalar_one_or_none()
-        staff = (await session.execute(select(User).where(User.id == record.staff_id))).scalar_one_or_none() if record.staff_id else None
-        result.append({"id": record.id, "ingredient_id": record.ingredient_id, "ingredient_name": ing.name if ing else "วัตถุดิบ", "quantity": record.quantity, "unit": record.unit, "cost": record.cost, "reason": record.reason, "note": record.note, "created_at": record.created_at, "staff_id": record.staff_id, "staff_name": staff.full_name if staff else ""})
-    return result
+    rows, _, _ = await history_rows(session, WasteRecord, current_user.business_id, WasteRecord.created_at)
+    return await waste_payload(session, rows, current_user.business_id)
 
 @router.get("/stock-counts")
 async def list_stock_counts(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):

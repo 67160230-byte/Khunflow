@@ -23,8 +23,8 @@ import {
   Leaf,
   Trophy,
 } from 'lucide-react'
-import { dashboardService, analyticsService, ordersService, isDemoMode } from '@/services'
-import type { DashboardKPI, DashboardAlert, DailySales, FoodCostData, Order } from '@/types'
+import { dashboardService, isDemoMode } from '@/services'
+import type { DashboardKPI, DashboardAlert, DailySales, FoodCostData } from '@/types'
 import { Button, KPICard, AlertCard, Card, LoadingSpinner, SectionHeader } from '@/components/ui'
 
 // ── Date Formatter ────────────────────────────────────────────
@@ -41,21 +41,6 @@ function dateKeyInBangkok(value: string | Date) {
   const parts = new Intl.DateTimeFormat('en', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(value))
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value || ''
   return `${part('year')}-${part('month')}-${part('day')}`
-}
-
-function getTopSellers(orders: Order[], date: string, demoMode: boolean) {
-  const totals = new Map<string, { productId: string; productName: string; quantity: number; revenue: number }>()
-  for (const order of orders) {
-    const orderDate = demoMode ? order.date.slice(0, 10) : dateKeyInBangkok(order.date)
-    if (orderDate !== date || order.status !== 'completed') continue
-    for (const item of order.items) {
-      const row = totals.get(item.productId) || { productId: item.productId, productName: item.productName, quantity: 0, revenue: 0 }
-      row.quantity += item.quantity
-      row.revenue += item.subtotal
-      totals.set(item.productId, row)
-    }
-  }
-  return [...totals.values()].sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue || a.productName.localeCompare(b.productName, 'th')).slice(0, 3)
 }
 
 function formatAxisValue(value: number) {
@@ -151,25 +136,17 @@ export default function DashboardPage() {
   const [alerts, setAlerts] = useState<DashboardAlert[]>([])
   const [sales, setSales] = useState<DailySales[]>([])
   const [foodCost, setFoodCost] = useState<FoodCostData[]>([])
-  const [orders, setOrders] = useState<Order[]>([])
+  const [topSellers, setTopSellers] = useState<Array<{ productId: string; productName: string; quantity: number; revenue: number }>>([])
+  const [overviewDate, setOverviewDate] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([
-      dashboardService.getKPI(),
-      dashboardService.getAlerts(),
-      dashboardService.getDailySales(),
-      analyticsService.getFoodCostTrend(),
-      ordersService.getAll().catch(() => [] as Order[]),
-    ]).then(([k, a, s, f, o]) => {
+    dashboardService.getOverview().then((data) => {
       if (cancelled) return
-      setKpi(k)
-      setAlerts(a)
-      setSales(s)
-      setFoodCost(f)
-      setOrders(o)
+      setKpi(data.kpi); setAlerts(data.alerts); setSales(data.dailySales); setFoodCost(data.foodCostTrend)
+      setTopSellers(data.topSellers); setOverviewDate(data.today)
     }).catch((error) => {
       if (!cancelled) setLoadError(error instanceof Error ? error.message : 'โหลดข้อมูลแดชบอร์ดไม่สำเร็จ')
     }).finally(() => {
@@ -189,9 +166,8 @@ export default function DashboardPage() {
 
   const demoMode = isDemoMode()
   const sampleDay = sales[sales.length - 1]?.date
-  const today = demoMode && sampleDay ? sampleDay.slice(0, 10) : dateKeyInBangkok(new Date())
+  const today = overviewDate || (demoMode && sampleDay ? sampleDay.slice(0, 10) : dateKeyInBangkok(new Date()))
   const displayDate = new Date(`${today}T12:00:00+07:00`).toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Bangkok' })
-  const topSellers = getTopSellers(orders, today, demoMode)
 
   return (
     <div className="space-y-6">

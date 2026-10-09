@@ -1,3 +1,5 @@
+import { usePagedHistory } from '@/hooks/usePagedHistory'
+import HistoryControls from '@/components/HistoryControls'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { suppliersService, inventoryService, purchaseOrdersService } from '@/services'
@@ -34,7 +36,8 @@ export default function ReceivingPage() {
   const [purchaseOrderId, setPurchaseOrderId] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [history, setHistory] = useState<ReceiveHistory[]>([])
+  const historyPage = usePagedHistory(purchaseOrdersService.getReceivingPaged)
+  const { items: history } = historyPage
   const [supplierId, setSupplierId] = useState('')
   const [ingredientId, setIngredientId] = useState('')
   const [quantity, setQuantity] = useState<number | ''>('')
@@ -46,14 +49,13 @@ export default function ReceivingPage() {
   const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
-    Promise.all([suppliersService.getAll(), inventoryService.getAll(), purchaseOrdersService.getReceiving(), purchaseOrdersService.getAll()])
-      .then(([supplierRows, ingredientRows, receivedRows, orders]) => {
+    Promise.all([suppliersService.getAll(), inventoryService.getAll(), purchaseOrdersService.getOutstanding()])
+      .then(([supplierRows, ingredientRows, orders]) => {
         setSuppliers(supplierRows)
         setIngredients(ingredientRows)
         const requestedId = new URLSearchParams(window.location.search).get('ingredientId')
         const requested = ingredientRows.find((item) => item.id === requestedId)
         if (requested) { setIngredientId(requested.id); setUnitCost(requested.averageCost); setSupplierId(requested.supplierId || '') }
-        setHistory(receivedRows)
         setPurchaseOrders(orders.filter((order) => order.status === 'ordered'))
       })
       .catch((error) => setLoadError(error instanceof Error ? error.message : 'โหลดข้อมูลรับสินค้าไม่สำเร็จ'))
@@ -88,10 +90,10 @@ export default function ReceivingPage() {
         expirationDate,
         purchaseOrderId: purchaseOrderId || undefined,
       })
-      setHistory(await purchaseOrdersService.getReceiving())
-      setIngredients(await inventoryService.getAll())
+      await historyPage.refresh().catch(() => {})
+      try { setIngredients(await inventoryService.getAll()) } catch { setLoadError('รับสินค้าแล้ว แต่โหลดสต็อกล่าสุดไม่สำเร็จ กรุณาลองโหลดหน้าอีกครั้ง') }
       if (purchaseOrderId) {
-        setPurchaseOrders((await purchaseOrdersService.getAll()).filter((order) => order.status === 'ordered'))
+        try { setPurchaseOrders(await purchaseOrdersService.getOutstanding()) } catch { setLoadError('รับสินค้าแล้ว แต่โหลดใบสั่งซื้อล่าสุดไม่สำเร็จ') }
         setPurchaseOrderId('')
       }
       setQuantity('')
@@ -106,7 +108,7 @@ export default function ReceivingPage() {
   }
 
   if (loading) return <LoadingSpinner />
-  const totalReceivedValue = history.reduce((sum, item) => sum + item.totalCost, 0)
+  const totalReceivedValue = historyPage.summary?.amount || 0
   const selectedIngredient = ingredients.find((item) => item.id === ingredientId)
   const previewTotal = Number(quantity || 0) * Number(unitCost || 0)
 
@@ -116,13 +118,14 @@ export default function ReceivingPage() {
       <p className="font-semibold">ทำตาม 3 ขั้นตอน</p>
       <p className="mt-1 text-xs leading-5 text-blue-800">เลือกผู้ขายและวัตถุดิบ → ใส่จำนวนกับราคาซื้อ → ตรวจยอดแล้วกดยืนยัน ระบบจะเพิ่มสต็อกให้อัตโนมัติ</p>
     </div>
-    {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
+    <HistoryControls history={historyPage} />
+    {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError} <button onClick={() => window.location.reload()} className="font-semibold underline">ลองอีกครั้ง</button></p>}
     {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{formError}</p>}
     {successMsg && <div role="status" className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800"><CheckCircle2 size={20} className="shrink-0 text-green-600" />{successMsg}</div>}
 
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <KPICard title="มูลค่ารับเข้าทั้งหมด" value={formatBaht(totalReceivedValue)} subtitle="รวมจากประวัติรับสินค้าด้านล่าง" icon={<PackageCheck size={20} className="text-green-700" />} iconBg="bg-green-100" />
-      <KPICard title="จำนวนครั้งที่รับเข้า" value={`${history.length} ครั้ง`} subtitle="จำนวนรายการรับสินค้าที่บันทึกแล้ว" icon={<FileText size={20} className="text-blue-600" />} iconBg="bg-blue-100" />
+      <KPICard title="มูลค่ารับเข้าทั้งหมด" value={formatBaht(totalReceivedValue)} subtitle="รวมทุกรายการในช่วงที่เลือก" icon={<PackageCheck size={20} className="text-green-700" />} iconBg="bg-green-100" />
+      <KPICard title="จำนวนครั้งที่รับเข้า" value={`${historyPage.total} ครั้ง`} subtitle="จำนวนรายการรับสินค้าที่บันทึกแล้ว" icon={<FileText size={20} className="text-blue-600" />} iconBg="bg-blue-100" />
       <KPICard title="อัปเดตสต็อก" value="อัตโนมัติ" subtitle="ระบบคำนวณต้นทุนเฉลี่ยใหม่ให้" icon={<CheckCircle2 size={20} className="text-purple-600" />} iconBg="bg-purple-100" />
     </div>
 

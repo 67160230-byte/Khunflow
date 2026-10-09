@@ -1,3 +1,4 @@
+from app.services.history import history_rows, orders_payload, waste_payload, receiving_payload, purchase_payload, audit_payload
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -225,13 +226,13 @@ async def receive_goods(req: GoodsReceivingCreate, current_user: User = Depends(
 @router.get("/recipes")
 async def list_recipes(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
-    recipes = (await session.execute(select(Recipe).where(Recipe.business_id == current_user.business_id))).scalars().all()
-    result = []
-    for recipe in recipes:
-        product = (await session.execute(select(Product).where(Product.id == recipe.product_id))).scalar_one_or_none()
-        items = (await session.execute(select(RecipeItem).where(RecipeItem.recipe_id == recipe.id))).scalars().all()
-        result.append({"id": recipe.id, "product_id": recipe.product_id, "product_name": product.name if product else "", "total_cost": recipe.total_cost, "yield_amount": recipe.yield_amount, "items": [{"ingredient_id": i.ingredient_id, "ingredient_name": (await session.execute(select(Ingredient.name).where(Ingredient.id == i.ingredient_id))).scalar_one_or_none() or "", "quantity": i.quantity, "unit": i.unit, "unit_cost": i.unit_cost, "total_cost": i.total_cost} for i in items]})
-    return result
+    rows = (await session.execute(select(Recipe, Product.name).outerjoin(Product, (Product.id == Recipe.product_id) & (Product.business_id == current_user.business_id)).where(Recipe.business_id == current_user.business_id).order_by(Recipe.id))).all()
+    grouped = {}
+    if rows:
+        items = (await session.execute(select(RecipeItem, Ingredient.name).outerjoin(Ingredient, (Ingredient.id == RecipeItem.ingredient_id) & (Ingredient.business_id == current_user.business_id)).where(RecipeItem.recipe_id.in_([r.id for r, _ in rows])).order_by(RecipeItem.id))).all()
+        for item, name in items:
+            grouped.setdefault(item.recipe_id, []).append({"ingredient_id": item.ingredient_id, "ingredient_name": name or "", "quantity": item.quantity, "unit": item.unit, "unit_cost": item.unit_cost, "total_cost": item.total_cost})
+    return [{"id": r.id, "product_id": r.product_id, "product_name": name or "", "total_cost": r.total_cost, "yield_amount": r.yield_amount, "items": grouped.get(r.id, [])} for r, name in rows]
 
 @router.delete("/recipes/{recipe_id}")
 async def delete_recipe(recipe_id: int, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
@@ -255,18 +256,16 @@ async def delete_recipe(recipe_id: int, current_user: User = Depends(get_current
 async def list_suppliers(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
     suppliers = (await session.execute(select(Supplier).where(Supplier.business_id == current_user.business_id))).scalars().all()
-    return [{"id": s.id, "name": s.name, "contact_name": s.contact_name, "phone": s.phone, "email": s.email, "payment_terms": s.payment_terms, "created_at": s.created_at, "ingredients": [i.id for i in (await session.execute(select(Ingredient).where(Ingredient.business_id == current_user.business_id, Ingredient.supplier_id == s.id))).scalars().all()]} for s in suppliers]
+    links = (await session.execute(select(Ingredient.supplier_id, Ingredient.id).where(Ingredient.business_id == current_user.business_id))).all()
+    grouped = {}
+    for supplier_id, ingredient_id in links: grouped.setdefault(supplier_id, []).append(ingredient_id)
+    return [{"id": s.id, "name": s.name, "contact_name": s.contact_name, "phone": s.phone, "email": s.email, "payment_terms": s.payment_terms, "created_at": s.created_at, "ingredients": grouped.get(s.id, [])} for s in suppliers]
 
 @router.get("/receiving")
 async def list_receiving(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
-    records = (await session.execute(select(GoodsReceiving).where(GoodsReceiving.business_id == current_user.business_id).order_by(GoodsReceiving.received_at.desc()))).scalars().all()
-    result = []
-    for record in records:
-        ingredient = (await session.execute(select(Ingredient).where(Ingredient.id == record.ingredient_id))).scalar_one_or_none()
-        supplier = (await session.execute(select(Supplier).where(Supplier.id == record.supplier_id))).scalar_one_or_none()
-        result.append({"id": record.id, "created_at": record.received_at, "supplier_name": supplier.name if supplier else "", "ingredient_name": ingredient.name if ingredient else "", "quantity": record.quantity, "unit": ingredient.unit if ingredient else "", "lot_number": record.lot_number, "expiration_date": record.expiration_date, "unit_cost": record.unit_cost, "total_cost": record.total_cost})
-    return result
+    rows, _, _ = await history_rows(session, GoodsReceiving, current_user.business_id, GoodsReceiving.received_at)
+    return await receiving_payload(session, rows, current_user.business_id)
 
 @router.post("/suppliers")
 async def create_supplier(data: dict, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
@@ -276,19 +275,10 @@ async def create_supplier(data: dict, current_user: User = Depends(get_current_u
     session.add(supplier); await session.flush(); log_activity(session, current_user, "create", "supplier", supplier.id, supplier.name); await session.commit(); await session.refresh(supplier); return supplier
 
 @router.get("/purchase-orders")
-async def list_purchase_orders(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+async def list_purchase_orders(status: POStatus | None = None, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
-    records = (await session.execute(select(PurchaseOrder).where(PurchaseOrder.business_id == current_user.business_id).order_by(PurchaseOrder.created_at.desc()))).scalars().all()
-    result = []
-    for po in records:
-        supplier = (await session.execute(select(Supplier).where(Supplier.id == po.supplier_id))).scalar_one_or_none()
-        lines = (await session.execute(select(PurchaseOrderItem).where(PurchaseOrderItem.po_id == po.id))).scalars().all()
-        items = []
-        for line in lines:
-            ingredient = (await session.execute(select(Ingredient).where(Ingredient.id == line.ingredient_id))).scalar_one_or_none()
-            items.append({"ingredient_id": line.ingredient_id, "ingredient_name": ingredient.name if ingredient else "", "quantity": line.quantity, "unit": ingredient.unit if ingredient else "", "unit_cost": line.unit_cost, "total_cost": line.total_cost})
-        result.append({"id": po.id, "supplier_id": po.supplier_id, "supplier_name": supplier.name if supplier else "", "status": po.status, "total_cost": po.total_cost, "order_date": po.order_date, "items": items})
-    return result
+    rows, _, _ = await history_rows(session, PurchaseOrder, current_user.business_id, PurchaseOrder.created_at, extra=(PurchaseOrder.status == status,) if status else ())
+    return await purchase_payload(session, rows, current_user.business_id)
 
 @router.post("/purchase-orders")
 async def create_purchase_order(data: dict, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):

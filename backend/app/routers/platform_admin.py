@@ -9,7 +9,7 @@ from app.models import (
     Business, BusinessMembership, PlatformAuditLog, PlatformSubscription, User, UserRole,
 )
 from app.schemas import PlatformAccessUpdate, PlatformSubscriptionUpdate
-from app.services.auth_service import get_current_user, business_subscription_block_reason
+from app.services.auth_service import get_current_user, subscription_block_reason
 
 router = APIRouter(prefix="/platform-admin", tags=["Platform administration"])
 
@@ -67,11 +67,23 @@ async def list_platform_accounts(
     for user_id, business_name in memberships:
         businesses_by_user.setdefault(user_id, []).append(business_name)
 
+    business_ids = {user.business_id for user, _ in rows if user.business_id is not None}
+    owner_subscriptions = (await session.execute(
+        select(BusinessMembership.business_id, PlatformSubscription)
+        .join(PlatformSubscription, PlatformSubscription.user_id == BusinessMembership.user_id)
+        .where(BusinessMembership.role == UserRole.OWNER, BusinessMembership.business_id.in_(business_ids))
+        .order_by(PlatformSubscription.user_id)
+    )).all() if business_ids else []
+    blocked = {}
+    for business_id, subscription in owner_subscriptions:
+        blocked.setdefault(business_id, []).append(subscription_block_reason(subscription))
     access_reasons = {}
     for user, _ in rows:
+        reasons = blocked.get(user.business_id, [])
         access_reasons[user.id] = ("บัญชีถูกระงับ" if not user.is_active else
             None if user.email.lower() in platform_admin_emails() else
-            await business_subscription_block_reason(session, user.business_id) if user.business_id is not None else "ยังไม่มีธุรกิจ")
+            "ยังไม่มีธุรกิจ" if user.business_id is None else
+            reasons[0] if reasons and all(reason is not None for reason in reasons) else None)
     return [
         {
             "id": user.id,

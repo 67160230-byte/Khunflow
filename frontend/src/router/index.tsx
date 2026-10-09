@@ -1,29 +1,36 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Component, Suspense, lazy, useLayoutEffect, type ReactNode } from 'react'
+import { LoadingSpinner } from '@/components/ui'
+import { resetApiRequests } from '@/services'
 import { AppLayout } from '@/components/layout/AppLayout'
-import LandingPage from '@/pages/LandingPage'
-import LoginPage from '@/pages/LoginPage'
-import DashboardPage from '@/pages/dashboard/DashboardPage'
-import ProductsPage from '@/pages/products/ProductsPage'
-import RecipesPage from '@/pages/recipes/RecipesPage'
-import InventoryPage from '@/pages/inventory/InventoryPage'
-import StockCountPage from '@/pages/stockCount/StockCountPage'
-import WastePage from '@/pages/waste/WastePage'
-import OrdersPage from '@/pages/orders/OrdersPage'
-import ReceivingPage from '@/pages/purchasing/ReceivingPage'
-import { SuppliersPage, PurchaseOrdersPage } from '@/pages/purchasing/PurchasingPages'
-import { ExpirationPage, ProfitPage } from '@/pages/analytics/AnalyticsPages'
-import VariancePage from '@/pages/analytics/VariancePage'
-import ForecastPage from '@/pages/forecast/ForecastPage'
-import { UsersPage, BusinessInfoPage } from '@/pages/settings/SettingsPages'
-import RolesPage from '@/pages/settings/RolesPage'
-import AuditPage from '@/pages/settings/AuditPage'
-import ReportsPage from '@/pages/reports/ReportsPage'
-import PlatformAdminPage from '@/pages/platformAdmin/PlatformAdminPage'
+const LandingPage = lazy(() => import('@/pages/LandingPage'))
+const LoginPage = lazy(() => import('@/pages/LoginPage'))
+const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'))
+const ProductsPage = lazy(() => import('@/pages/products/ProductsPage'))
+const RecipesPage = lazy(() => import('@/pages/recipes/RecipesPage'))
+const InventoryPage = lazy(() => import('@/pages/inventory/InventoryPage'))
+const StockCountPage = lazy(() => import('@/pages/stockCount/StockCountPage'))
+const WastePage = lazy(() => import('@/pages/waste/WastePage'))
+const OrdersPage = lazy(() => import('@/pages/orders/OrdersPage'))
+const ReceivingPage = lazy(() => import('@/pages/purchasing/ReceivingPage'))
+const SuppliersPage = lazy(() => import('@/pages/purchasing/PurchasingPages').then((module) => ({ default: module.SuppliersPage })))
+const PurchaseOrdersPage = lazy(() => import('@/pages/purchasing/PurchasingPages').then((module) => ({ default: module.PurchaseOrdersPage })))
+const ExpirationPage = lazy(() => import('@/pages/analytics/AnalyticsPages').then((module) => ({ default: module.ExpirationPage })))
+const ProfitPage = lazy(() => import('@/pages/analytics/AnalyticsPages').then((module) => ({ default: module.ProfitPage })))
+const VariancePage = lazy(() => import('@/pages/analytics/VariancePage'))
+const ForecastPage = lazy(() => import('@/pages/forecast/ForecastPage'))
+const UsersPage = lazy(() => import('@/pages/settings/SettingsPages').then((module) => ({ default: module.UsersPage })))
+const BusinessInfoPage = lazy(() => import('@/pages/settings/SettingsPages').then((module) => ({ default: module.BusinessInfoPage })))
+const RolesPage = lazy(() => import('@/pages/settings/RolesPage'))
+const AuditPage = lazy(() => import('@/pages/settings/AuditPage'))
+const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'))
+const PlatformAdminPage = lazy(() => import('@/pages/platformAdmin/PlatformAdminPage'))
 
 export default function AppRouter() {
   return (
     <BrowserRouter>
-      <Routes>
+      <NavigationRequests />
+      <RouteLoadBoundary><Suspense fallback={<LoadingSpinner />}><Routes>
         {/* Public */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
@@ -57,7 +64,22 @@ export default function AppRouter() {
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      </Routes></Suspense></RouteLoadBoundary>
     </BrowserRouter>
   )
+}
+
+function NavigationRequests() {
+  const location = useLocation()
+  useLayoutEffect(() => { resetApiRequests() }, [location.key])
+  return null
+}
+
+class RouteLoadBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  render() {
+    if (this.state.failed) return <div role="alert" className="p-8 text-center"><p>โหลดหน้านี้ไม่สำเร็จ กรุณาลองใหม่</p><button className="mt-4 rounded-lg bg-green-700 px-4 py-2 text-white" onClick={() => window.location.reload()}>ลองอีกครั้ง</button></div>
+    return this.props.children
+  }
 }

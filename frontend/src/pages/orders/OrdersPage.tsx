@@ -1,3 +1,5 @@
+import { usePagedHistory } from '@/hooks/usePagedHistory'
+import HistoryControls from '@/components/HistoryControls'
 import { useState, useEffect } from 'react'
 import { ordersService, productsService } from '@/services'
 import type { Order, Product, ProductCategory } from '@/types'
@@ -17,7 +19,8 @@ interface OrderCartItem {
 }
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([])
+  const history = usePagedHistory(ordersService.getPaged)
+  const { items: orders, setItems: setOrders } = history
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -57,8 +60,7 @@ export default function OrdersPage() {
   const canCancelOrders = canAddCustomMenu
 
   useEffect(() => {
-    Promise.all([ordersService.getAll(), productsService.getAll()]).then(([o, p]) => {
-      setOrders(o)
+    productsService.getAll().then((p) => {
       setProducts(p)
       setLoading(false)
     }).catch((error) => { setLoadError(error instanceof Error ? error.message : 'โหลดออเดอร์ไม่สำเร็จ'); setLoading(false) })
@@ -126,16 +128,8 @@ export default function OrdersPage() {
     setCartItems([])
     setModalOpen(false)
     setToastMessage(`บันทึกออเดอร์ #${result.order_id} แล้ว`)
-    try {
-      const refreshedOrders = await ordersService.getAll()
-      if (refreshedOrders.some((order) => order.id === String(result.order_id))) {
-        setOrders(refreshedOrders)
-      } else {
-        setToastMessage(`บันทึกออเดอร์ #${result.order_id} แล้ว แต่ยังโหลดรายการกลับมาไม่พบ ลองรีเฟรชหน้าอีกครั้ง`)
-      }
-    } catch {
-      setToastMessage(`บันทึกออเดอร์ #${result.order_id} แล้ว แต่โหลดรายการไม่สำเร็จ ลองรีเฟรชหน้าอีกครั้ง`)
-    }
+    if (history.page !== 1) history.setPage(1)
+    else { try { await history.refresh() } catch { setToastMessage(`บันทึกออเดอร์ #${result.order_id} แล้ว แต่โหลดรายการไม่สำเร็จ ลองโหลดประวัติอีกครั้ง`) } }
     } catch (error) { setActionError(`${failureContext}: ${error instanceof Error ? error.message : 'กรุณาลองใหม่'}`) }
     finally { setSavingOrder(false) }
   }
@@ -150,7 +144,7 @@ export default function OrdersPage() {
       setToastMessage(`ยกเลิกออเดอร์ #${cancelTarget.id} และคืนสต็อกแล้ว`)
       setCancelTarget(null)
       setCancelReason('')
-      try { setOrders(await ordersService.getAll()) } catch { /* Keep the confirmed cancelled state if refresh fails. */ }
+      try { await history.refresh() } catch { /* Keep the confirmed cancelled state if refresh fails. */ }
     } catch (error) {
       setCancelError(error instanceof Error ? error.message : 'ยกเลิกออเดอร์ไม่สำเร็จ')
     } finally {
@@ -167,7 +161,7 @@ export default function OrdersPage() {
       await ordersService.restore(order.id)
       setOrders((current) => current.map((item) => item.id === order.id ? { ...item, status: 'completed' } : item))
       setToastMessage(`คืนสถานะออเดอร์ #${order.id} กลับแล้ว และตัดสต็อกตามเดิม`)
-      try { setOrders(await ordersService.getAll()) } catch { /* Keep the restored state if refresh fails. */ }
+      try { await history.refresh() } catch { /* Keep the restored state if refresh fails. */ }
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'รีเซ็ตออเดอร์ไม่สำเร็จ')
     } finally {
@@ -177,21 +171,22 @@ export default function OrdersPage() {
 
   if (loading) return <LoadingSpinner />
 
-  const activeOrders = orders.filter((order) => order.status !== 'cancelled')
-  const totalSales = activeOrders.reduce((sum, order) => sum + order.total, 0)
+  const totalSales = history.summary?.amount || 0
+  const activeCount = history.summary?.active_count || 0
 
   return (
     <div className="space-y-6">
       <SectionHeader
         title="คำสั่งซื้อ (Orders)"
-        subtitle="บันทึกยอดขายหน้าร้าน ระบบจะตัด ปริมาณวัตถุดิบตามสูตร ตามสูตรอาหารอัตโนมัติ"
+        subtitle="บันทึกยอดขายหน้าร้าน ระบบจะตัดวัตถุดิบตามสูตรอาหารอัตโนมัติ"
         action={
           <Button size="sm" onClick={() => { setModalOpen(true); setCartItems([]); }}>
             <Plus size={16} /> สร้างออเดอร์ใหม่ (POS)
           </Button>
         }
       />
-      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
+      <HistoryControls history={history} />
+    {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError} <button onClick={() => window.location.reload()} className="font-semibold underline">ลองอีกครั้ง</button></p>}
       {actionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
       {toastMessage && !modalOpen && <p role="status" className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{toastMessage}</p>}
 
@@ -206,14 +201,14 @@ export default function OrdersPage() {
         />
         <KPICard
           title="จำนวนออเดอร์"
-          value={`${activeOrders.length} รายการ`}
-          subtitle="สถานะเสร็จสมบูรณ์"
+          value={`${activeCount} รายการ`}
+          subtitle="ไม่นับออเดอร์ที่ยกเลิก"
           icon={<CheckCircle2 size={20} className="text-blue-600" />}
           iconBg="bg-blue-100"
         />
         <KPICard
           title="ยอดเฉลี่ยต่อออเดอร์"
-          value={formatBaht(activeOrders.length ? totalSales / activeOrders.length : 0)}
+          value={formatBaht(activeCount ? totalSales / activeCount : 0)}
           subtitle="ยอดขายเฉลี่ยต่อรายการ"
           icon={<Clock size={20} className="text-purple-600" />}
           iconBg="bg-purple-100"

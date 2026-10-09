@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { businessService, isDemoMode, platformAdminService } from '@/services'
+import { businessService, isDemoMode, platformAdminService, resetApiRequests } from '@/services'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -259,6 +259,7 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
   }
 
   const handleLogout = () => {
+    resetApiRequests()
     localStorage.removeItem('khumflow_token')
     localStorage.removeItem('khumflow_user')
     localStorage.removeItem('khumflow_demo_mode')
@@ -273,7 +274,7 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
       </button>
       <h2 className="font-semibold text-gray-800 text-sm md:text-base">{getTitle()}</h2>
       <div className="ml-auto flex items-center gap-2">
-        {!demoMode && businesses.length > 1 && <select aria-label="เลือกธุรกิจ" value={activeBusinessId} onChange={(event) => { const selected = businesses.find((business) => business.id === event.target.value); localStorage.setItem('khumflow_business_id', event.target.value); if (selected) { const storedUser = localStorage.getItem('khumflow_user'); if (storedUser) { try { localStorage.setItem('khumflow_user', JSON.stringify({ ...JSON.parse(storedUser), role: selected.role })) } catch { /* Ignore stale cached user data. */ } } } setActiveBusinessId(event.target.value); window.location.reload() }} className="max-w-48 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700"><option value="" disabled>เลือกธุรกิจ</option>{businesses.map((business) => <option key={business.id} value={business.id}>{business.name}</option>)}</select>}
+        {!demoMode && businesses.length > 1 && <select aria-label="เลือกธุรกิจ" value={activeBusinessId} onChange={(event) => { resetApiRequests(); const selected = businesses.find((business) => business.id === event.target.value); localStorage.setItem('khumflow_business_id', event.target.value); if (selected) { const storedUser = localStorage.getItem('khumflow_user'); if (storedUser) { try { localStorage.setItem('khumflow_user', JSON.stringify({ ...JSON.parse(storedUser), role: selected.role })) } catch { /* Ignore stale cached user data. */ } } } setActiveBusinessId(event.target.value); window.location.reload() }} className="max-w-48 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700"><option value="" disabled>เลือกธุรกิจ</option>{businesses.map((business) => <option key={business.id} value={business.id}>{business.name}</option>)}</select>}
         <button onClick={onToggleDemo} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${demoMode ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : 'bg-green-50 text-green-800 hover:bg-green-100'}`}>
           {demoMode ? 'กลับข้อมูลร้าน' : 'ดูข้อมูลตัวอย่าง'}
         </button>

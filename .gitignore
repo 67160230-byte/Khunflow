@@ -49,3 +49,5 @@ postgres_data/
 # TypeScript cache
 *.tsbuildinfo
 frontend/*.tsbuildinfo
+
+.perf-baseline/

@@ -1,3 +1,4 @@
+from app.services.history import history_rows, orders_payload, waste_payload, receiving_payload, purchase_payload, audit_payload
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
@@ -223,13 +224,8 @@ async def create_employee(req: UserCreate, current_user: User = Depends(get_curr
 async def list_audit_logs(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     if current_user.role not in (UserRole.OWNER, UserRole.MANAGER):
         raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์ดูประวัติกิจกรรม")
-    records = (await session.execute(select(AuditLog).where(AuditLog.business_id == current_user.business_id).order_by(AuditLog.created_at.desc()).limit(200))).scalars().all()
-    result = []
-    for record in records:
-        user = (await session.execute(select(User).where(User.id == record.actor_id))).scalar_one_or_none() if record.actor_id else None
-        result.append({"id": record.id, "created_at": record.created_at, "user": user.full_name if user else "ระบบ", "action": record.action, "type": record.entity_type, "entity_id": record.entity_id, "detail": record.detail})
-    return result
-
+    records = (await session.execute(select(AuditLog).where(AuditLog.business_id == current_user.business_id).order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(200))).scalars().all()
+    return await audit_payload(session, records, current_user.business_id)
 
 # ── PUT /auth/users/{id} ──────────────────────────────────────────
 @router.put("/users/{user_id}", response_model=UserResponse, summary="แก้ไขข้อมูล user")

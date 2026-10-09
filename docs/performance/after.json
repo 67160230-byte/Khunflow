@@ -1,0 +1,77 @@
+{
+  "orders": {
+    "median_ms": 61.06,
+    "queries": 2,
+    "bytes": 234993
+  },
+  "receiving": {
+    "median_ms": 61.48,
+    "queries": 3,
+    "bytes": 248336
+  },
+  "waste": {
+    "median_ms": 45.24,
+    "queries": 3,
+    "bytes": 227993
+  },
+  "purchase_orders": {
+    "median_ms": 86.31,
+    "queries": 3,
+    "bytes": 276993
+  },
+  "recipes": {
+    "median_ms": 5.84,
+    "queries": 2,
+    "bytes": 4775
+  },
+  "suppliers": {
+    "median_ms": 1.82,
+    "queries": 2,
+    "bytes": 256
+  },
+  "audit": {
+    "median_ms": 8.13,
+    "queries": 2,
+    "bytes": 28552
+  },
+  "dashboard": {
+    "median_ms": 9.08,
+    "queries": 6,
+    "bytes": 2934
+  },
+  "forecast": {
+    "median_ms": 4.92,
+    "queries": 3,
+    "bytes": 10422
+  },
+  "recommendations": {
+    "median_ms": 4.79,
+    "queries": 4,
+    "bytes": 4628
+  },
+  "orders_paged": {
+    "median_ms": 5.95,
+    "queries": 4,
+    "bytes": 5980
+  },
+  "waste_records_paged": {
+    "median_ms": 4.85,
+    "queries": 5,
+    "bytes": 5783
+  },
+  "goods_receivings_paged": {
+    "median_ms": 5.11,
+    "queries": 5,
+    "bytes": 6295
+  },
+  "purchase_orders_paged": {
+    "median_ms": 6.02,
+    "queries": 5,
+    "bytes": 7008
+  },
+  "audit_logs_paged": {
+    "median_ms": 3.05,
+    "queries": 3,
+    "bytes": 3625
+  }
+}

@@ -1,3 +1,4 @@
+from app.models.timestamps import UTCNaiveDateTime
 from datetime import datetime, date, timezone
 from typing import Optional, List
 from enum import Enum
@@ -48,14 +49,14 @@ class Business(SQLModel, table=True):
     business_type: str = "cafe"
     currency: str = "THB"
     timezone: str = "Asia/Bangkok"
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class BusinessMembership(SQLModel, table=True):
     __tablename__ = "business_memberships"
     user_id: int = Field(foreign_key="users.id", primary_key=True)
     business_id: int = Field(foreign_key="businesses.id", primary_key=True, index=True)
     role: UserRole = Field(default=UserRole.CASHIER)
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
@@ -66,17 +67,17 @@ class User(SQLModel, table=True):
     role: UserRole = Field(default=UserRole.CASHIER)
     business_id: Optional[int] = Field(default=None, foreign_key="businesses.id")
     is_active: bool = True
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class PlatformSubscription(SQLModel, table=True):
     __tablename__ = "platform_subscriptions"
     user_id: int = Field(foreign_key="users.id", primary_key=True)
     plan: str = "trial"
     status: str = "trial"
-    period_ends_at: Optional[datetime] = None
+    period_ends_at: Optional[datetime] = Field(default=None, sa_type=UTCNaiveDateTime)
     note: Optional[str] = None
     updated_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
-    updated_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class PlatformAuditLog(SQLModel, table=True):
     __tablename__ = "platform_audit_logs"
@@ -85,13 +86,13 @@ class PlatformAuditLog(SQLModel, table=True):
     target_user_id: int = Field(foreign_key="users.id", index=True)
     action: str
     detail: str = ""
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class PasswordReset(SQLModel, table=True):
     __tablename__ = "password_resets"
     token_hash: str = Field(primary_key=True)
     email: str = Field(foreign_key="users.email", index=True)
-    expires_at: datetime
+    expires_at: datetime = Field(sa_type=UTCNaiveDateTime)
 
 
 # Tenant ownership shared by operational records. New records inherit the
@@ -107,7 +108,7 @@ class AuditLog(BusinessRecord, table=True):
     entity_type: str
     entity_id: Optional[str] = None
     detail: str = ""
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 # ── Inventory & Supplier ──────────────────────────────────────
 class Supplier(BusinessRecord, table=True):
@@ -118,7 +119,7 @@ class Supplier(BusinessRecord, table=True):
     phone: Optional[str] = None
     email: Optional[str] = None
     payment_terms: str = "COD"
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class Ingredient(BusinessRecord, table=True):
     __tablename__ = "ingredients"
@@ -131,7 +132,7 @@ class Ingredient(BusinessRecord, table=True):
     average_cost: float = 0.0
     supplier_id: Optional[int] = Field(default=None, foreign_key="suppliers.id")
     expiration_date: Optional[date] = None
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 # ── Product & Recipe ──────────────────────────────────────────
 class Product(BusinessRecord, table=True):
@@ -143,7 +144,7 @@ class Product(BusinessRecord, table=True):
     food_cost: float = 0.0
     is_active: bool = True
     description: Optional[str] = None
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class Recipe(BusinessRecord, table=True):
     __tablename__ = "recipes"
@@ -151,7 +152,7 @@ class Recipe(BusinessRecord, table=True):
     product_id: int = Field(foreign_key="products.id", unique=True)
     total_cost: float = 0.0
     yield_amount: float = 1.0
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class RecipeItem(SQLModel, table=True):
     __tablename__ = "recipe_items"
@@ -170,7 +171,7 @@ class Order(BusinessRecord, table=True):
     total_amount: float = 0.0
     status: OrderStatus = Field(default=OrderStatus.COMPLETED)
     staff_id: Optional[int] = Field(default=None, foreign_key="users.id")
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class OrderItem(SQLModel, table=True):
     __tablename__ = "order_items"
@@ -199,13 +200,13 @@ class WasteRecord(BusinessRecord, table=True):
     cost: float
     note: Optional[str] = None
     staff_id: Optional[int] = Field(default=None, foreign_key="users.id")
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class StockCount(BusinessRecord, table=True):
     __tablename__ = "stock_counts"
     id: Optional[int] = Field(default=None, primary_key=True)
     staff_id: Optional[int] = Field(default=None, foreign_key="users.id")
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class StockCountItem(SQLModel, table=True):
     __tablename__ = "stock_count_items"
@@ -226,7 +227,7 @@ class PurchaseOrder(BusinessRecord, table=True):
     total_cost: float = 0.0
     status: POStatus = Field(default=POStatus.DRAFT)
     order_date: date = Field(default_factory=date.today)
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class PurchaseOrderItem(SQLModel, table=True):
     __tablename__ = "purchase_order_items"
@@ -248,4 +249,4 @@ class GoodsReceiving(BusinessRecord, table=True):
     total_cost: float
     lot_number: str
     expiration_date: Optional[date] = None
-    received_at: datetime = Field(default_factory=utc_now)
+    received_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)

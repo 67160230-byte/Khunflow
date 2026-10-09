@@ -1,0 +1,53 @@
+{
+  "orders": {
+    "median_ms": 1618.42,
+    "queries": 2001,
+    "bytes": 234993
+  },
+  "receiving": {
+    "median_ms": 1835.46,
+    "queries": 2001,
+    "bytes": 248336
+  },
+  "waste": {
+    "median_ms": 950.21,
+    "queries": 1001,
+    "bytes": 227993
+  },
+  "purchase_orders": {
+    "median_ms": 2682.09,
+    "queries": 3001,
+    "bytes": 276993
+  },
+  "recipes": {
+    "median_ms": 47.48,
+    "queries": 61,
+    "bytes": 4775
+  },
+  "suppliers": {
+    "median_ms": 2.32,
+    "queries": 2,
+    "bytes": 256
+  },
+  "audit": {
+    "median_ms": 177.12,
+    "queries": 201,
+    "bytes": 28546
+  },
+  "dashboard": {
+    "median_ms": 15.81,
+    "queries": 5,
+    "bytes": 2935
+  },
+  "forecast": {
+    "median_ms": 26.97,
+    "queries": 3,
+    "bytes": 10422
+  },
+  "recommendations": {
+    "median_ms": 40.42,
+    "queries": 25,
+    "bytes": 54,
+    "error": "NameError: name 'Supplier' is not defined"
+  }
+}

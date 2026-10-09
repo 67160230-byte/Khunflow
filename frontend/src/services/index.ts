@@ -1,3 +1,5 @@
+import { scopedGet, resetApiRequests } from './requestPool'
+export { resetApiRequests } from './requestPool'
 // ============================================================
 // KhumFlow API service layer
 // ============================================================
@@ -29,6 +31,16 @@ const API_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || '')
 export const isDemoMode = () => localStorage.getItem('khumflow_demo_mode') === 'true'
 const demoCopy = <T,>(data: T): T => structuredClone(data)
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method || 'GET').toUpperCase()
+  if (method === 'GET' && !init.signal) {
+    const scope = JSON.stringify([localStorage.getItem('khumflow_token'), localStorage.getItem('khumflow_business_id'), isDemoMode()])
+    return scopedGet(scope, path, (signal) => performApi<T>(path, { ...init, signal }))
+  }
+  const value = await performApi<T>(path, init)
+  if (method !== 'GET') resetApiRequests()
+  return value
+}
+async function performApi<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (isDemoMode() && (init.method || 'GET').toUpperCase() !== 'GET') {
     throw new Error('โหมดตัวอย่างเป็นข้อมูลจำลองและอ่านอย่างเดียว ข้อมูลร้านจริงไม่ถูกเปลี่ยนแปลง')
   }
@@ -37,7 +49,8 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     const businessId = localStorage.getItem('khumflow_business_id')
     response = await fetch(`${API_URL}/api${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(businessId ? { 'X-Business-Id': businessId } : {}), ...init.headers } })
-  } catch {
+  } catch (error) {
+    if (init.signal?.aborted) throw error
     throw new Error(`เชื่อมต่อ API ไม่ได้ (${path}) กรุณาตรวจสอบสถานะเว็บและลองใหม่`)
   }
   const body = await response.json().catch(() => ({}))
@@ -177,12 +190,13 @@ export const recipesService = {
 
 // ── Orders ────────────────────────────────────────────────────
 export const ordersService = {
+  getPaged: (params: HistoryParams) => pagedHistory("/orders", params, orderFromApi, () => ordersService.getAll()),
   getAll: async (): Promise<Order[]> => {
     if (isDemoMode()) return demoCopy(mockOrders)
-    return (await api<any[]>('/orders')).map((o) => ({ id: toId(o.id), date: o.created_at, items: o.items.map((i: any) => ({ productId: toId(i.product_id), productName: i.product_name, quantity: i.quantity, unitPrice: i.unit_price, subtotal: i.subtotal })), total: o.total_amount, status: o.status, staffId: toId(o.staff_id), staffName: '' }))
+    return (await api<any[]>('/orders')).map(orderFromApi)
   },
   getRecent: async (limit = 10): Promise<Order[]> => {
-    return (await ordersService.getAll()).slice(0, limit)
+    return (await ordersService.getPaged({ page: 1, limit: Math.max(1, Math.min(limit, 100)) })).items
   },
   create: async (items: Array<{ productId: string; quantity: number }>): Promise<{ message: string; order_id: number; total: number }> => api<{ message: string; order_id: number; total: number }>('/orders', { method: 'POST', body: JSON.stringify({ items: items.map((i) => ({ product_id: Number(i.productId), quantity: i.quantity })) }) }),
   cancel: async (id: string, reason: string): Promise<{ message: string; order_id: number; status: string; restored_ingredients: number }> => api(`/orders/${Number(id)}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
@@ -195,18 +209,30 @@ export const stockCountService = {
 
 // ── Waste ────────────────────────────────────────────────────
 export const wasteService = {
+  getPaged: (params: HistoryParams) => pagedHistory("/waste", params, wasteFromApi, () => wasteService.getAll()),
   getAll: async (): Promise<WasteRecord[]> => {
     if (isDemoMode()) return demoCopy(mockWasteRecords)
-    return (await api<any[]>('/waste')).map((w) => ({ id: toId(w.id), ingredientId: toId(w.ingredient_id), ingredientName: w.ingredient_name, quantity: w.quantity, unit: w.unit, reason: w.reason, cost: w.cost, note: w.note, date: w.created_at, staffId: toId(w.staff_id), staffName: w.staff_name }))
+    return (await api<any[]>('/waste')).map(wasteFromApi)
   },
   create: async (w: { ingredientId: string; quantity: number; unit: Ingredient['unit']; reason: string; note?: string }) => api('/waste', { method: 'POST', body: JSON.stringify({ ingredient_id: Number(w.ingredientId), quantity: w.quantity, unit: w.unit, reason: w.reason, cost: 0, note: w.note }) }),
 }
 
 // ── Dashboard ────────────────────────────────────────────────
 export const dashboardService = {
-  getKPI: async (): Promise<DashboardKPI> => isDemoMode() ? getDemoKPI() : (await api<any>('/dashboard')).kpi,
-  getAlerts: async (): Promise<DashboardAlert[]> => isDemoMode() ? demoCopy(mockDashboardAlerts) : (await api<any>('/dashboard')).alerts,
-  getDailySales: async (days = 7, _offsetDays = 0): Promise<DailySales[]> => isDemoMode() ? demoCopy(getDemoDailySales().slice(-days)) : (await api<any>(`/dashboard?days=${days}&offset_days=${_offsetDays}`)).dailySales,
+  getOverview: async (days = 7, offsetDays = 0) => {
+    if (!isDemoMode()) return api<{ kpi: DashboardKPI; alerts: DashboardAlert[]; dailySales: DailySales[]; foodCostTrend: FoodCostData[]; topSellers: Array<{productId: string; productName: string; quantity: number; revenue: number}>; today: string }>(`/dashboard?days=${days}&offset_days=${offsetDays}`)
+    const dailySales = demoCopy(getDemoDailySales().slice(-days))
+    const today = dailySales[dailySales.length - 1]?.date.slice(0, 10) || new Date().toISOString().slice(0, 10)
+    const totals = new Map<string, { productId: string; productName: string; quantity: number; revenue: number }>()
+    for (const order of mockOrders.filter((o) => o.status === 'completed' && o.date.slice(0, 10) === today)) for (const item of order.items) {
+      const row = totals.get(item.productId) || { productId: item.productId, productName: item.productName, quantity: 0, revenue: 0 }
+      row.quantity += item.quantity; row.revenue += item.subtotal; totals.set(item.productId, row)
+    }
+    return { kpi: getDemoKPI(), alerts: demoCopy(mockDashboardAlerts), dailySales, foodCostTrend: dailySales.map((d) => ({ date: d.date, revenue: d.revenue, expectedFoodCost: Math.round(d.revenue * .29), actualFoodCost: d.foodCost, wasteCost: d.wasteValue, grossProfit: d.grossProfit })), topSellers: [...totals.values()].sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue).slice(0, 3), today }
+  },
+  getKPI: async (): Promise<DashboardKPI> => (await dashboardService.getOverview()).kpi,
+  getAlerts: async (): Promise<DashboardAlert[]> => (await dashboardService.getOverview()).alerts,
+  getDailySales: async (days = 7, _offsetDays = 0): Promise<DailySales[]> => (await dashboardService.getOverview(days, _offsetDays)).dailySales,
 }
 
 // ── Analytics ────────────────────────────────────────────────
@@ -224,7 +250,7 @@ export const analyticsService = {
       wasteCost: day.wasteValue,
       grossProfit: day.grossProfit,
     })))
-    return (await api<any>('/dashboard?days=7')).foodCostTrend.map((d: any) => ({ date: d.date, revenue: d.revenue, expectedFoodCost: d.expectedFoodCost, actualFoodCost: d.actualFoodCost, wasteCost: d.wasteCost, grossProfit: d.grossProfit }))
+    return (await dashboardService.getOverview()).foodCostTrend.map((d: any) => ({ date: d.date, revenue: d.revenue, expectedFoodCost: d.expectedFoodCost, actualFoodCost: d.actualFoodCost, wasteCost: d.wasteCost, grossProfit: d.grossProfit }))
   },
   getDailySales: async (): Promise<DailySales[]> => dashboardService.getDailySales(7),
 }
@@ -240,16 +266,19 @@ export const suppliersService = {
 
 // ── Purchase Orders ───────────────────────────────────────────
 export const purchaseOrdersService = {
+  getReceivingPaged: (params: HistoryParams) => pagedHistory('/receiving', params, receivingFromApi, () => purchaseOrdersService.getReceiving()),
+  getOutstanding: async (): Promise<PurchaseOrder[]> => isDemoMode() ? demoCopy(mockPurchaseOrders.filter((p) => p.status === 'ordered')) : (await api<any[]>('/purchase-orders?status=ordered')).map(purchaseFromApi),
+  getPaged: (params: HistoryParams) => pagedHistory("/purchase-orders", params, purchaseFromApi, () => purchaseOrdersService.getAll()),
   getAll: async (): Promise<PurchaseOrder[]> => {
     if (isDemoMode()) return demoCopy(mockPurchaseOrders)
-    return (await api<any[]>('/purchase-orders')).map((p) => ({ id: toId(p.id), supplierId: toId(p.supplier_id), supplierName: p.supplier_name || `ซัพพลายเออร์ #${p.supplier_id}`, items: (p.items || []).map((i: any) => ({ ingredientId: toId(i.ingredient_id), ingredientName: i.ingredient_name, quantity: i.quantity, unit: i.unit, unitCost: i.unit_cost, totalCost: i.total_cost })), totalCost: p.total_cost, status: p.status, orderDate: p.order_date }))
+    return (await api<any[]>('/purchase-orders')).map(purchaseFromApi)
   },
   create: async (supplierId: string, items: Array<{ ingredientId: string; quantity: number; unitCost: number }>) => api('/purchase-orders', { method: 'POST', body: JSON.stringify({ supplier_id: Number(supplierId), items: items.map((i) => ({ ingredient_id: Number(i.ingredientId), quantity: i.quantity, unit_cost: i.unitCost })) }) }),
   receive: async (data: { supplierId: string; ingredientId: string; quantity: number; unitCost: number; lotNumber: string; expirationDate?: string; purchaseOrderId?: string }) => api('/receiving', { method: 'POST', body: JSON.stringify({ supplier_id: Number(data.supplierId), ingredient_id: Number(data.ingredientId), purchase_order_id: data.purchaseOrderId ? Number(data.purchaseOrderId) : null, quantity: data.quantity, unit_cost: data.unitCost, lot_number: data.lotNumber, expiration_date: data.expirationDate || null }) }),
   getReceiving: async () => isDemoMode() ? demoCopy([
     { id: 'gr1', date: '2026-08-28T09:30:00', supplierName: 'บริษัท กาแฟไทย จำกัด', ingredientName: 'เมล็ดกาแฟ Arabica', quantity: 5, unit: 'kg', lotNo: 'LOT-260828', expirationDate: '2027-02-28', unitCost: 800, totalCost: 4000 },
     { id: 'gr2', date: '2026-08-27T14:15:00', supplierName: 'ฟาร์มนมสด ชนบท', ingredientName: 'นมสด', quantity: 20, unit: 'l', lotNo: 'MILK-260827', expirationDate: '2026-09-03', unitCost: 45, totalCost: 900 },
-  ]) : (await api<any[]>('/receiving')).map((r) => ({ id: toId(r.id), date: r.created_at, supplierName: r.supplier_name, ingredientName: r.ingredient_name, quantity: r.quantity, unit: r.unit, lotNo: r.lot_number, expirationDate: r.expiration_date || '—', unitCost: r.unit_cost, totalCost: r.total_cost })),
+  ]) : (await api<any[]>('/receiving')).map(receivingFromApi),
 }
 
 export const usersService = {
@@ -269,11 +298,12 @@ export const usersService = {
 }
 
 export const activityService = {
+  getPaged: (params: HistoryParams) => pagedHistory('/auth/audit-logs', params, auditFromApi, () => activityService.getAll()),
   getAll: async () => isDemoMode() ? demoCopy([
     { id: 'a1', ts: '2026-08-28T10:32:00', user: 'สมปอง แคชเชียร์', action: 'สร้าง order #o2', type: 'order', detail: 'ยอดรวม 270.00 บาท' },
     { id: 'a2', ts: '2026-08-28T09:30:00', user: 'สมหมาย พนักงานคลัง', action: 'รับเข้า ingredient #i1', type: 'receiving', detail: 'เมล็ดกาแฟ Arabica 5 kg' },
     { id: 'a3', ts: '2026-08-27T16:20:00', user: 'สมชาย เจ้าของร้าน', action: 'แก้ไข recipe #r1', type: 'recipe', detail: 'ปรับสูตรลาเต้' },
-  ]) : (await api<any[]>('/auth/audit-logs')).map((log) => ({ id: toId(log.id), ts: log.created_at, user: log.user, action: (({ create: 'สร้าง', receive: 'รับเข้า' } as Record<string, string>)[log.action] || log.action) + ` ${log.type} #${log.entity_id || ''}`, type: log.type, detail: log.detail }))
+  ]) : (await api<any[]>('/auth/audit-logs')).map(auditFromApi)
 }
 
 export const businessService = {
@@ -308,4 +338,41 @@ export const recommendationsService = {
     if (isDemoMode()) return demoCopy(mockPurchaseRecommendations)
     return (await api<any[]>('/purchase-recommendations')).map((r) => ({ ingredientId: toId(r.ingredient_id), ingredientName: r.ingredient_name, currentStock: r.current_stock, forecastUsage: r.forecast_usage, safetyStock: r.safety_stock, recommendedOrder: r.recommended_order, unit: r.unit, estimatedCost: r.estimated_cost, supplierId: r.supplier_id ? toId(r.supplier_id) : undefined, supplierName: r.supplier_name }))
   },
+}
+
+const orderFromApi = (o: any): Order => ({ id: toId(o.id), date: o.created_at, items: o.items.map((i: any) => ({ productId: toId(i.product_id), productName: i.product_name, quantity: i.quantity, unitPrice: i.unit_price, subtotal: i.subtotal })), total: o.total_amount, status: o.status, staffId: toId(o.staff_id), staffName: '' })
+
+const wasteFromApi = (w: any): WasteRecord => ({ id: toId(w.id), ingredientId: toId(w.ingredient_id), ingredientName: w.ingredient_name, quantity: w.quantity, unit: w.unit, reason: w.reason, cost: w.cost, note: w.note, date: w.created_at, staffId: toId(w.staff_id), staffName: w.staff_name })
+
+const purchaseFromApi = (p: any): PurchaseOrder => ({ id: toId(p.id), supplierId: toId(p.supplier_id), supplierName: p.supplier_name || `ซัพพลายเออร์ #${p.supplier_id}`, items: (p.items || []).map((i: any) => ({ ingredientId: toId(i.ingredient_id), ingredientName: i.ingredient_name, quantity: i.quantity, unit: i.unit, unitCost: i.unit_cost, totalCost: i.total_cost })), totalCost: p.total_cost, status: p.status, orderDate: p.order_date })
+
+const receivingFromApi = (r: any) => ({ id: toId(r.id), date: r.created_at, supplierName: r.supplier_name, ingredientName: r.ingredient_name, quantity: r.quantity, unit: r.unit, lotNo: r.lot_number, expirationDate: r.expiration_date || '—', unitCost: r.unit_cost, totalCost: r.total_cost })
+
+const auditFromApi = (log: any) => ({ id: toId(log.id), ts: log.created_at, user: log.user, action: (({ create: 'สร้าง', receive: 'รับเข้า' } as Record<string, string>)[log.action] || log.action) + ` ${log.type} #${log.entity_id || ''}`, type: log.type, detail: log.detail })
+
+export interface HistoryParams { page: number; limit?: number; from?: string; to?: string }
+export interface PagedHistory<T> { items: T[]; page: number; limit: number; total: number; summary?: { amount: number; active_count?: number } }
+async function pagedHistory<T>(path: string, params: HistoryParams, mapper: (value: any) => T, demo: () => Promise<T[]>): Promise<PagedHistory<T>> {
+  const limit = params.limit || 25
+  if (isDemoMode()) {
+    const rows = (await demo()).filter((item: any) => {
+      const day = String(item.date || item.ts || item.orderDate || '').slice(0, 10)
+      return (!params.from || day >= params.from) && (!params.to || day <= params.to)
+    }).sort((a: any, b: any) => String(b.date || b.ts || b.orderDate || '').localeCompare(String(a.date || a.ts || a.orderDate || '')) || String(b.id).localeCompare(String(a.id)))
+    const active = rows.filter((item: any) => path !== '/orders' || item.status !== 'cancelled')
+    const amount = active.reduce((sum, item: any) => sum + Number(item.total ?? item.totalCost ?? item.cost ?? 0), 0)
+    return { items: rows.slice((params.page - 1) * limit, params.page * limit), page: params.page, limit, total: rows.length, summary: { amount, active_count: active.length } }
+  }
+  const query = new URLSearchParams({ page: String(params.page), limit: String(limit) })
+  if (params.from) query.set('from', params.from)
+  if (params.to) query.set('to', params.to)
+  const response = await api<PagedHistory<any>>(`${path}/paged?${query}`)
+  return { ...response, items: response.items.map(mapper) }
+}
+
+export const setupService = {
+  get: async (): Promise<{ steps: boolean[]; costWarning: boolean }> => isDemoMode() ? {
+    steps: [mockIngredients.length > 0, true, mockProducts.length > 0, mockRecipes.length > 0, mockOrders.some((o) => o.status === 'completed')],
+    costWarning: mockIngredients.some((i) => i.currentStock > 0 && i.averageCost <= 0) || mockProducts.some((p) => p.foodCost <= 0),
+  } : api('/setup-status'),
 }

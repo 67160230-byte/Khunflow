@@ -1,3 +1,5 @@
+import { usePagedHistory } from '@/hooks/usePagedHistory'
+import HistoryControls from '@/components/HistoryControls'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { suppliersService, purchaseOrdersService, inventoryService } from '@/services'
@@ -200,7 +202,8 @@ export function SuppliersPage() {
 }
 
 export function PurchaseOrdersPage() {
-  const [orders, setOrders] = useState<PurchaseOrder[]>([])
+  const history = usePagedHistory(purchaseOrdersService.getPaged)
+  const { items: orders } = history
   const [loading, setLoading] = useState(true)
 
   // Modal State
@@ -217,8 +220,7 @@ export function PurchaseOrdersPage() {
   const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
-    Promise.all([purchaseOrdersService.getAll(), suppliersService.getAll(), inventoryService.getAll()]).then(([data, availableSuppliers, availableIngredients]) => {
-      setOrders(data)
+    Promise.all([suppliersService.getAll(), inventoryService.getAll()]).then(([availableSuppliers, availableIngredients]) => {
       setSuppliers(availableSuppliers); setIngredients(availableIngredients)
       setSupplierId(availableSuppliers[0]?.id || ''); setIngredientId(availableIngredients[0]?.id || '')
       if (availableIngredients[0]) { setUnit(availableIngredients[0].unit); setUnitCost(String(availableIngredients[0].averageCost)) }
@@ -232,7 +234,7 @@ export function PurchaseOrdersPage() {
 
     const qty = parseFloat(quantity) || 1
     const cost = parseFloat(unitCost) || 0
-    try { await purchaseOrdersService.create(supplierId, [{ ingredientId, quantity: qty, unitCost: cost }]); setOrders(await purchaseOrdersService.getAll()) }
+    try { await purchaseOrdersService.create(supplierId, [{ ingredientId, quantity: qty, unitCost: cost }]); await history.refresh().catch(() => {}) }
     catch (error) { setActionError(error instanceof Error ? error.message : 'ออกใบสั่งซื้อไม่สำเร็จ'); return }
     setIsModalOpen(false)
     setSuccessToast(true)
@@ -259,7 +261,8 @@ export function PurchaseOrdersPage() {
           </Button>
         }
       />
-      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</p>}
+      <HistoryControls history={history} />
+      {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError} <button onClick={() => window.location.reload()} className="font-semibold underline">ลองอีกครั้ง</button></p>}
       {actionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
 
       {successToast && (
