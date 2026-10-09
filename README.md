@@ -1,7 +1,76 @@
-# KhumFlow
+# KhunFlow
+
+> อัปเดต 10 ตุลาคม 2026 · สถานะฟีเจอร์และผลตรวจล่าสุดอ้างอิงโค้ด `6972973`
+
+## อัปเดตล่าสุดและสถานะโครงงาน
+
+Frontend, Backend และฐานข้อมูลเชื่อมต่อและ deploy แล้ว ระบบหลักใช้งานผ่าน [เว็บ KhunFlow](https://khunflow.vercel.app) ได้ รายการนี้แทนการประเมิน 70% ในรายงานเดิม และไม่หมายความว่าทดสอบครบทุกสถานการณ์
+
+| ส่วนงาน | สิ่งที่ทำแล้ว |
+|---|---|
+| บัญชีและธุรกิจ | สมัครร้าน สมาชิกหลายธุรกิจ และแยกข้อมูลตามร้าน |
+| การขาย | สินค้า ออเดอร์/POS ตัดวัตถุดิบตามสูตร ยกเลิกและคืนสถานะตามสิทธิ์ |
+| ต้นทุนและคลัง | สูตรอาหาร แปลงหน่วย ต้นทุนเฉลี่ย ตรวจนับสต็อก และของเสีย |
+| จัดซื้อ | ผู้ขาย ใบสั่งซื้อ รับของบางส่วน ตรวจรับเกิน และอัปเดตต้นทุนสูตรหลังรับของ |
+| รายงาน | Dashboard ยอดขาย กำไร วันหมดอายุ และประวัติกิจกรรม |
+| สิทธิ์ | บันทึกสิทธิ์ในฐานข้อมูลแยกร้าน ตรวจสิทธิ์ที่ API และเมนูตามบทบาท |
+| Deployment | Vercel Frontend, Render Backend, PostgreSQL บน Supabase |
+| งานถัดไป | ทดลองสถานการณ์จริงของร้าน เก็บความคิดเห็น และตรวจกรณีที่ยังไม่ครอบคลุม |
+
+### สิ่งที่เพิ่มและแก้ในรอบล่าสุด
+
+- ประวัติออเดอร์ รับของ ของเสีย ใบสั่งซื้อ และกิจกรรมแบ่งหน้าละ 25 รายการ พร้อมตัวกรองวันที่ ยอดรวมยังครอบคลุมทั้งช่วงที่เลือก
+- ลด query ซ้ำทีละรายการ ดึงข้อมูลเป็นชุด และเพิ่ม index ตามรูปแบบค้นหา
+- Dashboard ใช้คำขอรวม รายการตรวจความพร้อมร้านใช้ `/setup-status` และโหลดแต่ละหน้าจอเมื่อเปิดใช้งาน
+- รวม GET ที่เหมือนกันเฉพาะระหว่างกำลังโหลด ยกเลิกผลเก่าเมื่อเปลี่ยนหน้า ร้าน หรือบัญชี
+- แก้หน้าที่หมุนค้าง ให้แสดงข้อผิดพลาดพร้อมปุ่มลองใหม่
+- พนักงานคลังเริ่มที่คลัง แคชเชียร์เริ่มที่ POS เจ้าของปรับสิทธิ์ของพนักงานในร้านได้ การยกเลิก/คืนสถานะออเดอร์ยังจำกัดเจ้าของและผู้จัดการ
+- รับของบางส่วนไม่ปิดใบสั่งซื้อ ตรวจยอดรับสะสม ป้องกันรับเกินและรับซ้ำหลังครบ ใบสั่งซื้อเก่าที่มีประวัติรับเชื่อมอยู่สามารถเปิดรับส่วนที่เหลือได้ตามสิทธิ์
+- แก้การแปลงหน่วย `kg/g` และ `l/ml` ที่เข้ากันได้ คำนวณต้นทุนสูตรและสินค้าหลังต้นทุนเฉลี่ยเปลี่ยน
+- วันหมดอายุบันทึกสถานะตรวจสอบ/ซ่อนในฐานข้อมูล รับล็อตใหม่เปิดแจ้งเตือนใหม่ การซ่อนแจ้งเตือนไม่ตัดสต็อก
+- สินค้าที่ต้นทุนเป็นศูนย์ไม่เข้าอันดับกำไร และรายงานเตือนเมื่อกำไรเป็นประมาณการ
+- เงินและเวลาเหตุการณ์แสดงตามสกุลเงิน/เขตเวลาร้าน เปลี่ยนสกุลเงินไม่แปลงตัวเลขย้อนหลัง
+- แยกโหมดข้อมูลเดโมจากข้อมูลร้านจริง ตรวจนับรอบใหม่โหลดสต็อกล่าสุด และตรวจค่าจำนวน/ต้นทุนที่ไม่ถูกต้อง
+
+### ผลตรวจล่าสุด
+
+| การตรวจ | ผลที่บันทึก |
+|---|---|
+| `system_audit.py` | 85/85 ผ่าน |
+| `test_audit_regression.py` | 37/37 ผ่าน |
+| `test_performance_regression.py` | ผ่านการแบ่งหน้า ยอดรวม เขตเวลา สิทธิ์ แยกร้าน คาดการณ์ และกติกาสต็อก |
+| Frontend build / lint | ผ่าน โดย lint ยังมี warnings |
+| หน้าจอ local | เปิดตรวจ 18 เมนู พร้อมกรณีโหลดผิดพลาดและลองใหม่ |
+| เว็บจริงหลังแก้ | ยืนยัน Backend revision `6972973` และบัญชีพนักงานคลังเข้าหน้าคลังได้ |
+
+รวม 122 รายการจากสองชุดตรวจแรก ไม่ใช่จำนวนทุกปุ่มในเว็บ การทดสอบเขียนข้อมูลใช้ฐานแยก `khunflow_perf_test` ไม่ทำรายการขาย/รับของหรือเปลี่ยนสิทธิ์ร้านจริง
+
+อ่าน [รายงานแก้บัค](docs/performance/system-audit-fixes.md) และ [รายงานตรวจระบบก่อนแก้](docs/performance/system-audit.md)
+
+### ตัวอย่างผลวัดความเร็ว
+
+วัดบน PostgreSQL 16 แยกด้วยข้อมูลชุดเดียวกัน เป็น median ของการเรียก handler 3 ครั้ง รวมสร้าง JSON แต่ไม่รวม HTTP การยืนยันตัวตน อินเทอร์เน็ต หรือเวลาปลุก Render
+
+| รายการ | ก่อน | หลัง |
+|---|---:|---:|
+| อ่านออเดอร์ทั้งหมด 1,000 รายการ | 1,618.42 ms / 2,001 queries | 61.06 ms / 2 queries |
+| อ่านประวัติรับของ 1,000 รายการ | 1,835.46 ms / 2,001 queries | 61.48 ms / 3 queries |
+| JavaScript ไฟล์แรก | 915.86 KB | 286.44 KB |
+| ข้อมูลหน้าออเดอร์ | 234,993 bytes ทั้งประวัติ | 5,980 bytes หน้าแรก 25 รายการพร้อมยอดรวม |
+
+เป็นผลของชุดปรับความเร็ววันที่ 10 ตุลาคม 2026 ไม่ใช่การวัดทุกเมนูบน revision ล่าสุดหรือการรับประกันความเร็วเว็บจริง ดู [วิธีทดสอบซ้ำ ผลดิบ และ EXPLAIN](docs/performance/README.md)
+
+### ข้อจำกัดและงานที่ยังต้องตรวจ
+
+- การคาดการณ์ปัจจุบันใช้ยอดขายเฉลี่ยย้อนหลัง 30 วัน ยังไม่ใช่โมเดล ML ที่ผ่านการประเมินความแม่นยำ
+- รอบตรวจล่าสุดยังไม่ได้ยืนยัน Google OAuth จนจบ การส่งอีเมลจริง การพิมพ์ PDF ทุกขนาดจอ หรือการเขียนสต็อกพร้อมกันจำนวนมาก
+- ใบสั่งซื้อเก่าที่ไม่มีประวัติรับเชื่อมกับ PO ต้องตรวจข้อมูลก่อน ไม่แก้ยอดย้อนหลังอัตโนมัติ
+- ทดลองใช้งานกับสถานการณ์จริงของร้านและเก็บความคิดเห็นผู้ใช้
+
+---
 
 > **ระบบบริหารธุรกิจอาหารและร้านกาแฟ: "รู้ต้นทุน รู้กำไร คุมวัตถุดิบให้คุ้ม"**  
-> เจ้าของร้านและผู้จัดการสามารถติดตามสต็อกวัตถุดิบ คำนวณต้นทุนจากสูตรอาหารจริง วิเคราะห์กำไร บันทึกของเสีย และรับคำแนะนำการสั่งซื้อจาก AI ได้ในระบบเดียวครบจบ
+> เจ้าของร้านและผู้จัดการสามารถติดตามสต็อกวัตถุดิบ คำนวณต้นทุนจากสูตรอาหารจริง วิเคราะห์กำไร บันทึกของเสีย และรับคำแนะนำการสั่งซื้อจากข้อมูลย้อนหลังในระบบเดียว
 
 ---
 
@@ -14,7 +83,7 @@
 * **Live Web App (Vercel)**: https://khunflow.vercel.app
 * **API Documentation (Render)**: https://khunflow.onrender.com/docs
 * **GitHub Repository**: https://github.com/67160230-byte/Khunflow
-* **คำอธิบาย**: ระบบบริหารจัดการธุรกิจอาหาร ร้านกาแฟ และเบเกอรี่ แบบครบวงจร ออกแบบสำหรับธุรกิจในประเทศไทย ครอบคลุมตั้งแต่การบันทึกออเดอร์ คำนวณต้นทุนสูตรอาหาร ติดตามวัตถุดิบ ไปจนถึงการคาดการณ์ยอดขายด้วย AI
+* **คำอธิบาย**: ระบบบริหารจัดการธุรกิจอาหาร ร้านกาแฟ และเบเกอรี่ แบบครบวงจร ออกแบบสำหรับธุรกิจในประเทศไทย ครอบคลุมตั้งแต่การบันทึกออเดอร์ คำนวณต้นทุนสูตรอาหาร ติดตามวัตถุดิบ ไปจนถึงการคาดการณ์ยอดขายจากข้อมูลย้อนหลัง
 
 ---
 
@@ -22,14 +91,14 @@
 
 | ส่วนของระบบ (Layer) | เทคโนโลยี / มาตรฐานที่เลือกใช้ |
 |---|---|
-| **Frontend Framework** | React 19 + TypeScript 5 (Vite 8) เรียก API ด้วย `fetch()` |
+| **Frontend Framework** | React 19 + TypeScript 6 (Vite 8) เรียก API ด้วย `fetch()` |
 | **Design System** | Tailwind CSS v4, Green Theme, Lucide Icons, Recharts, clsx |
 | **Routing** | React Router v7 (Nested Routes + `<Outlet />`) |
 | **UI Components** | KPICard, AlertCard, Badge, SectionHeader, Sidebar Drawer, Topbar, POS Modal |
 | **Backend Framework** | FastAPI (Python 3.12) ตามมาตรฐาน RESTful Architecture |
 | **Data & ORM** | SQLModel (Pydantic v2 + SQLAlchemy Async) |
 | **Database Engine** | PostgreSQL 16 (Supabase Cloud Database) |
-| **Database Migration** | Alembic (Auto-migration on Startup + Version Control) |
+| **Database Migration** | SQLModel create_all + additive schema setup; concurrent index migration |
 | **Authentication** | JWT (python-jose) + bcrypt (passlib) พร้อม Role-based Access Control (Owner, Manager, Inventory Staff, Cashier) |
 | **Cloud Deployment** | Vercel (Frontend SPA) + Render (Backend API) + Supabase (Database) |
 | **Containerization** | Docker & Docker Compose (Multi-Container Environment) |
@@ -41,37 +110,9 @@
 
 หัวข้อนี้จัดทำตามโจทย์ **Lab Progress - Project Integration** โดยต้องดำเนินการ Integrate ระบบให้ได้มากที่สุด และแนบเอกสาร Architecture ไว้ใน GitHub Repository
 
-### รายการที่ต้องดำเนินการ
+### สถานะสำหรับ Lab Progress
 
-| รายการ | สถานะ | ความคืบหน้า |
-|---|---|---:|
-| Integrate Frontend + Backend | ✅ ดำเนินการแล้ว | 100% |
-| Integrate Backend + Database | ✅ ดำเนินการแล้ว | 100% |
-| Deploy Frontend | ✅ Vercel | 100% |
-| Deploy Backend API | ✅ Render | 100% |
-| Database Cloud | ✅ Supabase PostgreSQL | 100% |
-| ฟีเจอร์หลักของระบบ | 🟡 มีหลายส่วนพร้อมใช้งาน | 75% |
-| Microservices Architecture Diagram | 🟡 Logical / Target Architecture | 70% |
-| Technology Stack Diagram | 🟡 จัดทำ | 70% |
-| Documentation / README | 🟡 ปรับตาม Lab | 70% |
-
-### การประเมินความคืบหน้าโครงงาน
-
-**ประเมินภาพรวมประมาณ 70%**
-
-| หมวดงาน | น้ำหนักโดยประมาณ | สถานะ |
-|---|---:|---|
-| ระบบ Frontend | 15% | ✅ เสร็จ |
-| ระบบ Backend / API | 15% | ✅ เสร็จ |
-| Database / Integration | 15% | ✅ เสร็จ |
-| Deployment | 10% | ✅ เสร็จ |
-| ฟีเจอร์ธุรกิจหลัก | 15% | 🟡 ดำเนินการแล้วส่วนใหญ่ |
-| AI / Forecast / Smart Reorder | 10% | 🟡 มีการพัฒนา |
-| Architecture + Technology Diagram | 5% | 🟡 กำลังจัดทำ |
-| Documentation / Testing / เก็บรายละเอียด | 10% | 🟡 เหลือบางส่วน |
-| **รวม** | **100%** | **ประมาณ 70%** |
-
-> **สรุปสำหรับรายงาน TA:** KhumFlow ดำเนินการแล้วประมาณ **70%** โดยส่วนหลักของ Frontend, Backend, Database และการ Deploy สามารถเชื่อมต่อกันได้แล้ว ส่วนที่เหลือเป็นการเก็บรายละเอียดฟีเจอร์, AI, Architecture Diagram, Documentation และการทดสอบระบบให้ครบถ้วน
+Frontend, Backend และฐานข้อมูลเชื่อมต่อแล้ว และ deploy บน Vercel / Render / Supabase ระบบหลักและผลตรวจล่าสุดแสดงในหัวข้ออัปเดตด้านบน มี Architecture และ Technology Stack Diagram ในเอกสารนี้ ส่วนที่เหลือคือทดลองใช้งานจริง เก็บความคิดเห็น และตรวจกรณีเพิ่มเติมตามข้อจำกัดที่ระบุ ไม่ใช้เปอร์เซ็นต์ประมาณการเดิมเป็นผลตรวจ
 
 > **หมายเหตุ:** KhumFlow ในการ Deploy ปัจจุบันยังเป็น Frontend + FastAPI Backend + PostgreSQL/Supabase โดย Backend ยังไม่ได้แยกเป็น Microservices ที่ Deploy แยกกันทุก Service ดังนั้น Microservices Diagram ด้านล่างเป็น **Logical / Target Architecture** สำหรับแสดงแนวทางการออกแบบระบบตามโจทย์ Lab ไม่ใช่การอ้างว่าทุก Service ถูก Deploy แยกจริงแล้ว
 
@@ -91,7 +132,7 @@ flowchart LR
     REC[Recipe & Cost Service<br/>Recipes / Food Cost]
     PUR[Purchasing Service<br/>Supplier / PO / Receiving]
     ANA[Analytics Service<br/>Profit / Variance / Reports]
-    AI[AI Forecast Service<br/>Forecast / Smart Reorder]
+    AI[Forecast Service<br/>Forecast / Smart Reorder]
 
     DB[(PostgreSQL<br/>Supabase)]
 
@@ -123,7 +164,7 @@ flowchart TB
 
     subgraph FRONTEND[Frontend / Presentation]
         REACT[React 19]
-        TS[TypeScript 5]
+        TS[TypeScript 6]
         VITE[Vite 8]
         TAILWIND[Tailwind CSS v4]
         ROUTER[React Router v7]
@@ -137,7 +178,7 @@ flowchart TB
         SQLMODEL[SQLModel]
         PYDANTIC[Pydantic v2]
         JWT[JWT + bcrypt]
-        ALEMBIC[Alembic]
+        SCHEMA[Schema setup / Index migration]
     end
 
     subgraph DATABASE[Data Layer]
@@ -166,11 +207,11 @@ flowchart TB
     FASTAPI --> SQLMODEL
     FASTAPI --> PYDANTIC
     FASTAPI --> JWT
-    FASTAPI --> ALEMBIC
+    FASTAPI --> SCHEMA
 
     RENDER --> FASTAPI
     SQLMODEL --> PG
-    ALEMBIC --> PG
+    SCHEMA --> PG
     SUPA --> PG
 
     DOCKER --> REACT
@@ -198,80 +239,22 @@ flowchart TB
 
 ## 3. สถาปัตยกรรมและการทำงานภายใน Docker (Docker Multi-Container Architecture)
 
-ระบบทำงานบน Docker Compose ในรูปแบบ Multi-Container Environment ที่เชื่อมต่อกันด้วย Internal Bridge Network เพื่อความปลอดภัยและประสิทธิภาพสูงสุด
+ชุดพัฒนาใน `docker-compose.yml` มี 4 services: `frontend`, `backend`, `postgres` และ `seed` ไม่มี pgAdmin ใน Compose ปัจจุบัน
 
-```text
-+-----------------------------------------------------------------------------------+
-|                            Docker Host (เครื่องของคุณ)                              |
-|                                                                                   |
-|    http://localhost:5173       http://localhost:8000       localhost:5432          |
-|            |                             |                      |                 |
-+------------|-----------------------------|--------------------- |------------------+
-             | Port Forwarding             | Port Forwarding      | Port Forwarding
-             v                             v                      v
-+-----------------------------------------------------------------------------------+
-|                              Docker Bridge Network                                |
-|                                                                                   |
-|  +-------------------------+   API Calls   +---------------------------+           |
-|  |  Container: frontend    | ------------> |  Container: backend       |           |
-|  |  (React + Vite)         |               |  (FastAPI + Uvicorn)      |           |
-|  |  Port: 5173             | <------------ |  Port: 8000               |           |
-|  +-------------------------+   JSON/JWT    +---------------------------+           |
-|                                                        |                          |
-|                                              DATABASE_URL (Healthcheck)           |
-|                                                        v                          |
-|                                            +---------------------------+           |
-|                                            |  Container: db            |           |
-|                                            |  (PostgreSQL 16 Engine)   |           |
-|                                            |  Port: 5432               |           |
-|                                            +---------------------------+           |
-|                                                        ^                          |
-|                                            +---------------------------+           |
-|                                            |  Container: pgadmin       |           |
-|                                            |  (Web GUI Database Mgr)   |           |
-|                                            |  Port: 80 -> Host: 5050   |           |
-|                                            +---------------------------+           |
-|                                                        |                          |
-|                                                  Docker Volume                    |
-|                                             (Data Persistence)                    |
-|                                      postgres_data -> /var/lib/postgresql/data    |
-+-----------------------------------------------------------------------------------+
+```mermaid
+flowchart LR
+    USER[Browser / localhost:5173] --> FE[frontend / Vite]
+    FE -->|API proxy| API[backend / FastAPI / localhost:8000]
+    API --> PG[(postgres / PostgreSQL 16 / localhost:5432)]
+    SEED[seed / initial sample data] --> PG
+    PG --> VOL[postgres_data volume]
 ```
 
-### รายละเอียดโครงสร้างภายในของแต่ละ Container:
-
-1. **Container: `frontend` (React + Vite Dev Server)**
-   - **Base Image**: `node:22-alpine`
-   - **Working Directory**: `/app`
-   - **Port**: `5173`
-   - **โครงสร้างภายใน**: `/app/src/` ซอร์สโค้ด React ทั้งหมด พร้อม Hot Module Replacement
-   - **Command ที่รัน**: `npm run dev -- --host 0.0.0.0 --port 5173`
-
-2. **Container: `backend` (FastAPI + Uvicorn)**
-   - **Base Image**: `python:3.12-slim`
-   - **Working Directory**: `/app`
-   - **Port**: `8000` (หรือ `$PORT` บน Cloud)
-   - **โครงสร้างภายใน**: `/app/app/` ซอร์สโค้ด Backend, `/app/alembic/` ไฟล์ Migration
-   - **Command ที่รัน**: `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`
-   - **กลไกการทำงาน**: รัน Auto-Migration และ Seed ข้อมูลทันทีที่สตาร์ท พร้อมระบบ Live Reload ผ่าน Host Bind Mounts
-
-3. **Container: `db` (PostgreSQL 16 Database Engine)**
-   - **Base Image**: `postgres:16-alpine`
-   - **Environment Variables**: `POSTGRES_USER=khumflow`, `POSTGRES_PASSWORD=khumflow_secret`, `POSTGRES_DB=khumflow`
-   - **Data Storage**: `/var/lib/postgresql/data` (เชื่อมโยงกับ Named Volume `postgres_data`)
-   - **Healthcheck**: มีระบบตรวจสอบความพร้อม `pg_isready` ทุกๆ 5 วินาที เพื่อให้มั่นใจว่า Container `backend` จะเริ่มทำงานเมื่อฐานข้อมูลพร้อมแล้วเท่านั้น
-
-4. **Container: `pgadmin` (Web-based Database GUI)**
-   - **Base Image**: `dpage/pgadmin4`
-   - **พอร์ตที่เปิดใช้งาน**: `http://localhost:5050`
-   - **Default Login**: Email: `admin@admin.com` / Password: `admin`
-
-5. **Container: `seed` (Auto Data Seeder)**
-   - รันครั้งเดียวอัตโนมัติตอน Startup สร้างบัญชีผู้ใช้และข้อมูลตัวอย่างเริ่มต้น
-   - ตรวจสอบว่า DB มีข้อมูลแล้วหรือยัง ถ้ามีแล้วจะข้ามการ Seed โดยอัตโนมัติ
-
-6. **การคงอยู่ของข้อมูล (Data Persistence)**
-   - ข้อมูลฐานข้อมูลทั้งหมดจะถูกบันทึกไว้ใน Docker Volume `postgres_data` ข้อมูลจะไม่สูญหายแม้จะทำการปิด Container หรือรีสตาร์ทเครื่อง
+- Frontend ใช้ source bind mount สำหรับการพัฒนา
+- Backend เริ่มด้วย `init_db()` เพื่อสร้างตารางที่ขาดและเพิ่มโครงสร้างแบบไม่รีเซ็ตข้อมูล จากนั้นตรวจ/สร้าง performance indexes นอก transaction ไม่ได้เรียก Alembic migration อัตโนมัติใน startup ปัจจุบัน
+- Seed runner รันแยกก่อน Backend เพื่อสร้างข้อมูลตัวอย่าง
+- ข้อมูล PostgreSQL เก็บใน volume `postgres_data`
+- Compose ชุดพัฒนากำหนด database credentials และ JWT secret ไว้ในไฟล์ การเปลี่ยน `DB_PASSWORD` หรือ `JWT_SECRET` ใน `.env` เพียงอย่างเดียวไม่ได้แทนค่าที่เขียนไว้ใน Compose ชุดนี้
 
 ---
 
@@ -311,7 +294,7 @@ Khunflow/
 │   │   │   │   ├── VariancePage.tsx       # Variance Analysis (Expected vs Actual)
 │   │   │   │   ├── AnalyticsPages.tsx     # ExpirationPage, ProfitPage
 │   │   │   ├── forecast/
-│   │   │   │   └── ForecastPage.tsx       # AI Sales Forecast 7 วัน + Smart Reorder
+│   │   │   │   └── ForecastPage.tsx       # Sales Forecast 7 วัน + Smart Reorder
 │   │   │   ├── reports/
 │   │   │   │   └── ReportsPage.tsx        # รายงานสรุปธุรกิจรายวัน + ดาวน์โหลด PDF
 │   │   │   └── settings/
@@ -334,7 +317,7 @@ Khunflow/
 │
 ├── backend/                               # FastAPI Backend
 │   ├── app/
-│   │   ├── main.py                        # FastAPI App + CORS + Lifespan (Migration + Auto-seed)
+│   │   ├── main.py                        # FastAPI App + CORS + Lifespan (Schema setup + Index migration)
 │   │   ├── config.py                      # Settings (pydantic-settings, .env support)
 │   │   ├── database.py                    # Async SQLAlchemy Engine (Supabase Pooler Support)
 │   │   ├── models/
@@ -357,7 +340,7 @@ Khunflow/
 │   ├── requirements.txt
 │   └── Dockerfile
 │
-├── docker-compose.yml                     # Development (Frontend + Backend + DB + pgAdmin + Seed)
+├── docker-compose.yml                     # Development (Frontend + Backend + PostgreSQL + Seed)
 ├── .env.example                           # Environment Variables Template
 ├── .gitignore
 └── README.md
@@ -385,13 +368,13 @@ Khunflow/
 
 ### 💻 รันบนเครื่อง Local ผ่าน Docker
 
-```bash
+```powershell
 # 1. Clone โปรเจกต์
 git clone https://github.com/67160230-byte/Khunflow.git
 cd Khunflow
 
 # 2. คัดลอกไฟล์ Environment Variables
-cp .env.example .env
+Copy-Item .env.example .env
 
 # 3. รันทั้งระบบด้วย Docker Compose
 docker compose up --build
@@ -405,7 +388,7 @@ docker compose up --build
 |---|---|---|---|
 | **Owner** (เจ้าของร้าน) | `admin@khumflow.app` | `admin1234` | เข้าถึงได้ **ทุกส่วน** ของระบบ |
 | **Manager** (ผู้จัดการ) | `manager@khumflow.app` | `manager1234` | ทุกส่วน ยกเว้นตั้งค่าระบบ |
-| **Inventory Staff** (พนักงานคลัง) | `stock@khumflow.app` | `stock1234` | สต็อก, รับสินค้า, ของเสีย |
+| **Inventory Staff** (พนักงานคลัง) | `stock@khumflow.app` | `stock1234` | คลัง, ตรวจนับ, ของเสีย, จัดซื้อ |
 | **Cashier** (แคชเชียร์) | `cashier@khumflow.app` | `cashier1234` | บันทึกออเดอร์เท่านั้น |
 
 > 💡 **สามารถสร้างร้านใหม่ของตัวเองได้:** ผ่านแท็บ **"สมัครร้านใหม่"** ที่หน้าแรกของเว็บ หรือเพิ่มพนักงานในเมนู **"ตั้งค่า ➔ ผู้ใช้งาน"**
@@ -435,14 +418,15 @@ docker compose up --build
    - วิเคราะห์ Food Cost, Variance, กำไรแยกเมนู
    - รายงานสรุปธุรกิจรายวัน พร้อมส่งออก PDF
 
-6. **AI Smart Forecast & Reorder**
-   - คาดการณ์ยอดขายล่วงหน้า 7 วัน
+6. **Sales Forecast & Reorder**
+   - คาดการณ์ยอดขายล่วงหน้า 7 วันจากยอดขายเฉลี่ยย้อนหลัง 30 วัน ยังไม่ใช่โมเดล ML ที่ประเมินความแม่นยำแล้ว
    - คำนวณปริมาณสั่งซื้อที่เหมาะสม: `(Forecast Usage - Current Stock) + Safety Stock`
    - ออกใบสั่งซื้อ (PO) จาก Recommendation ได้โดยตรง
 
 7. **RBAC & User Management**
    - 4 Roles: Owner, Manager, Inventory Staff, Cashier
-   - Audit Logs บันทึกกิจกรรมทั้งหมดในระบบสำหรับตรวจสอบย้อนหลัง
+   - Audit Logs บันทึกกิจกรรมที่ระบบรองรับสำหรับตรวจสอบย้อนหลัง
+   - เจ้าของปรับสิทธิ์ของพนักงานในร้านได้ โดยบันทึกในฐานข้อมูลและตรวจที่ API
 
 ---
 
@@ -459,3 +443,37 @@ docker compose up --build
 - **Purchase Orders:** `GET /api/purchase-orders`, `POST /api/purchase-orders`, `PUT /api/purchase-orders/{id}/status`
 - **Receiving:** `POST /api/receiving` (อัปเดต Weighted Average Cost)
 - **Health:** `GET /api/health`
+
+
+## 9. การตั้งค่า deployment และ API ใหม่
+
+| ตัวแปร | การใช้งาน |
+|---|---|
+| `DATABASE_URL` | การเชื่อมต่อ PostgreSQL ของ Backend |
+| `JWT_SECRET` | Secret ของระบบจริง ต้องตั้งค่าเฉพาะและมีอย่างน้อย 32 ตัวอักษร |
+| `ENVIRONMENT` | ใช้ `production` บนระบบจริง |
+| `MIGRATION_DATABASE_URL` | Direct/session connection ของฐานเดียวกัน สำหรับ concurrent index migration เมื่อแอปใช้ transaction pooler |
+| `DEMO_MODE` | `true` เปิด reset ด้วยอีเมลโดยไม่ใช้ OTP สำหรับระบบตัวอย่าง ค่าเริ่มต้น `false` |
+| `PLATFORM_ADMIN_EMAILS` | อีเมลผู้ดูแลแพลตฟอร์ม คั่นด้วย comma |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | การส่งอีเมล reset ผ่าน HTTPS |
+| `VITE_API_URL` | Base URL ของ API หากเรียกโดยตรง ปล่อยว่างเพื่อใช้ `/api` ผ่าน rewrite/proxy |
+
+ตั้งค่า Backend บน Render และ Frontend บน Vercel แยกกัน ไม่ใส่ข้อมูลเชื่อมต่อฐานข้อมูลหรือ JWT secret ในตัวแปร `VITE_*` โหมดข้อมูลเดโมในหน้าเว็บกับ `DEMO_MODE` สำหรับ reset รหัสผ่านเป็นคนละการตั้งค่า
+
+Frontend ส่ง `/api` ต่อไป Render ตาม `frontend/vercel.json` Backend ปัจจุบันเป็นแอปเดียวที่แยกโมดูลภายใน ยังไม่ได้ deploy แต่ละโมดูลเป็น Microservice แยกกัน
+
+### API ที่เพิ่ม
+
+- `GET/PUT /api/auth/permissions`: อ่านและบันทึกสิทธิ์แยกตามร้าน เจ้าของเท่านั้นที่แก้ได้
+- `GET/PUT /api/expiration-status`: สถานะตรวจสอบ/ซ่อนวันหมดอายุ
+- `POST /api/purchase-orders/{id}/reopen`: เปิดรับส่วนที่เหลือตามสิทธิ์และประวัติรับเดิม
+- `GET /api/setup-status`: สถานะเตรียมร้าน 5 ขั้นตอนและคำเตือนต้นทุน
+- `GET /api/orders/paged`, `/api/receiving/paged`, `/api/waste/paged`, `/api/purchase-orders/paged`, `/api/auth/audit-logs/paged`: ประวัติแบ่งหน้า
+
+API ประวัติรับ `page`, `limit`, `from`, `to` วันที่เป็น `YYYY-MM-DD` เริ่มหน้าที่ 1 ขนาดปกติ 25 สูงสุด 100 ตอบ `{items, page, limit, total}` บางประวัติมี `summary` ของทั้งช่วงเพิ่มเติม เรียงเวลาใหม่ก่อนและใช้ ID เป็นลำดับรองเมื่อเวลาเท่ากัน เส้นทางรายการเดิมยังคงไว้
+
+### ตรวจ deployment และ index
+
+[Health](https://khunflow.vercel.app/api/health) ตอบ `revision` ของ Backend และ `performance_indexes_ready` ของ instance ที่ทำงาน ค่า `true` หมายถึงตรวจ index ที่ต้องการหรือ index ที่เทียบเท่าแล้ว การ push สำเร็จเพียงอย่างเดียวไม่ยืนยันว่า deploy หรือสร้าง index สำเร็จ
+
+Migration รันซ้ำได้ ใช้ `CREATE INDEX CONCURRENTLY` นอก transaction และต้องใช้ direct/session connection หากแอปใช้ transaction pooler ดู [คู่มือ performance](docs/performance/README.md#rollout-and-actual-index-status) ใช้ฐานทดสอบตามคู่มือเท่านั้นสำหรับชุดทดสอบ ห้ามใช้คำสั่งรีเซ็ต/seed ชุดทดลองกับฐานจริง
