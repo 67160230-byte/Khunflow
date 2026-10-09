@@ -37,7 +37,7 @@ export default function PlatformAdminPage() {
     return accounts.filter((account) => !q || `${account.name} ${account.email} ${account.businesses.join(' ')}`.toLowerCase().includes(q))
   }, [accounts, search])
   const overdue = accounts.filter((account) => account.plan !== 'lifetime' && (account.subscription_status === 'past_due' || account.subscription_expired)).length
-  const suspended = accounts.filter((account) => !account.is_active).length
+  const suspended = accounts.filter((account) => !account.can_access).length
 
   const openEditor = (account: Account) => {
     setEditing(account)
@@ -80,7 +80,7 @@ export default function PlatformAdminPage() {
     <div className="grid gap-4 sm:grid-cols-3">
       <Summary icon={<Users size={18} />} label="บัญชีสมาชิก" value={`${accounts.length} บัญชี`} />
       <Summary icon={<CreditCard size={18} />} label="ค้างชำระ" value={`${overdue} บัญชี`} tone="amber" />
-      <Summary icon={<ShieldAlert size={18} />} label="ระงับการเข้าถึง" value={`${suspended} บัญชี`} tone="red" />
+      <Summary icon={<ShieldAlert size={18} />} label="เข้าใช้งานไม่ได้" value={`${suspended} บัญชี`} tone="red" />
     </div>
     <Card className="overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -96,8 +96,8 @@ export default function PlatformAdminPage() {
               <td className="px-4 py-3"><div className="flex items-start gap-1.5 text-gray-700"><Building2 size={14} className="mt-0.5 shrink-0 text-gray-400" /><span>{account.businesses.length ? account.businesses.join(', ') : 'ยังไม่มีธุรกิจ'}</span></div></td>
               <td className="px-4 py-3"><div className="font-medium">{planLabels[account.plan] || account.plan}</div><div className="mt-1"><Badge variant={account.subscription_expired || account.subscription_status === 'past_due' ? 'danger' : account.subscription_status === 'active' ? 'success' : 'warning'}>{account.subscription_expired ? 'หมดอายุ' : statusLabels[account.subscription_status] || account.subscription_status}</Badge></div>{account.note && <div className="mt-1 max-w-48 truncate text-xs text-gray-500" title={account.note}>{account.note}</div>}</td>
               <td className="px-4 py-3 text-gray-600">{account.plan === 'lifetime' ? 'ไม่มีวันหมดอายุ' : account.period_ends_at ? new Date(account.period_ends_at).toLocaleDateString('th-TH') : 'ยังไม่กำหนด'}</td>
-              <td className="px-4 py-3"><Badge variant={account.is_active ? 'success' : 'danger'}>{account.is_active ? 'ใช้งานได้' : 'ถูกระงับ'}</Badge></td>
-              <td className="px-4 py-3"><div className="flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => openEditor(account)}>แก้แพ็กเกจ</Button><Button variant={account.is_active ? 'danger' : 'secondary'} size="sm" disabled={savingId === account.id} onClick={() => void toggleAccess(account)}>{account.is_active ? 'ระงับ' : 'เปิดใช้'}</Button></div></td>
+              <td className="px-4 py-3"><Badge variant={account.can_access ? 'success' : 'danger'}>{account.can_access ? 'ใช้งานได้' : `เข้าไม่ได้: ${account.access_reason || 'ตรวจสอบแพ็กเกจ'}`}</Badge></td>
+              <td className="px-4 py-3"><div className="flex justify-end gap-2"><Button variant="outline" size="sm" onClick={() => openEditor(account)}>แก้แพ็กเกจ</Button><Button variant={account.is_active ? 'danger' : 'secondary'} size="sm" disabled={savingId === account.id} onClick={() => void toggleAccess(account)}>{account.is_active ? 'ระงับบัญชี' : 'เปิดบัญชี'}</Button></div></td>
             </tr>)}
             {!loading && visibleAccounts.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">ไม่พบบัญชีสมาชิก</td></tr>}
             {loading && <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">กำลังโหลดข้อมูล…</td></tr>}
@@ -114,7 +114,7 @@ export default function PlatformAdminPage() {
         {plan !== 'lifetime' && <Field label="วันสิ้นสุดรอบชำระ"><input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} required={status === 'active' && (plan === 'monthly' || plan === 'yearly')} className={selectClass} /></Field>}
         <Field label="บันทึกภายใน"><input maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="เช่น โอนวันที่… / เลขอ้างอิง" className={selectClass} /></Field>
       </div>
-      <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">การบันทึกแพ็กเกจเป็นการตรวจสอบด้วยตนเอง ระบบยังไม่ได้เชื่อมต่อผู้ให้บริการรับชำระเงิน</p>
+      <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">เปิดบัญชีอย่างเดียวไม่สามารถเปิดแพ็กเกจที่ยกเลิกได้ ต้องเปลี่ยนสถานะเป็นชำระแล้ว / ใช้งานได้ด้วย การบันทึกแพ็กเกจเป็นการตรวจสอบด้วยตนเอง ระบบยังไม่ได้เชื่อมต่อผู้ให้บริการรับชำระเงิน</p>
       <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditing(null)}>ยกเลิก</Button><Button type="submit" loading={savingId === editing.id}>บันทึก</Button></div>
     </form></div>}
   </div>

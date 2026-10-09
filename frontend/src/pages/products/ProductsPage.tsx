@@ -171,8 +171,8 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-600">{categoryLabel[p.category] ?? p.category}</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900 tabular-nums">{formatBaht(p.sellingPrice)}</td>
-                    <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{formatBaht(p.foodCost)}</td>
-                    <td className="px-4 py-3 text-right text-green-700 font-medium tabular-nums">{formatBaht(p.grossProfit)}</td>
+                    <td className="px-4 py-3 text-right text-gray-600 tabular-nums">{p.foodCost > 0 ? formatBaht(p.foodCost) : 'ตรวจสอบต้นทุน 0'}</td>
+                    <td className="px-4 py-3 text-right text-green-700 font-medium tabular-nums">{p.foodCost > 0 ? formatBaht(p.grossProfit) : 'รอตรวจสอบต้นทุน'}</td>
                     <td className="px-4 py-3 text-right">
                       <span
                         className={`font-semibold tabular-nums ${
@@ -183,7 +183,7 @@ export default function ProductsPage() {
                             : 'text-red-500'
                         }`}
                       >
-                        {p.grossMargin.toFixed(1)}%
+                        {p.foodCost > 0 ? `${p.grossMargin.toFixed(1)}%` : '—'}
                       </span>
                     </td>
                     <td className="px-4 py-3">

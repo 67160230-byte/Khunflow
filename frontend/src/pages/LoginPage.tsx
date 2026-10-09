@@ -412,15 +412,22 @@ export default function LoginPage() {
             {isRegister ? 'สมัครด้วย Google' : 'เข้าสู่ระบบด้วย Google'}
           </button>
 
-          {/* Quick Demo Info */}
           {!isRegister && (
             <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs text-gray-600">
-              <p className="font-semibold text-gray-700 mb-1">🔐 บัญชีเริ่มต้นในระบบ Database:</p>
-              <div className="grid grid-cols-2 gap-1 text-[11px]">
-                <div>• เจ้าของร้าน: <span className="font-mono text-green-700">admin1234</span></div>
-                <div>• ผู้จัดการ: <span className="font-mono text-blue-700">manager1234</span></div>
-                <div>• พนักงานคลัง: <span className="font-mono text-amber-700">stock1234</span></div>
-                <div>• แคชเชียร์: <span className="font-mono text-purple-700">cashier1234</span></div>
+              <p className="font-semibold text-gray-700 mb-2">เลือกบัญชีตัวอย่างเพื่อเติมอีเมลและรหัสผ่าน</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  { label: 'เจ้าของร้าน', email: 'admin@khumflow.app', password: 'admin1234' },
+                  { label: 'ผู้จัดการ', email: 'manager@khumflow.app', password: 'manager1234' },
+                  { label: 'พนักงานคลัง', email: 'stock@khumflow.app', password: 'stock1234' },
+                  { label: 'แคชเชียร์', email: 'cashier@khumflow.app', password: 'cashier1234' },
+                ].map((account) => <button key={account.email} type="button"
+                  onClick={() => { setEmail(account.email); setPassword(account.password); setError('') }}
+                  className="min-h-12 rounded-lg border border-gray-200 bg-white p-2 text-left hover:border-green-600">
+                  <span className="block font-semibold text-green-800">{account.label}</span>
+                  <span className="block break-all text-[11px]">{account.email}</span>
+                  <span className="block font-mono text-[11px]">รหัส: {account.password}</span>
+                </button>)}
               </div>
             </div>
           )}

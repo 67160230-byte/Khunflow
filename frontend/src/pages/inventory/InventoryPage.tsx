@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Search, X, Warehouse, Check, ChevronDown } from 'lucide-react'
 import { inventoryService } from '@/services'
 import type { Ingredient, IngredientCategory, IngredientUnit, IngredientStatus } from '@/types'
@@ -35,7 +36,8 @@ const unitLabel: Record<string, string> = {
 export default function InventoryPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [filtered, setFiltered] = useState<Ingredient[]>([])
-  const [search, setSearch] = useState('')
+  const [params] = useSearchParams()
+  const [search, setSearch] = useState(params.get('search') || '')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
@@ -110,6 +112,7 @@ export default function InventoryPage() {
 
   if (loading) return <LoadingSpinner />
 
+  const missingCosts = ingredients.filter((item) => item.currentStock > 0 && item.averageCost <= 0)
   const totalValue = ingredients.reduce((s, i) => s + i.stockValue, 0)
   const lowCount = ingredients.filter((i) => i.status === 'low' || i.status === 'critical').length
   const expiringCount = ingredients.filter((i) => i.status === 'expiring_soon' || i.status === 'expired').length
@@ -135,11 +138,17 @@ export default function InventoryPage() {
       )}
       {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{formError}</p>}
 
+      {missingCosts.length > 0 && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <p className="font-semibold">มีวัตถุดิบคงเหลือ {missingCosts.length} รายการที่ต้นทุนเป็น 0</p>
+        <p className="mt-1 text-xs">ตรวจสอบราคาซื้อก่อนใช้ยอดมูลค่าสต็อก หากได้รับของฟรี ต้นทุน 0 สามารถใช้ได้</p>
+        <Link to="/app/receiving" className="mt-2 inline-block font-semibold underline">ไปบันทึกรับของและราคาซื้อ</Link>
+      </div>}
       {/* KPI */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <KPICard
           title="มูลค่าสต็อกทั้งหมด"
           value={formatBaht(totalValue)}
+          subtitle={missingCosts.length ? `ยอดยังไม่รวมต้นทุน ${missingCosts.length} รายการที่เป็น 0` : undefined}
           icon={<DollarSign size={20} className="text-green-700" />}
           iconBg="bg-green-100"
         />
@@ -209,10 +218,10 @@ export default function InventoryPage() {
                       {ing.minimumStock} {unitLabel[ing.unit] ?? ing.unit}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">
-                      {formatBaht(ing.averageCost)}/{unitLabel[ing.unit] ?? ing.unit}
+                      {ing.averageCost > 0 ? `${formatBaht(ing.averageCost)}/${unitLabel[ing.unit] ?? ing.unit}` : <Link className="text-amber-700 underline" to={`/app/receiving?ingredientId=${encodeURIComponent(ing.id)}`}>ตรวจสอบต้นทุน 0</Link>}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">
-                      {formatBaht(ing.stockValue)}
+                      {ing.currentStock > 0 && ing.averageCost <= 0 ? 'ยังไม่มีต้นทุนที่ใช้คำนวณ' : formatBaht(ing.stockValue)}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {ing.expirationDate

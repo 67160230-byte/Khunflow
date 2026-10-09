@@ -147,7 +147,7 @@ export default function RolesPage() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="สิทธิ์การเข้าถึงตามบทบาท (RBAC Permission Matrix)"
+        title="สิทธิ์ของพนักงานแต่ละบทบาท"
         subtitle="เจ้าของร้านสามารถคลิกเปิด-ปิดสิทธิ์ของแต่ละบทบาทได้ตามต้องการ"
         action={
           <div className="flex items-center gap-2">
@@ -231,7 +231,7 @@ export default function RolesPage() {
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 flex items-start gap-2.5">
         <Shield size={18} className="text-amber-700 flex-shrink-0 mt-0.5" />
         <div>
-          <p className="font-bold text-amber-900 mb-0.5">ระบบควบคุมสิทธิ์ระดับฟังก์ชัน (Fine-Grained RBAC)</p>
+          <p className="font-bold text-amber-900 mb-0.5">กำหนดสิทธิ์การทำงานของพนักงาน</p>
           <p>เมื่อเจ้าของร้านปรับเปลี่ยนสิทธิ์และกด <strong>"บันทึกการตั้งค่าสิทธิ์"</strong> ระบบจะอัปเดตสิทธิ์การเข้าถึงเมนูและการใช้งานของพนักงานในแต่ละบทบาททันที</p>
         </div>
       </div>

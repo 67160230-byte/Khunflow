@@ -50,6 +50,9 @@ export default function ReceivingPage() {
       .then(([supplierRows, ingredientRows, receivedRows, orders]) => {
         setSuppliers(supplierRows)
         setIngredients(ingredientRows)
+        const requestedId = new URLSearchParams(window.location.search).get('ingredientId')
+        const requested = ingredientRows.find((item) => item.id === requestedId)
+        if (requested) { setIngredientId(requested.id); setUnitCost(requested.averageCost); setSupplierId(requested.supplierId || '') }
         setHistory(receivedRows)
         setPurchaseOrders(orders.filter((order) => order.status === 'ordered'))
       })

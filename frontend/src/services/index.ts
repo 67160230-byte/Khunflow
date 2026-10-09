@@ -286,7 +286,7 @@ export const businessService = {
 export const platformAdminService = {
   getMe: () => api<{ is_admin: boolean }>('/platform-admin/me'),
   getAccounts: () => api<Array<{
-    id: number; name: string; email: string; created_at: string; is_active: boolean;
+    id: number; name: string; email: string; created_at: string; is_active: boolean; can_access: boolean; access_reason: string | null;
     businesses: string[]; plan: string; subscription_status: string; subscription_expired: boolean;
     period_ends_at: string | null; note: string | null
   }>>('/platform-admin/accounts'),

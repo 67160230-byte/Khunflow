@@ -9,7 +9,7 @@ from app.models import (
     Business, BusinessMembership, PlatformAuditLog, PlatformSubscription, User, UserRole,
 )
 from app.schemas import PlatformAccessUpdate, PlatformSubscriptionUpdate
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, business_subscription_block_reason
 
 router = APIRouter(prefix="/platform-admin", tags=["Platform administration"])
 
@@ -67,6 +67,11 @@ async def list_platform_accounts(
     for user_id, business_name in memberships:
         businesses_by_user.setdefault(user_id, []).append(business_name)
 
+    access_reasons = {}
+    for user, _ in rows:
+        access_reasons[user.id] = ("บัญชีถูกระงับ" if not user.is_active else
+            None if user.email.lower() in platform_admin_emails() else
+            await business_subscription_block_reason(session, user.business_id) if user.business_id is not None else "ยังไม่มีธุรกิจ")
     return [
         {
             "id": user.id,
@@ -74,6 +79,8 @@ async def list_platform_accounts(
             "email": user.email,
             "created_at": iso(user.created_at),
             "is_active": user.is_active,
+            "can_access": access_reasons[user.id] is None,
+            "access_reason": access_reasons[user.id],
             "businesses": businesses_by_user.get(user.id, []),
             "plan": subscription.plan if subscription else "trial",
             "subscription_status": subscription.status if subscription else "trial",

@@ -265,7 +265,7 @@ export default function RecipesPage() {
 
               {/* Total Summary */}
               <div className="p-3.5 bg-green-50 rounded-xl border border-green-200 flex items-center justify-between">
-                <span className="text-xs font-semibold text-green-900">ต้นทุนรวมต่อ 1 ที่ (Calculated Cost):</span>
+                <span className="text-xs font-semibold text-green-900">ต้นทุนรวมต่อ 1 ที่ (คำนวณจากสูตร):</span>
                 <span className="text-base font-bold text-green-800 tabular-nums">{formatBaht(calculateTotalCost())}</span>
               </div>
 

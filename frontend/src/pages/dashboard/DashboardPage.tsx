@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import StoreSetupGuide, { getCurrentRole } from '@/components/StoreSetupGuide'
 import {
   AreaChart,
   Area,
@@ -198,6 +200,14 @@ export default function DashboardPage() {
         subtitle={demoMode ? `วันที่ของข้อมูลตัวอย่าง: ${displayDate}` : `วันนี้: ${displayDate}`}
       />
 
+      <nav aria-label="งานประจำ" className="flex flex-wrap gap-2">
+        {[
+          { title: 'ขายสินค้า', path: '/app/orders', roles: ['owner', 'manager', 'cashier', 'admin'] },
+          { title: 'รับของเข้าคลัง', path: '/app/receiving', roles: ['owner', 'manager', 'inventory_staff', 'stock', 'admin'] },
+          { title: 'ตรวจนับสต็อก', path: '/app/stock-count', roles: ['owner', 'manager', 'inventory_staff', 'stock', 'admin'] },
+        ].filter((item) => item.roles.includes(getCurrentRole())).map((item) => <Link key={item.path} to={item.path} className="rounded-lg bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800">{item.title}</Link>)}
+      </nav>
+      <StoreSetupGuide />
       {/* KPI Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <KPICard
@@ -211,7 +221,7 @@ export default function DashboardPage() {
         <KPICard
           title="ต้นทุนอาหาร"
           value={`${kpi!.foodCostPercent.toFixed(1)}%`}
-          subtitle="Food Cost Ratio"
+          subtitle="สัดส่วนต้นทุนต่อยอดขาย"
           changePercent={kpi!.foodCostChangePercent}
           icon={<Leaf size={22} className="text-emerald-700" />}
           iconBg="bg-emerald-100"
@@ -219,6 +229,7 @@ export default function DashboardPage() {
         <KPICard
           title="กำไรขั้นต้น"
           value={formatBaht(kpi!.grossProfit)}
+          subtitle="ประมาณการจากต้นทุนที่บันทึกไว้ ตรวจต้นทุนให้ครบก่อนใช้ยอดนี้"
           changePercent={kpi!.profitChangePercent}
           icon={<TrendingUp size={22} className="text-blue-700" />}
           iconBg="bg-blue-100"
@@ -226,7 +237,7 @@ export default function DashboardPage() {
         <KPICard
           title={demoMode ? 'มูลค่าของเสียรวมตัวอย่าง' : 'มูลค่าของเสียวันนี้'}
           value={formatBaht(kpi!.wasteValue)}
-          subtitle={demoMode ? 'ยอดรวมรายการทั้งหมดในหน้าของเสีย' : 'Waste Cost'}
+          subtitle={demoMode ? 'ยอดรวมรายการทั้งหมดในหน้าของเสีย' : 'ต้นทุนวัตถุดิบที่เสีย'}
           icon={<TrendingDown size={22} className="text-red-600" />}
           iconBg="bg-red-100"
         />
@@ -276,7 +287,9 @@ export default function DashboardPage() {
               <p className="text-sm text-gray-400 text-center py-6">ไม่มีการแจ้งเตือน</p>
             ) : (
               alerts.map((a) => (
-                <AlertCard key={a.id} severity={a.severity} title={a.title} description={a.description} />
+                <div key={a.id}><AlertCard severity={a.severity} title={a.title} description={a.description} />
+                  {a.ingredientId && ['owner', 'manager', 'inventory_staff', 'stock', 'admin'].includes(getCurrentRole()) && <Link to={`/app/inventory?search=${encodeURIComponent(a.title.split(':').slice(1).join(':').trim())}`} className="mt-1 inline-block text-xs font-semibold text-green-700 underline">ดูวัตถุดิบและยอดคงเหลือ</Link>}
+                </div>
               ))
             )}
           </div>

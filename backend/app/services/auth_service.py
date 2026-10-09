@@ -19,7 +19,21 @@ def require_role(user: User, *roles: UserRole) -> None:
 def log_activity(session: AsyncSession, user: User, action: str, entity_type: str, entity_id: object | None, detail: str = "") -> None:
     session.add(AuditLog(business_id=user.business_id, actor_id=user.id, action=action, entity_type=entity_type, entity_id=str(entity_id) if entity_id is not None else None, detail=detail))
 
-async def ensure_business_subscription(session: AsyncSession, business_id: int) -> None:
+def subscription_block_reason(subscription: PlatformSubscription) -> str | None:
+    end = subscription.period_ends_at
+    if end is not None and end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    expired = end is not None and end <= datetime.now(timezone.utc)
+    if subscription.status == "suspended":
+        return "แพ็กเกจถูกระงับ"
+    if subscription.status in ("trial", "active") and expired:
+        return "แพ็กเกจหมดอายุ"
+    if subscription.status in ("past_due", "canceled") and (end is None or expired):
+        return "แพ็กเกจยกเลิก" if subscription.status == "canceled" else "แพ็กเกจค้างชำระ"
+    return None
+
+
+async def business_subscription_block_reason(session: AsyncSession, business_id: int) -> str | None:
     owner_ids = (await session.execute(
         select(BusinessMembership.user_id).where(
             BusinessMembership.business_id == business_id,
@@ -33,20 +47,19 @@ async def ensure_business_subscription(session: AsyncSession, business_id: int) 
     )).scalars().all()
     if not subscriptions:
         return  # Existing businesses without a billing record remain in trial.
-    now = datetime.now(timezone.utc)
+    reasons = []
     for subscription in subscriptions:
-        end = subscription.period_ends_at
-        if end is not None and end.tzinfo is None:
-            end = end.replace(tzinfo=timezone.utc)
-        expired = end is not None and end <= now
-        if subscription.status == "suspended":
-            continue
-        if subscription.status in ("trial", "active") and expired:
-            continue
-        if subscription.status in ("past_due", "canceled") and (end is None or expired):
-            continue
-        return
-    raise HTTPException(status_code=402, detail="แพ็กเกจของธุรกิจหมดอายุหรือถูกระงับ กรุณาติดต่อผู้ดูแล KhumFlow")
+        reason = subscription_block_reason(subscription)
+        if reason is None:
+            return None
+        reasons.append(reason)
+    return reasons[0]
+
+
+async def ensure_business_subscription(session: AsyncSession, business_id: int) -> None:
+    reason = await business_subscription_block_reason(session, business_id)
+    if reason:
+        raise HTTPException(status_code=402, detail=f"{reason} กรุณาติดต่อผู้ดูแล KhumFlow เพื่อเปิดใช้งานแพ็กเกจ")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:

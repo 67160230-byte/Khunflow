@@ -92,7 +92,7 @@ const allNavSections: NavSection[] = [
     roles: ['owner', 'admin'], // Only Owner/Admin
     items: [
       { label: 'ผู้ใช้งาน & พนักงาน', path: '/app/settings/users', icon: <Users size={18} /> },
-      { label: 'สิทธิ์การใช้งาน (RBAC)', path: '/app/settings/roles', icon: <Shield size={18} /> },
+      { label: 'สิทธิ์ของพนักงาน', path: '/app/settings/roles', icon: <Shield size={18} /> },
       { label: 'ข้อมูลธุรกิจ & สกุลเงิน', path: '/app/settings/business', icon: <Building2 size={18} /> },
       { label: 'ประวัติการใช้งาน', path: '/app/settings/audit', icon: <History size={18} /> },
     ],

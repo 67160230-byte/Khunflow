@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { forecastService, recommendationsService, purchaseOrdersService, inventoryService } from '@/services'
 import type { ForecastData, PurchaseRecommendation } from '@/types'
 import { Card, Button, Badge, LoadingSpinner, SectionHeader, KPICard } from '@/components/ui'
@@ -64,6 +65,7 @@ export default function ForecastPage() {
     return item
   })
 
+  const hasForecast = forecasts.some((product) => product.forecasts.some((day) => day.predictedQty > 0))
   const totalEstCost = recommendations.reduce((sum, r) => sum + r.estimatedCost, 0)
 
   return (
@@ -79,7 +81,7 @@ export default function ForecastPage() {
         <KPICard
           title="รายการที่แนะนำให้สั่งซื้อ"
           value={`${recommendations.length} วัตถุดิบ`}
-          subtitle="คำนวณจาก Forecast - Stock + Safety"
+          subtitle="ปริมาณที่คาดว่าจะใช้ หักสต็อกที่มี และเพิ่มสต็อกสำรอง"
           icon={<Brain size={20} className="text-purple-600" />}
           iconBg="bg-purple-100"
         />
@@ -91,9 +93,9 @@ export default function ForecastPage() {
           iconBg="bg-green-100"
         />
         <KPICard
-          title="ข้อมูลย้อนหลังที่ใช้คำนวณ"
+          title="ช่วงย้อนหลังที่ตรวจสอบ"
           value="30 วัน"
-          subtitle="คำนวณจากยอดขายจริงในระบบ"
+          subtitle="เป็นช่วงเวลาที่ค้นหา ไม่ใช่จำนวนวันที่มียอดขาย"
           icon={<TrendingUp size={20} className="text-blue-600" />}
           iconBg="bg-blue-100"
         />
@@ -110,26 +112,29 @@ export default function ForecastPage() {
           </div>
           <Badge variant="info">ประมาณการจากยอดขายจริง</Badge>
         </div>
-        <ResponsiveContainer width="100%" height={260}>
+        {!hasForecast ? <div className="rounded-xl bg-gray-50 p-6 text-center">
+          <p className="font-semibold text-gray-700">ยังไม่มีประวัติขายเพียงพอสำหรับคาดการณ์</p>
+          <p className="mt-2 text-sm text-gray-500">บันทึกยอดขายที่สำเร็จ แล้วกลับมาดูประมาณการอีกครั้ง</p>
+          <Link to="/app/orders" className="mt-3 inline-block rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white">ไปบันทึกยอดขาย</Link>
+        </div> : <ResponsiveContainer width="100%" height={260}>
           <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
             <XAxis dataKey="date" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="ลาเต้" fill="#16a34a" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="ชาไทย" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+            {[...new Set(forecasts.map((product) => product.productName))].map((name, index) => <Bar key={name} dataKey={name} fill={['#16a34a', '#f59e0b', '#2563eb', '#9333ea'][index % 4]} radius={[4, 4, 0, 0]} />)}
           </BarChart>
-        </ResponsiveContainer>
+        </ResponsiveContainer>}
       </Card>
 
       {/* Reorder Recommendation Table */}
       <Card className="overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <h3 className="font-semibold text-gray-800 text-sm">คำแนะนำการสั่งซื้อวัตถุดิบ (Smart Reorder)</h3>
+            <h3 className="font-semibold text-gray-800 text-sm">คำแนะนำการสั่งซื้อวัตถุดิบ</h3>
             <p className="text-xs text-gray-400 mt-0.5">
-              สูตร: ปริมาณแนะนำ = (คาดการณ์การใช้ - สต็อกปัจจุบัน) + Safety Stock
+              สูตร: ปริมาณแนะนำ = (คาดการณ์การใช้ - สต็อกปัจจุบัน) + สต็อกสำรอง
             </p>
           </div>
         </div>
@@ -141,13 +146,14 @@ export default function ForecastPage() {
                 <th className="text-left px-4 py-3 font-semibold">ซัพพลายเออร์</th>
                 <th className="text-right px-4 py-3 font-semibold">สต็อกปัจจุบัน</th>
                 <th className="text-right px-4 py-3 font-semibold">คาดการณ์ใช้</th>
-                <th className="text-right px-4 py-3 font-semibold">Safety Stock</th>
+                <th className="text-right px-4 py-3 font-semibold">สต็อกสำรอง</th>
                 <th className="text-right px-4 py-3 font-semibold">ปริมาณที่ควรสั่ง</th>
                 <th className="text-right px-4 py-3 font-semibold">ประมาณการยอดเงิน</th>
                 <th className="text-center px-4 py-3 font-semibold">ดำเนินการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
+              {!recommendations.length && <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">ยังไม่มีรายการแนะนำให้สั่งซื้อ ตรวจว่ามียอดขาย สูตรอาหาร และข้อมูลสต็อกครบก่อน</td></tr>}
               {recommendations.map((rec) => {
                 const isOrdered = orderedItems[rec.ingredientId]
                 return (

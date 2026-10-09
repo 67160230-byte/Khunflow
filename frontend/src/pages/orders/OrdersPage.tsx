@@ -160,13 +160,13 @@ export default function OrdersPage() {
 
   const handleRestoreOrder = async (order: Order) => {
     if (restoringOrderId) return
-    if (!window.confirm(`รีเซ็ตออเดอร์ #${order.id} กลับเป็นสำเร็จ? ระบบจะตัดวัตถุดิบคืนออกจากคลังอีกครั้ง`)) return
+    if (!window.confirm(`คืนสถานะออเดอร์ #${order.id} กลับเป็นสำเร็จ? ระบบจะตัดวัตถุดิบคืนออกจากคลังอีกครั้ง`)) return
     setRestoringOrderId(order.id)
     setActionError('')
     try {
       await ordersService.restore(order.id)
       setOrders((current) => current.map((item) => item.id === order.id ? { ...item, status: 'completed' } : item))
-      setToastMessage(`รีเซ็ตออเดอร์ #${order.id} กลับแล้ว และตัดสต็อกตามเดิม`)
+      setToastMessage(`คืนสถานะออเดอร์ #${order.id} กลับแล้ว และตัดสต็อกตามเดิม`)
       try { setOrders(await ordersService.getAll()) } catch { /* Keep the restored state if refresh fails. */ }
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'รีเซ็ตออเดอร์ไม่สำเร็จ')
@@ -184,7 +184,7 @@ export default function OrdersPage() {
     <div className="space-y-6">
       <SectionHeader
         title="คำสั่งซื้อ (Orders)"
-        subtitle="บันทึกยอดขายหน้าร้าน ระบบจะตัด Expected Usage ตามสูตรอาหารอัตโนมัติ"
+        subtitle="บันทึกยอดขายหน้าร้าน ระบบจะตัด ปริมาณวัตถุดิบตามสูตร ตามสูตรอาหารอัตโนมัติ"
         action={
           <Button size="sm" onClick={() => { setModalOpen(true); setCartItems([]); }}>
             <Plus size={16} /> สร้างออเดอร์ใหม่ (POS)
@@ -214,7 +214,7 @@ export default function OrdersPage() {
         <KPICard
           title="ยอดเฉลี่ยต่อออเดอร์"
           value={formatBaht(activeOrders.length ? totalSales / activeOrders.length : 0)}
-          subtitle="Average Ticket Size"
+          subtitle="ยอดขายเฉลี่ยต่อรายการ"
           icon={<Clock size={20} className="text-purple-600" />}
           iconBg="bg-purple-100"
         />
@@ -260,7 +260,7 @@ export default function OrdersPage() {
                       <Badge variant={ord.status === 'cancelled' ? 'danger' : 'success'}>{ord.status === 'cancelled' ? 'ยกเลิกแล้ว' : 'สำเร็จ'}</Badge>
                     </td>
                     {canCancelOrders && <td className="px-4 py-3 text-center">{ord.status === 'cancelled'
-                      ? <Button variant="outline" size="sm" disabled={restoringOrderId !== null} onClick={() => handleRestoreOrder(ord)}><RotateCcw size={14} /> {restoringOrderId === ord.id ? 'กำลังรีเซ็ต…' : 'รีเซ็ตกลับ'}</Button>
+                      ? <Button variant="outline" size="sm" disabled={restoringOrderId !== null} onClick={() => handleRestoreOrder(ord)}><RotateCcw size={14} /> {restoringOrderId === ord.id ? 'กำลังคืนสถานะ…' : 'คืนสถานะสำเร็จ'}</Button>
                       : <Button variant="outline" size="sm" onClick={() => { setCancelTarget(ord); setCancelReason(''); setCancelError('') }}><Ban size={14} /> ยกเลิก</Button>}</td>}
                   </tr>
                 ))}

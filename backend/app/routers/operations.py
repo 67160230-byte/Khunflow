@@ -11,6 +11,12 @@ from app.services.unit_conversion import convert_quantity
 
 router = APIRouter(tags=["Operations & Business Logic"])
 
+UNIT_LABELS = {"g": "กรัม", "kg": "กก.", "ml": "มล.", "l": "ลิตร", "piece": "ชิ้น", "pack": "แพ็ก", "bottle": "ขวด"}
+def readable_unit(unit):
+    value = unit.value if hasattr(unit, "value") else str(unit)
+    return UNIT_LABELS.get(value, value)
+
+
 @router.get("/forecast")
 async def forecast(days: int = 7, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER)
@@ -79,9 +85,9 @@ async def dashboard(days: int = 7, offset_days: int = 0, current_user: User = De
         row = daily.get(record.created_at.date().isoformat())
         if row: row["wasteValue"] += record.cost; row["wasteCost"] += record.cost
     today = daily.get(date.today().isoformat(), {"revenue": 0, "orders": 0, "foodCost": 0, "grossProfit": 0, "wasteValue": 0})
-    alerts = [{"id": f"stock-{i.id}", "type": "critical" if i.current_stock <= 0 else "low_stock", "title": f"สต็อก{('หมด' if i.current_stock <= 0 else 'ใกล้หมด')}: {i.name}", "description": f"เหลือ {i.current_stock:g} {i.unit} (จุดสั่งซื้อ {i.minimum_stock:g})", "severity": "danger" if i.current_stock <= 0 else "warning", "ingredientId": str(i.id)} for i in ingredients if i.current_stock <= i.minimum_stock]
+    alerts = [{"id": f"stock-{i.id}", "type": "critical" if i.current_stock <= 0 else "low_stock", "title": f"สต็อก{('หมด' if i.current_stock <= 0 else 'ใกล้หมด')}: {i.name}", "description": f"เหลือ {i.current_stock:g} {readable_unit(i.unit)} (จุดสั่งซื้อ {i.minimum_stock:g})", "severity": "danger" if i.current_stock <= 0 else "warning", "ingredientId": str(i.id)} for i in ingredients if i.current_stock <= i.minimum_stock]
     for i in ingredients:
-        if i.expiration_date and i.expiration_date <= date.today() + timedelta(days=7): alerts.append({"id": f"expiry-{i.id}", "type": "expiring", "title": f"ใกล้หมดอายุ: {i.name}", "description": f"วันหมดอายุ {i.expiration_date.isoformat()}", "severity": "danger" if i.expiration_date <= date.today() else "warning", "ingredientId": str(i.id)})
+        if i.expiration_date and i.expiration_date <= date.today() + timedelta(days=7): alerts.append({"id": f"expiry-{i.id}", "type": "expiring", "title": f"{'หมดอายุ' if i.expiration_date < date.today() else 'หมดอายุวันนี้' if i.expiration_date == date.today() else 'ใกล้หมดอายุ'}: {i.name}", "description": f"วันหมดอายุ {i.expiration_date.isoformat()}", "severity": "danger" if i.expiration_date <= date.today() else "warning", "ingredientId": str(i.id)})
     return {"kpi": {"todaySales": today["revenue"], "todayOrders": today["orders"], "foodCostPercent": today["foodCost"] / today["revenue"] * 100 if today["revenue"] else 0, "grossProfit": today["grossProfit"], "wasteValue": today["wasteValue"], "salesChangePercent": 0, "foodCostChangePercent": 0, "profitChangePercent": 0}, "alerts": alerts, "dailySales": list(daily.values()), "foodCostTrend": list(daily.values())}
 
 @router.get("/analytics/variance")
