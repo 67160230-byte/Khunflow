@@ -220,6 +220,7 @@ class DiningTable(BusinessRecord, table=True):
     seats: int = 4
     qr_token: str = Field(default_factory=lambda: secrets.token_urlsafe(32), unique=True, index=True)
     is_active: bool = True
+    deleted_at: Optional[datetime] = Field(default=None, sa_type=UTCNaiveDateTime)
     created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class TableOrderRequest(BusinessRecord, table=True):

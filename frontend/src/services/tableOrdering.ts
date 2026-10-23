@@ -1,11 +1,14 @@
 import { api, isDemoMode } from './index'
 import { demoTableService } from './shopDemo'
 
-export interface DiningTable { id:number; name:string; seats:number; is_active:boolean; qr_token:string; pending_count:number }
+export interface DiningTable { id:number; name:string; seats:number; is_active:boolean; qr_token:string; pending_count:number; deleted_at?:string|null }
 export interface TableOrder { id:number; table_name:string; items:Array<{product_id:number; name:string; quantity:number; unit_price:number; subtotal:number}>; total:number; currency:string; note:string; status:'pending'|'accepted'|'rejected'; rejection_reason:string|null; order_id:number|null; order_status?:string|null; created_at:string; receipt_token?:string }
 export interface GuestMenu { business_name:string; currency:string; table_name:string; products:Array<{id:number; name:string; category:string; price:number; description:string; image_url:string|null}> }
 export const tableService = {
   list: () => isDemoMode() ? demoTableService.list() : api<DiningTable[]>('/tables'),
+  deleted: () => isDemoMode() ? demoTableService.deleted() : api<DiningTable[]>('/tables?deleted=true'),
+  remove: (id:number) => isDemoMode() ? demoTableService.remove(id) : api(`/tables/${id}`,{method:'DELETE'}),
+  restore: (id:number) => isDemoMode() ? demoTableService.restore(id) : api<DiningTable>(`/tables/${id}/restore`,{method:'POST'}),
   create: (name:string,seats:number) => isDemoMode() ? demoTableService.create(name,seats) : api<DiningTable>('/tables',{method:'POST',body:JSON.stringify({name,seats})}),
   batch: (count:number,seats:number) => isDemoMode() ? demoTableService.batch(count,seats) : api('/tables/batch',{method:'POST',body:JSON.stringify({count,seats})}),
   update: (table:DiningTable) => isDemoMode() ? demoTableService.update(table) : api<DiningTable>(`/tables/${table.id}`,{method:'PUT',body:JSON.stringify({name:table.name,seats:table.seats,is_active:table.is_active})}),

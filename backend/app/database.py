@@ -39,6 +39,7 @@ async def init_db():
         await conn.execute(text("SELECT pg_advisory_xact_lock(73498241)"))
         await conn.run_sync(SQLModel.metadata.create_all)
         await conn.execute(text('ALTER TABLE products ADD COLUMN IF NOT EXISTS image_version VARCHAR'))
+        await conn.execute(text('ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP'))
         # Add tenant ownership to existing single-store installations without
         # requiring a destructive reset or a separate migration command.
         for table in ("suppliers", "ingredients", "products", "recipes", "orders", "waste_records", "stock_counts", "purchase_orders", "goods_receivings", "audit_logs"):

@@ -46,21 +46,27 @@ class RejectRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=200)
 
 def table_payload(table):
-    return {'id':table.id, 'name':table.name, 'seats':table.seats, 'is_active':table.is_active, 'qr_token':table.qr_token}
+    return {'id':table.id, 'name':table.name, 'seats':table.seats, 'is_active':table.is_active, 'qr_token':table.qr_token, 'deleted_at':table.deleted_at}
 
 def guest_payload(row, staff=False, order_status=None):
     value = {'id':row.id, 'table_name':row.table_name, 'items':row.items, 'total':row.total_amount, 'currency':row.currency, 'note':row.note, 'status':row.status, 'rejection_reason':row.rejection_reason, 'order_id':row.confirmed_order_id, 'order_status':order_status, 'created_at':row.created_at}
     if not staff: value['receipt_token'] = row.receipt_token
     return value
 
-async def owned_table(session, bid, tid):
-    table = (await session.execute(select(DiningTable).where(DiningTable.id == tid, DiningTable.business_id == bid).with_for_update())).scalar_one_or_none()
+async def owned_table(session, bid, tid, include_deleted=False):
+    query = select(DiningTable).where(DiningTable.id == tid, DiningTable.business_id == bid)
+    if not include_deleted:
+        query = query.where(DiningTable.deleted_at.is_(None))
+    table = (await session.execute(query.with_for_update())).scalar_one_or_none()
     if not table: raise HTTPException(404, 'ไม่พบโต๊ะในร้านนี้')
     return table
 
 @router.get('/tables')
-async def tables(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    rows = (await session.execute(select(DiningTable).where(DiningTable.business_id == user.business_id).order_by(DiningTable.id))).scalars().all()
+async def tables(deleted: bool = False, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    if deleted:
+        require_role(user, UserRole.OWNER, UserRole.MANAGER, strict=True)
+    condition = DiningTable.deleted_at.is_not(None) if deleted else DiningTable.deleted_at.is_(None)
+    rows = (await session.execute(select(DiningTable).where(DiningTable.business_id == user.business_id, condition).order_by(DiningTable.id))).scalars().all()
     pending = dict((await session.execute(select(TableOrderRequest.table_id, func.count()).where(TableOrderRequest.business_id == user.business_id, TableOrderRequest.status == 'pending').group_by(TableOrderRequest.table_id))).all())
     return [{**table_payload(t), 'pending_count':pending.get(t.id,0)} for t in rows]
 
@@ -69,7 +75,7 @@ async def create_table(data: TableCreate, user: User = Depends(get_current_user)
     require_role(user, UserRole.OWNER, UserRole.MANAGER, strict=True)
     if not data.name.strip(): raise HTTPException(422, 'กรุณาระบุชื่อโต๊ะ')
     await session.execute(select(Business).where(Business.id == user.business_id).with_for_update())
-    if (await session.execute(select(func.count()).select_from(DiningTable).where(DiningTable.business_id == user.business_id))).scalar_one() >= 200: raise HTTPException(409, 'รองรับไม่เกิน 200 โต๊ะต่อร้าน')
+    if (await session.execute(select(func.count()).select_from(DiningTable).where(DiningTable.business_id == user.business_id, DiningTable.deleted_at.is_(None)))).scalar_one() >= 200: raise HTTPException(409, 'รองรับไม่เกิน 200 โต๊ะต่อร้าน')
     row = DiningTable(business_id=user.business_id, name=data.name.strip(), seats=data.seats)
     session.add(row); await session.flush()
     log_activity(session,user,'create','table',row.id,row.name)
@@ -81,7 +87,7 @@ async def create_tables(data: TableBatch, user: User = Depends(get_current_user)
     require_role(user, UserRole.OWNER, UserRole.MANAGER, strict=True)
     # Serialize setup changes for this shop, including simultaneous bulk requests.
     await session.execute(select(Business).where(Business.id == user.business_id).with_for_update())
-    existing = (await session.execute(select(DiningTable).where(DiningTable.business_id == user.business_id))).scalars().all()
+    existing = (await session.execute(select(DiningTable).where(DiningTable.business_id == user.business_id, DiningTable.deleted_at.is_(None)))).scalars().all()
     if len(existing) + data.count > 200: raise HTTPException(409, 'รองรับไม่เกิน 200 โต๊ะต่อร้าน')
     names = {r.name for r in existing}; number = 1; created = []
     for _ in range(data.count):
@@ -107,6 +113,37 @@ async def rotate_qr(tid:int,user:User=Depends(get_current_user),session:AsyncSes
     row=await owned_table(session,user.business_id,tid); row.qr_token=secrets.token_urlsafe(32)
     session.add(row); log_activity(session,user,'rotate_qr','table',row.id,'เปลี่ยน QR โต๊ะ')
     await session.commit(); return table_payload(row)
+
+@router.delete('/tables/{tid}')
+async def delete_table(tid:int,user:User=Depends(get_current_user),session:AsyncSession=Depends(get_session)):
+    require_role(user,UserRole.OWNER,UserRole.MANAGER,strict=True)
+    # Serialize against guest submissions, which lock the same table row.
+    row=await owned_table(session,user.business_id,tid,include_deleted=True)
+    if row.deleted_at is not None:
+        return {'message':'โต๊ะนี้ถูกลบแล้ว'}
+    pending=(await session.execute(select(func.count()).select_from(TableOrderRequest).where(TableOrderRequest.business_id == user.business_id,TableOrderRequest.table_id == tid,TableOrderRequest.status == 'pending'))).scalar_one()
+    if pending:
+        raise HTTPException(409,'โต๊ะนี้มีออเดอร์รอยืนยัน กรุณารับหรือปฏิเสธรายการใน POS ก่อนลบโต๊ะ')
+    # Retain the table and its foreign keys for historical orders and receipts.
+    row.deleted_at=utc_now();row.is_active=False;row.qr_token=secrets.token_urlsafe(32)
+    session.add(row);log_activity(session,user,'delete','table',row.id,row.name)
+    await session.commit()
+    return {'message':'ลบโต๊ะแล้ว ประวัติออเดอร์ยังอยู่และสามารถกู้คืนโต๊ะได้'}
+
+@router.post('/tables/{tid}/restore')
+async def restore_table(tid:int,user:User=Depends(get_current_user),session:AsyncSession=Depends(get_session)):
+    require_role(user,UserRole.OWNER,UserRole.MANAGER,strict=True)
+    # Restoring consumes a slot, so use the same shop lock as table creation.
+    await session.execute(select(Business).where(Business.id == user.business_id).with_for_update())
+    row=await owned_table(session,user.business_id,tid,include_deleted=True)
+    if row.deleted_at is None:
+        return table_payload(row)
+    count=(await session.execute(select(func.count()).select_from(DiningTable).where(DiningTable.business_id == user.business_id,DiningTable.deleted_at.is_(None)))).scalar_one()
+    if count >= 200: raise HTTPException(409,'มีครบ 200 โต๊ะแล้ว กรุณาลบโต๊ะที่ไม่ใช้งานก่อนกู้คืน')
+    row.deleted_at=None;row.is_active=False;row.qr_token=secrets.token_urlsafe(32)
+    session.add(row);log_activity(session,user,'restore','table',row.id,row.name)
+    await session.commit()
+    return table_payload(row)
 
 @router.get('/table-orders')
 async def pending_orders(user:User=Depends(get_current_user),session:AsyncSession=Depends(get_session)):
@@ -140,7 +177,7 @@ async def reject_order(rid:int,data:RejectRequest,user:User=Depends(get_current_
 
 async def public_table(session,token,lock=False):
     if len(token) > 100: raise HTTPException(404,'ไม่พบ QR โต๊ะนี้')
-    query=select(DiningTable).where(DiningTable.qr_token == token,DiningTable.is_active == True)
+    query=select(DiningTable).where(DiningTable.qr_token == token,DiningTable.is_active == True,DiningTable.deleted_at.is_(None))
     if lock: query=query.with_for_update()
     table=(await session.execute(query)).scalar_one_or_none()
     if not table: raise HTTPException(404,'QR ไม่ถูกต้องหรือโต๊ะนี้ปิดรับออเดอร์ กรุณาติดต่อพนักงาน')
