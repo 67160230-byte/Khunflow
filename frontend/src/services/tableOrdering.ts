@@ -2,7 +2,7 @@ import { api, isDemoMode } from './index'
 
 export interface DiningTable { id:number; name:string; seats:number; is_active:boolean; qr_token:string; pending_count:number }
 export interface TableOrder { id:number; table_name:string; items:Array<{product_id:number; name:string; quantity:number; unit_price:number; subtotal:number}>; total:number; currency:string; note:string; status:'pending'|'accepted'|'rejected'; rejection_reason:string|null; order_id:number|null; order_status?:string|null; created_at:string; receipt_token?:string }
-export interface GuestMenu { business_name:string; currency:string; table_name:string; products:Array<{id:number; name:string; category:string; price:number; description:string}> }
+export interface GuestMenu { business_name:string; currency:string; table_name:string; products:Array<{id:number; name:string; category:string; price:number; description:string; image_url:string|null}> }
 export const tableService = {
   list: () => isDemoMode() ? Promise.resolve<DiningTable[]>([]) : api<DiningTable[]>('/tables'),
   create: (name:string,seats:number) => api<DiningTable>('/tables',{method:'POST',body:JSON.stringify({name,seats})}),

@@ -17,6 +17,7 @@ interface RoleDef {
 const PERMISSION_KEYS = [
   { key: 'dashboard', label: 'ดูแดชบอร์ด & สถิติภาพรวม' },
   { key: 'products', label: 'จัดการสินค้า & สูตรอาหาร' },
+  { key: 'product_images', label: 'ใส่ เปลี่ยน และลบรูปเมนู' },
   { key: 'orders', label: 'บันทึกออเดอร์หน้าร้าน (POS)' },
   { key: 'inventory', label: 'จัดการคลังวัตถุดิบ & รับของ' },
   { key: 'stock_count', label: 'ตรวจนับสต็อกจริง' },
@@ -201,10 +202,10 @@ export default function RolesPage() {
                   {PERMISSION_KEYS.map(({ key, label }) => {
                     const isAllowed = !!role.permissions[key]
                     return (
-                      <div
+                      <button type="button" role="switch" aria-checked={isAllowed} aria-label={`${role.name}: ${label}`} disabled={role.id === 'owner' || saving}
                         key={key}
                         onClick={() => togglePermission(role.id, key)}
-                        className="pt-2 first:pt-0 flex items-center justify-between text-xs cursor-pointer hover:bg-gray-50 p-1.5 rounded-lg transition-colors group"
+                        className="w-full text-left pt-2 first:pt-0 flex items-center justify-between text-xs cursor-pointer hover:bg-gray-50 p-1.5 rounded-lg transition-colors group disabled:cursor-default"
                       >
                         <span className={`pr-2 leading-relaxed ${isAllowed ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
                           {label}
@@ -222,7 +223,7 @@ export default function RolesPage() {
                             }`}
                           />
                         </div>
-                      </div>
+                      </button>
                     )
                   })}
                 </div>

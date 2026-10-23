@@ -1,3 +1,4 @@
+import MenuPhoto from '@/components/MenuPhoto'
 import { formatMoney } from '@/services/formatting'
 import { useState, useEffect } from 'react'
 import { Plus, Search, X, Package, Check, EyeOff, RotateCcw } from 'lucide-react'
@@ -163,7 +164,7 @@ export default function ProductsPage() {
                 {filtered.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{p.name}</p>
+                      <div className="flex items-center gap-3"><MenuPhoto src={p.imageUrl} name={p.name} className="h-12 w-12 shrink-0 rounded-lg"/><p className="font-medium text-gray-900">{p.name}</p></div>
                       {p.description && (
                         <p className="text-xs text-gray-400 truncate max-w-xs">{p.description}</p>
                       )}

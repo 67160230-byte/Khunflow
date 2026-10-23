@@ -1,4 +1,5 @@
 import { shopPreferences, shopPreferencesEvent, storeShopPreferences } from '@/services/formatting'
+import BrandLogo from '@/components/BrandLogo'
 import { currentPermissions, featureForRoute, homeForRole } from '@/services/permissions'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom'
@@ -8,6 +9,7 @@ import {
   LayoutDashboard,
   ShoppingCart,
   QrCode,
+  ImagePlus,
   Package,
   BookOpen,
   Warehouse,
@@ -29,7 +31,6 @@ import {
   ChevronDown,
   X,
   Menu,
-  Leaf,
   ShieldAlert,
 } from 'lucide-react'
 
@@ -59,6 +60,7 @@ const allNavSections: NavSection[] = [
       { label: 'คำสั่งซื้อ (POS)', path: '/app/orders', icon: <ShoppingCart size={18} />, roles: ['owner', 'manager', 'cashier', 'admin'] },
       { label: 'โต๊ะ & QR สั่งอาหาร', path: '/app/tables', icon: <QrCode size={18} /> },
       { label: 'สินค้า', path: '/app/products', icon: <Package size={18} />, roles: ['owner', 'manager', 'admin'] },
+      { label: 'รูปเมนู', path: '/app/menu-images', icon: <ImagePlus size={18} /> },
       { label: 'สูตรอาหาร', path: '/app/recipes', icon: <BookOpen size={18} />, roles: ['owner', 'manager', 'admin'] },
       { label: 'คลังวัตถุดิบ', path: '/app/inventory', icon: <Warehouse size={18} />, roles: ['owner', 'manager', 'inventory_staff', 'stock', 'admin'] },
       { label: 'ตรวจนับสต็อก', path: '/app/stock-count', icon: <ClipboardList size={18} />, roles: ['owner', 'manager', 'inventory_staff', 'stock', 'admin'] },
@@ -141,11 +143,8 @@ function SidebarContent({ onClose, isPlatformAdmin = false }: { onClose?: () => 
     <div className="flex flex-col h-full bg-gray-900 text-white" style={{ width: 240 }}>
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 py-4 border-b border-gray-800 flex-shrink-0">
-        <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
-          <Leaf size={16} className="text-white" />
-        </div>
         <div>
-          <p className="font-bold text-white text-sm leading-none">KhumFlow</p>
+          <BrandLogo dark size={32} className="text-base"/>
           <p className="text-gray-400 text-xs mt-0.5">ระบบจัดการร้านอาหาร</p>
         </div>
         {onClose && (

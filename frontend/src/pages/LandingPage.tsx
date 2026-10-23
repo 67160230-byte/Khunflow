@@ -1,3 +1,4 @@
+import BrandLogo from '@/components/BrandLogo'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, ArrowUpRight, BookOpen, Check, ChevronDown, ClipboardCheck, Leaf, Menu, PackageCheck, ShieldCheck, ShoppingCart, TrendingUp, Warehouse, X } from 'lucide-react'
@@ -48,7 +49,7 @@ export default function LandingPage() {
       <a className="kf-skip" href="#main-content">ข้ามไปเนื้อหา</a>
       <header className="kf-header">
         <nav className="kf-container kf-nav" aria-label="เมนูหลัก">
-          <Link to="/" className="kf-brand" aria-label="KhunFlow หน้าแรก"><span className="kf-logo"><Leaf size={23} aria-hidden="true" /></span>KhunFlow</Link>
+          <Link to="/" className="kf-brand" aria-label="KhunFlow หน้าแรก"><BrandLogo size={38}/></Link>
           <div className="kf-desktop-nav"><a href="#features">ฟีเจอร์</a><a href="#how-it-works">วิธีเริ่มต้น</a><a href="#faq">คำถามที่พบบ่อย</a></div>
           <div className="kf-nav-actions"><Link to="/login" className="kf-login">เข้าสู่ระบบ</Link><Link to="/login?mode=register" className="kf-button kf-button-small">เริ่มใช้งาน <ArrowUpRight size={16} aria-hidden="true" /></Link><button type="button" className="kf-menu-toggle" aria-label={menuOpen ? 'ปิดเมนู' : 'เปิดเมนู'} aria-expanded={menuOpen} aria-controls="landing-mobile-nav" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button></div>
         </nav>
@@ -91,7 +92,7 @@ export default function LandingPage() {
 
         <section className="kf-container kf-closing"><div><p className="kf-eyebrow">KhunFlow สำหรับร้านของคุณ</p><h2>มีเวลาสำหรับร้านมากขึ้น<br />เมื่อข้อมูลอยู่ด้วยกัน</h2><p>เริ่มจากข้อมูลที่มี แล้วค่อยเติมรายละเอียดให้ครบไปด้วยกัน</p></div><div><Link to="/login?mode=register" className="kf-button">เริ่มสร้างร้าน <ArrowRight size={18} aria-hidden="true" /></Link><Link to="/login" className="kf-existing">มีบัญชีอยู่แล้ว? เข้าสู่ระบบ</Link></div></section>
       </main>
-      <footer className="kf-footer"><div className="kf-container"><Link to="/" className="kf-brand"><span className="kf-logo"><Leaf size={20} aria-hidden="true" /></span>KhunFlow</Link><p>ระบบจัดการต้นทุนและสต็อกสำหรับร้านอาหาร</p><span>© {new Date().getFullYear()} KhunFlow</span></div></footer>
+      <footer className="kf-footer"><div className="kf-container"><Link to="/" className="kf-brand"><BrandLogo size={36}/></Link><p>ระบบจัดการต้นทุนและสต็อกสำหรับร้านอาหาร</p><span>© {new Date().getFullYear()} KhunFlow</span></div></footer>
     </div>
   )
 }

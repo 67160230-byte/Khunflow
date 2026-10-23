@@ -1,7 +1,8 @@
 import { homeForRole } from '@/services/permissions'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, Leaf, UserPlus, LogIn, KeyRound, X, RefreshCw } from 'lucide-react'
+import { Eye, EyeOff, UserPlus, LogIn, KeyRound, X, RefreshCw } from 'lucide-react'
+import { BrandMark } from '@/components/BrandLogo'
 
 // Google "G" logo SVG component
 function GoogleIcon() {
@@ -257,10 +258,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-green-700 rounded-2xl mb-3 shadow-md shadow-green-100">
-            <Leaf size={24} className="text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">KhumFlow</h1>
+          <BrandMark size={64} className="mx-auto mb-3 shadow-md shadow-green-100"/>
+          <h1 className="text-2xl font-bold text-[#172D25]">Khun<span className="text-[#087F46]">Flow</span></h1>
           <p className="text-gray-500 text-sm mt-1">ระบบบริหารจัดการต้นทุนและสต็อกร้านอาหาร</p>
         </div>
 
@@ -435,7 +434,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-4">
-          © 2026 KhumFlow • Live Connected with FastAPI & PostgreSQL
+          © 2026 KhunFlow
         </p>
       </div>
 

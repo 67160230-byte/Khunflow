@@ -13,6 +13,7 @@ from app.models import Business, DiningTable, TableOrderRequest, Product, Order,
 from app.schemas import OrderItemCreate
 from app.services.auth_service import get_current_user, require_role, ensure_business_subscription, log_activity
 from app.services.sales_orders import build_sales_order
+from app.routers.menu_images import image_url
 
 def prevent_cache(response: Response):
     response.headers['Cache-Control'] = 'no-store'
@@ -151,7 +152,7 @@ async def public_menu(token:str,session:AsyncSession=Depends(get_session)):
     table=await public_table(session,token)
     business=await session.get(Business,table.business_id)
     products=(await session.execute(select(Product).where(Product.business_id == table.business_id,Product.is_active == True,Product.selling_price > 0).order_by(Product.category,Product.name))).scalars().all()
-    return {'business_name':business.name,'currency':business.currency,'table_name':table.name,'products':[{'id':p.id,'name':p.name,'category':p.category,'price':p.selling_price,'description':p.description or ''} for p in products if math.isfinite(p.selling_price)]}
+    return {'business_name':business.name,'currency':business.currency,'table_name':table.name,'products':[{'id':p.id,'name':p.name,'category':p.category,'price':p.selling_price,'description':p.description or '', 'image_url':image_url(p)} for p in products if math.isfinite(p.selling_price)]}
 
 @router.post('/public/tables/{token}/orders')
 async def submit_guest_order(token:str,data:GuestSubmit,session:AsyncSession=Depends(get_session)):

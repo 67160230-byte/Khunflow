@@ -38,6 +38,7 @@ async def init_db():
         # do not deadlock on PostgreSQL relation locks.
         await conn.execute(text("SELECT pg_advisory_xact_lock(73498241)"))
         await conn.run_sync(SQLModel.metadata.create_all)
+        await conn.execute(text('ALTER TABLE products ADD COLUMN IF NOT EXISTS image_version VARCHAR'))
         # Add tenant ownership to existing single-store installations without
         # requiring a destructive reset or a separate migration command.
         for table in ("suppliers", "ingredients", "products", "recipes", "orders", "waste_records", "stock_counts", "purchase_orders", "goods_receivings", "audit_logs"):

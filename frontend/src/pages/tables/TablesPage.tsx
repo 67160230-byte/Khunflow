@@ -9,13 +9,34 @@ import { Button, Card, SectionHeader } from '@/components/ui'
 function TableCard({table,business,canManage,disabled,onEdit,onRotate}:{table:DiningTable;business:string;canManage:boolean;disabled:boolean;onEdit:(table:DiningTable)=>void;onRotate:()=>void}){
   const [qr,setQr]=useState('')
   const [qrError,setQrError]=useState('')
+  const [printUrl,setPrintUrl]=useState('')
   const url=menuLink(table)
-  useEffect(()=>{let active=true;QRCode.toDataURL(url,{width:480,margin:3,errorCorrectionLevel:'M'}).then(data=>{if(active)setQr(data)}).catch(()=>{if(active)setQrError('สร้างภาพ QR ไม่สำเร็จ กรุณาโหลดหน้าใหม่')});return()=>{active=false}},[url])
-  function download(){
+  useEffect(()=>{let active=true;QRCode.toDataURL(url,{width:480,margin:4,errorCorrectionLevel:'M'}).then(data=>{if(active)setQr(data)}).catch(()=>{if(active)setQrError('สร้างภาพ QR ไม่สำเร็จ กรุณาโหลดหน้าใหม่')});return()=>{active=false}},[url])
+  useEffect(()=>{
     if(!qr)return
-    const image=new Image();image.onload=()=>{const canvas=document.createElement('canvas');canvas.width=640;canvas.height=800;const ctx=canvas.getContext('2d');if(!ctx)return;ctx.fillStyle='#fff';ctx.fillRect(0,0,640,800);ctx.fillStyle='#166534';ctx.textAlign='center';ctx.font='bold 32px Sarabun, sans-serif';ctx.fillText(business,320,65,580);ctx.fillStyle='#111827';ctx.font='bold 38px Sarabun, sans-serif';ctx.fillText(table.name,320,125,580);ctx.drawImage(image,80,150,480,480);ctx.font='25px Sarabun, sans-serif';ctx.fillText('สแกนเพื่อดูเมนูและสั่งอาหาร',320,690,580);ctx.font='20px Sarabun, sans-serif';ctx.fillStyle='#4b5563';ctx.fillText('ไม่ต้องสมัครสมาชิก • กรุณารอพนักงานยืนยัน',320,740,580);const a=document.createElement('a');a.download=`KhunFlow-table-${table.id}.png`;a.href=canvas.toDataURL('image/png');a.click()};image.src=qr
-  }
-  return <Card className={`p-4 ${!table.is_active?'opacity-65':''}`}><div className="flex justify-between gap-2"><div><h2 className="font-bold">{table.name}</h2><p className="text-xs text-gray-500">{table.seats} ที่นั่ง</p></div><span className={`self-start rounded-full px-2 py-1 text-xs ${table.is_active?'bg-green-100 text-green-800':'bg-gray-100 text-gray-700'}`}>{table.is_active?'เปิดรับออเดอร์':'ปิดรับออเดอร์'}</span></div>{qr?<img src={qr} alt={`QR สั่งอาหาร ${table.name}`} width={240} height={240} className="mx-auto my-3 w-full max-w-52"/>:<p role="status" className="my-8 text-center text-sm text-gray-500">{qrError||'กำลังสร้าง QR…'}</p>}<p className="text-center text-xs text-gray-500">ลูกค้าสแกนแล้วสั่งได้ ไม่ต้องมีบัญชี</p>{table.pending_count>0&&<p className="mt-2 text-center text-xs font-semibold text-amber-800">รอพนักงานยืนยัน {table.pending_count} รายการ</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><Button size="sm" variant="outline" onClick={download} disabled={!qr}><Download size={15}/>ดาวน์โหลด QR</Button><a href={url} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-green-800">ดูหน้าเมนู</a></div>{canManage&&<div className="mt-3 flex flex-wrap justify-center gap-2 border-t border-gray-100 pt-3"><Button size="sm" variant="ghost" disabled={disabled} onClick={()=>onEdit(table)}>แก้ไข / เปิด–ปิดโต๊ะ</Button><Button size="sm" variant="ghost" disabled={disabled} onClick={onRotate}>เปลี่ยน QR</Button></div>}</Card>
+    let active=true;let ownedUrl=''
+    setPrintUrl('')
+    const loadImage=(src:string)=>new Promise<HTMLImageElement>((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=src})
+    async function prepare(){
+      try{
+        const [image,brand]=await Promise.all([loadImage(qr),loadImage('/brand/khunflow-icon-180.png')])
+        if(!active)return
+        const canvas=document.createElement('canvas');canvas.width=640;canvas.height=820
+        const ctx=canvas.getContext('2d');if(!ctx)return
+        ctx.fillStyle='#fff';ctx.fillRect(0,0,640,820);ctx.textAlign='center'
+        ctx.fillStyle='#166534';ctx.font='bold 32px Sarabun, sans-serif';ctx.fillText(business,320,65,580)
+        ctx.fillStyle='#111827';ctx.font='bold 38px Sarabun, sans-serif';ctx.fillText(table.name,320,125,580)
+        ctx.drawImage(image,80,150,480,480)
+        ctx.font='25px Sarabun, sans-serif';ctx.fillText('สแกนเพื่อดูเมนูและสั่งอาหาร',320,690,580)
+        ctx.font='20px Sarabun, sans-serif';ctx.fillStyle='#4b5563';ctx.fillText('ไม่ต้องสมัครสมาชิก • กรุณารอพนักงานยืนยัน',320,733,580)
+        ctx.drawImage(brand,244,764,28,28);ctx.textAlign='left';ctx.fillStyle='#087F46';ctx.font='bold 20px Arial, sans-serif';ctx.fillText('KhunFlow',280,785)
+        canvas.toBlob(blob=>{if(!active||!blob)return;ownedUrl=URL.createObjectURL(blob);setPrintUrl(ownedUrl)},'image/png')
+      }catch{if(active)setQrError('เตรียมภาพสำหรับพิมพ์ไม่สำเร็จ กรุณาโหลดหน้าใหม่')}
+    }
+    void prepare()
+    return()=>{active=false;if(ownedUrl)URL.revokeObjectURL(ownedUrl)}
+  },[qr,business,table.name])
+  return <Card className={`p-4 ${!table.is_active?'opacity-65':''}`}><div className="flex justify-between gap-2"><div><h2 className="font-bold">{table.name}</h2><p className="text-xs text-gray-500">{table.seats} ที่นั่ง</p></div><span className={`self-start rounded-full px-2 py-1 text-xs ${table.is_active?'bg-green-100 text-green-800':'bg-gray-100 text-gray-700'}`}>{table.is_active?'เปิดรับออเดอร์':'ปิดรับออเดอร์'}</span></div>{qrError&&<p role="alert" className="mt-2 text-xs text-red-700">{qrError}</p>}{qr?<img src={qr} alt={`QR สั่งอาหาร ${table.name}`} width={240} height={240} className="mx-auto my-3 w-full max-w-52"/>:<p role="status" className="my-8 text-center text-sm text-gray-500">{qrError||'กำลังสร้าง QR…'}</p>}<p className="text-center text-xs text-gray-500">ลูกค้าสแกนแล้วสั่งได้ ไม่ต้องมีบัญชี</p>{table.pending_count>0&&<p className="mt-2 text-center text-xs font-semibold text-amber-800">รอพนักงานยืนยัน {table.pending_count} รายการ</p>}<div className="mt-4 flex flex-wrap justify-center gap-2"><a href={printUrl||undefined} download={`KhunFlow-table-${table.id}.png`} aria-disabled={!printUrl} className={`inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-sm ${!printUrl?'pointer-events-none opacity-50':'hover:bg-gray-50'}`}><Download size={15}/>{printUrl?'ดาวน์โหลด QR':'เตรียมภาพ…'}</a><a href={url} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-green-800">ดูหน้าเมนู</a></div>{canManage&&<div className="mt-3 flex flex-wrap justify-center gap-2 border-t border-gray-100 pt-3"><Button size="sm" variant="ghost" disabled={disabled} onClick={()=>onEdit(table)}>แก้ไข / เปิด–ปิดโต๊ะ</Button><Button size="sm" variant="ghost" disabled={disabled} onClick={onRotate}>เปลี่ยน QR</Button></div>}</Card>
 }
 
 export default function TablesPage(){

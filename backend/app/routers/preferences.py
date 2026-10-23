@@ -23,8 +23,15 @@ class PermissionUpdate(BaseModel):
 async def save_permissions(data: PermissionUpdate, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     # Only the owner may change the authorization policy, regardless of grants.
     if user.role != UserRole.OWNER: raise HTTPException(403, 'เฉพาะเจ้าของร้านเท่านั้นที่ตั้งค่าสิทธิ์ได้')
-    if set(data.roles) != set(DEFAULTS) or any(set(values) != set(KEYS) for values in data.roles.values()):
+    legacy_keys = set(KEYS) - {'product_images'}
+    if set(data.roles) != set(DEFAULTS) or any(set(values) not in (set(KEYS), legacy_keys) for values in data.roles.values()):
         raise HTTPException(422, 'ข้อมูลสิทธิ์ไม่ครบหรือมีบทบาทที่ไม่รองรับ')
+    # Existing clients may still send the matrix from before image permissions.
+    # Keep that shop's current image grant rather than silently resetting it.
+    current = await session.get(BusinessRolePermissions, user.business_id)
+    for role, values in data.roles.items():
+        if 'product_images' not in values:
+            values['product_images'] = permissions_for(current.permissions if current else {}, role)['product_images']
     if not all(data.roles['owner'].values()): raise HTTPException(422, 'ต้องคงสิทธิ์เจ้าของร้านเพื่อจัดการร้านได้')
     stored = await session.get(BusinessRolePermissions, user.business_id)
     if not stored: stored = BusinessRolePermissions(business_id=user.business_id)

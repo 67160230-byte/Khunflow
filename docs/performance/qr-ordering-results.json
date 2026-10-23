@@ -1,0 +1,220 @@
+{
+  "date": "2026-10-23",
+  "database": "isolated PostgreSQL 16 on loopback:55440",
+  "production_writes": false,
+  "passed": 44,
+  "checks": [
+    {
+      "name": "Anonymous menus are scoped to A and B with shop currencies",
+      "passed": true
+    },
+    {
+      "name": "Public menu never includes costs/stock/staff",
+      "passed": true
+    },
+    {
+      "name": "Invalid QR rejected",
+      "passed": true
+    },
+    {
+      "name": "Guest submission pending and does not touch sales or either shop stock",
+      "passed": true
+    },
+    {
+      "name": "Anonymous receipt sees only its own request",
+      "passed": true
+    },
+    {
+      "name": "Receipt cannot be guessed from order number",
+      "passed": true
+    },
+    {
+      "name": "Guest cannot confirm its own order",
+      "passed": true
+    },
+    {
+      "name": "Owner using shop B cannot confirm shop A request",
+      "passed": true
+    },
+    {
+      "name": "Other owner cannot access shop A",
+      "passed": true
+    },
+    {
+      "name": "Shop B inbox does not show shop A order",
+      "passed": true
+    },
+    {
+      "name": "Cashier confirmation creates exactly one sale and deducts 200 ml",
+      "passed": true
+    },
+    {
+      "name": "Repeated acceptance is idempotent",
+      "passed": true
+    },
+    {
+      "name": "Guest sees accepted state and linked sale",
+      "passed": true
+    },
+    {
+      "name": "POS history retains table and customer note",
+      "passed": true
+    },
+    {
+      "name": "Cancellation returns exact stock and guest sees cancelled",
+      "passed": true
+    },
+    {
+      "name": "Restore deducts once and receipt reflects completed",
+      "passed": true
+    },
+    {
+      "name": "Reject gives guest reason without changing stock or sales",
+      "passed": true
+    },
+    {
+      "name": "Rejected request cannot later be accepted",
+      "passed": true
+    },
+    {
+      "name": "Simultaneous duplicate submissions return one request",
+      "passed": true
+    },
+    {
+      "name": "Concurrent confirmations deduct only once",
+      "passed": true
+    },
+    {
+      "name": "Competing orders cannot oversell final stock",
+      "passed": true
+    },
+    {
+      "name": "Insufficient stock rolls back sale and keeps request pending",
+      "passed": true
+    },
+    {
+      "name": "Shop A QR rejects shop B product ID",
+      "passed": true
+    },
+    {
+      "name": "Client cannot override price",
+      "passed": true
+    },
+    {
+      "name": "Changed/wrong currency rejected before submission",
+      "passed": true
+    },
+    {
+      "name": "Quantity limit enforced",
+      "passed": true
+    },
+    {
+      "name": "Note length enforced",
+      "passed": true
+    },
+    {
+      "name": "Closing table blocks new menus, orders and acceptance",
+      "passed": true
+    },
+    {
+      "name": "QR rotation invalidates old menu while existing receipt survives",
+      "passed": true
+    },
+    {
+      "name": "Cashier cannot list, upload or delete images by default",
+      "passed": true
+    },
+    {
+      "name": "Anonymous image upload rejected",
+      "passed": true
+    },
+    {
+      "name": "Image is validated, persisted and served as WebP",
+      "passed": true
+    },
+    {
+      "name": "Guest menu exposes uploaded image URL",
+      "passed": true
+    },
+    {
+      "name": "Shop B menu does not inherit shop A photo",
+      "passed": true
+    },
+    {
+      "name": "Image mutation cannot cross shop boundary",
+      "passed": true
+    },
+    {
+      "name": "SVG, corrupt images and files over 5 MB rejected",
+      "passed": true
+    },
+    {
+      "name": "Failed upload preserves prior photo",
+      "passed": true
+    },
+    {
+      "name": "Owner grant permits cashier upload without a new login",
+      "passed": true
+    },
+    {
+      "name": "Image grant does not grant menu price/catalog editing",
+      "passed": true
+    },
+    {
+      "name": "Image grant is isolated to shop A",
+      "passed": true
+    },
+    {
+      "name": "Manager cannot grant its own permissions",
+      "passed": true
+    },
+    {
+      "name": "Revocation takes effect on next request",
+      "passed": true
+    },
+    {
+      "name": "Removing image clears menu and old version URL",
+      "passed": true
+    },
+    {
+      "name": "Reconnection retains photo and table QR",
+      "passed": true
+    }
+  ],
+  "browser_table_url": "http://localhost:5183/table/pTV5O078j_Lu7JlVTgZfqwnpauQBm5A6lc1qKdrGe0Q",
+  "stock_A_litres": 5.0,
+  "browser_flow": {
+    "guest_without_login": true,
+    "receipt_survives_reload": true,
+    "stock_before_litres": {
+      "A": 5,
+      "B": 5
+    },
+    "stock_pending_litres": {
+      "A": 5,
+      "B": 5
+    },
+    "stock_after_confirmation_litres": {
+      "A": 4.8,
+      "B": 5
+    },
+    "sales_count": [
+      3,
+      3,
+      4
+    ],
+    "photo_upload_UI": true,
+    "photo_loaded_in_guest_page": true,
+    "cashier_image_grant_A_persists": true,
+    "cashier_image_grant_B_remains_false": true,
+    "guest_A_remains_THB_while_staff_selects_B_USD": true,
+    "mobile_content_width_equals_scroll_width": 375,
+    "database_and_API_restart_preserves_photo": true,
+    "branded_QR_download_size": [
+      640,
+      820
+    ],
+    "branded_QR_decodes_to_correct_table": true,
+    "physical_phone_camera_tested": false
+  }
+}

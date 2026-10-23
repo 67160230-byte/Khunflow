@@ -39,7 +39,7 @@ export interface Product {
   grossProfit: number
   grossMargin: number
   status: ProductStatus
-  imageUrl?: string
+  imageUrl?: string | null
   description?: string
   createdAt: string
 }

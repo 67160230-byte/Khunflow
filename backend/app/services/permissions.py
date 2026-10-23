@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-KEYS = ('dashboard', 'products', 'orders', 'inventory', 'stock_count', 'waste', 'purchasing', 'analytics', 'forecast', 'users', 'settings')
+KEYS = ('dashboard', 'products', 'product_images', 'orders', 'inventory', 'stock_count', 'waste', 'purchasing', 'analytics', 'forecast', 'users', 'settings')
 DEFAULTS = {
     'owner': dict.fromkeys(KEYS, True),
     'manager': {key: key != 'settings' for key in KEYS},
@@ -24,4 +24,5 @@ def feature_for(path):
         'purchase-recommendations': 'purchasing', 'analytics': 'analytics', 'forecast': 'forecast',
         'business': 'settings',
         'tables': 'orders', 'table-orders': 'orders',
+        'menu-images': 'product_images',
     }.get(path)

@@ -66,7 +66,7 @@ async function performApi<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T
 }
 const toId = (v: unknown) => String(v ?? '')
-const productFromApi = (p: any): Product => ({ id: toId(p.id), name: p.name, category: p.category, sellingPrice: p.selling_price, foodCost: p.food_cost, grossProfit: p.selling_price - p.food_cost, grossMargin: p.selling_price ? (p.selling_price - p.food_cost) / p.selling_price * 100 : 0, status: p.is_active ? 'active' : 'inactive', description: p.description, createdAt: p.created_at })
+const productFromApi = (p: any): Product => ({ id: toId(p.id), name: p.name, category: p.category, sellingPrice: p.selling_price, foodCost: p.food_cost, grossProfit: p.selling_price - p.food_cost, grossMargin: p.selling_price ? (p.selling_price - p.food_cost) / p.selling_price * 100 : 0, status: p.is_active ? 'active' : 'inactive', description: p.description, createdAt: p.created_at, imageUrl: p.image_version ? `/api/public/menu-images/${p.id}/${p.image_version}` : null })
 const ingredientFromApi = (i: any): Ingredient => {
   const ingredient: Ingredient = { id: toId(i.id), name: i.name, category: i.category, unit: i.unit, currentStock: i.current_stock, minimumStock: i.minimum_stock, averageCost: i.average_cost, stockValue: i.current_stock * i.average_cost, status: 'normal', expirationDate: i.expiration_date, supplierId: toId(i.supplier_id), createdAt: i.created_at }
   const dateParts = new Intl.DateTimeFormat('en', { timeZone: shopTimezone(), year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())

@@ -4,7 +4,7 @@ from typing import Optional, List
 from enum import Enum
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column, JSON
-from sqlalchemy import Index, UniqueConstraint
+from sqlalchemy import Index, UniqueConstraint, LargeBinary
 import secrets
 
 def utc_now() -> datetime:
@@ -158,7 +158,16 @@ class Product(BusinessRecord, table=True):
     food_cost: float = 0.0
     is_active: bool = True
     description: Optional[str] = None
+    image_version: Optional[str] = None
     created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
+
+class ProductImage(BusinessRecord, table=True):
+    __tablename__ = 'product_images'
+    product_id: int = Field(primary_key=True, foreign_key='products.id')
+    business_id: int = Field(foreign_key='businesses.id', index=True)
+    version: str
+    content: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
+    updated_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
 
 class Recipe(BusinessRecord, table=True):
     __tablename__ = "recipes"
