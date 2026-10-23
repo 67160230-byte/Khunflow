@@ -1,0 +1,205 @@
+{
+  "commit": "3453d9d",
+  "database": "isolated SQLite file with foreign keys enabled",
+  "checks": 41,
+  "passed": 41,
+  "production_writes": false,
+  "limitations": [
+    "Database upgrade/startup migrations and concurrent receiving are not exercised by this suite.",
+    "PostgreSQL row-lock behavior is not exercised; Docker Desktop could not start, so this run used a SQLite file."
+  ],
+  "evidence": {
+    "initial_stock": 10,
+    "initial_average": 40,
+    "receipts": [
+      {
+        "quantity": 5,
+        "unit_cost": 52,
+        "total": 260
+      },
+      {
+        "quantity": 3,
+        "unit_cost": 60,
+        "total": 180
+      }
+    ],
+    "final_stock_after_two_self_purchases": 18.0,
+    "expected_average_after_two": 46.666666666666664,
+    "actual_average_after_two": 46.666666666666664,
+    "final_history_count_shop_a": 9,
+    "database_reopened": true
+  },
+  "results": [
+    {
+      "name": "Self purchase with no supplier adds 5 to stock 10",
+      "passed": true,
+      "before": 10,
+      "received": 5,
+      "after": 15.0
+    },
+    {
+      "name": "Weighted average uses stock value, not simple price average",
+      "passed": true,
+      "expected": 44.0,
+      "actual": 44.0
+    },
+    {
+      "name": "Receipt and audit commit without creating a sale",
+      "passed": true
+    },
+    {
+      "name": "Database receipt keeps null supplier, trimmed purchase place, lot, expiry and total",
+      "passed": true
+    },
+    {
+      "name": "Expiry is retained on ingredient",
+      "passed": true
+    },
+    {
+      "name": "Recipe and product cost update with 100 ml / litre conversion",
+      "passed": true
+    },
+    {
+      "name": "Audit records who received self purchase and where it was bought",
+      "passed": true
+    },
+    {
+      "name": "Paged history returns self-purchase source and total",
+      "passed": true
+    },
+    {
+      "name": "Existing unpaged history also returns the saved self purchase",
+      "passed": true
+    },
+    {
+      "name": "Shop-local date filter includes receipt",
+      "passed": true
+    },
+    {
+      "name": "Second self purchase accepts omitted supplier and place",
+      "passed": true,
+      "stock": 18.0,
+      "average": 46.666666666666664
+    },
+    {
+      "name": "Pagination keeps both receipts and summary spans every page",
+      "passed": true
+    },
+    {
+      "name": "Starting from zero stock adopts actual purchase unit cost",
+      "passed": true
+    },
+    {
+      "name": "A valid zero-cost receipt dilutes average correctly",
+      "passed": true
+    },
+    {
+      "name": "Fractional quantity and prices are numerically correct",
+      "passed": true
+    },
+    {
+      "name": "Inventory staff can record self purchase with existing permissions",
+      "passed": true
+    },
+    {
+      "name": "Zero quantity rejected without partial writes",
+      "passed": true
+    },
+    {
+      "name": "Negative quantity rejected without partial writes",
+      "passed": true
+    },
+    {
+      "name": "Negative price rejected without partial writes",
+      "passed": true
+    },
+    {
+      "name": "Invalid supplier zero rejected without partial writes",
+      "passed": true
+    },
+    {
+      "name": "Oversized purchase place rejected without partial writes",
+      "passed": true
+    },
+    {
+      "name": "Wrong-shop ingredient rejected without writes",
+      "passed": true
+    },
+    {
+      "name": "Wrong-shop supplier rejected without writes",
+      "passed": true
+    },
+    {
+      "name": "Anonymous receiving rejected without writes",
+      "passed": true
+    },
+    {
+      "name": "Cashier receiving rejected without writes",
+      "passed": true
+    },
+    {
+      "name": "Other owner cannot write to shop A",
+      "passed": true
+    },
+    {
+      "name": "Owner selecting shop B cannot receive shop A ingredient",
+      "passed": true
+    },
+    {
+      "name": "Recipe recalculation failure rolls back stock, receipt and audit",
+      "passed": true
+    },
+    {
+      "name": "Shop B never sees shop A receiving history",
+      "passed": true
+    },
+    {
+      "name": "Shop B self purchase changes only its own stock and average",
+      "passed": true
+    },
+    {
+      "name": "Shop B receipt is saved only in shop B history",
+      "passed": true
+    },
+    {
+      "name": "Supplier receipt remains supported and does not inherit self-purchase place",
+      "passed": true
+    },
+    {
+      "name": "Self purchase cannot bypass supplier requirement of a PO",
+      "passed": true
+    },
+    {
+      "name": "PO must match the selected supplier",
+      "passed": true
+    },
+    {
+      "name": "Partial supplier receiving keeps PO open",
+      "passed": true
+    },
+    {
+      "name": "Supplier PO over-receipt is rejected without partial writes",
+      "passed": true
+    },
+    {
+      "name": "Completed supplier PO closes normally",
+      "passed": true
+    },
+    {
+      "name": "Completed PO cannot be received again",
+      "passed": true
+    },
+    {
+      "name": "History survives reopening the database pool and a fresh API client",
+      "passed": true
+    },
+    {
+      "name": "Stocks and average costs survive new database connections",
+      "passed": true
+    },
+    {
+      "name": "An independent process reads committed stock and self-purchase history from disk",
+      "passed": true
+    }
+  ]
+}
