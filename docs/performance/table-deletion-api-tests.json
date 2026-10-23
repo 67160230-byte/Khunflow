@@ -1,0 +1,190 @@
+{
+  "commit_under_test": "9e6c30434545498d810c99def0da9d634b28636a",
+  "database": "isolated SQLite file with foreign keys enabled",
+  "production_writes": false,
+  "checks": 41,
+  "passed": 41,
+  "limitations": [
+    "No production table was deleted or restored; browser interaction is not covered by this API suite.",
+    "Startup migration and concurrent PostgreSQL row locking are not exercised."
+  ],
+  "evidence": {
+    "original_sale_id": 1,
+    "original_table_id": 1,
+    "restored_table_id": 1,
+    "old_qr_menu_http": 404,
+    "old_qr_submit_http": 404,
+    "stock_before_order_litres": 5,
+    "stock_after_accept_delete_restore_litres": 4.8,
+    "original_sale_total": 120,
+    "database_reopened": true
+  },
+  "results": [
+    {
+      "name": "Guest order is pending without stock deduction or sale",
+      "passed": true
+    },
+    {
+      "name": "Staff confirmation creates sale and deducts exactly 0.2 L only in A",
+      "passed": true,
+      "sale_id": 1,
+      "stock_after": 4.8
+    },
+    {
+      "name": "Sale history records table, note and total before deletion",
+      "passed": true
+    },
+    {
+      "name": "Anonymous cannot delete shop A table",
+      "passed": true
+    },
+    {
+      "name": "Cashier cannot delete shop A table",
+      "passed": true
+    },
+    {
+      "name": "Inventory staff cannot delete shop A table",
+      "passed": true
+    },
+    {
+      "name": "Other owner cannot delete shop A table",
+      "passed": true
+    },
+    {
+      "name": "Owner selecting B cannot delete A table",
+      "passed": true
+    },
+    {
+      "name": "Pending customer order blocks deletion with no stock or sale change",
+      "passed": true
+    },
+    {
+      "name": "Blocked deletion leaves original QR usable",
+      "passed": true
+    },
+    {
+      "name": "Deleted table disappears from active list and seat count falls by four",
+      "passed": true
+    },
+    {
+      "name": "Deleted view retains same table id, name and seats, closed with a changed QR",
+      "passed": true
+    },
+    {
+      "name": "Original QR cannot open menu or submit a new order",
+      "passed": true
+    },
+    {
+      "name": "Archived QR cannot open menu or submit a new order",
+      "passed": true
+    },
+    {
+      "name": "Deletion preserves sale, order items, stock usage and guest requests",
+      "passed": true
+    },
+    {
+      "name": "POS history is unchanged after deletion",
+      "passed": true
+    },
+    {
+      "name": "Original guest receipt still shows accepted sale after deletion",
+      "passed": true
+    },
+    {
+      "name": "Delete audit is committed once",
+      "passed": true
+    },
+    {
+      "name": "Repeated delete is idempotent and does not rotate QR or duplicate audit",
+      "passed": true
+    },
+    {
+      "name": "Archived table cannot bypass restore by editing or rotating QR",
+      "passed": true
+    },
+    {
+      "name": "Deletion and archived list are isolated from shop B",
+      "passed": true
+    },
+    {
+      "name": "Deletion survives fresh connection pool and API client",
+      "passed": true
+    },
+    {
+      "name": "Sale and stock remain committed after database reopen",
+      "passed": true
+    },
+    {
+      "name": "Anonymous cannot restore shop A table",
+      "passed": true
+    },
+    {
+      "name": "Cashier cannot restore shop A table",
+      "passed": true
+    },
+    {
+      "name": "Inventory staff cannot restore shop A table",
+      "passed": true
+    },
+    {
+      "name": "Other owner cannot restore shop A table",
+      "passed": true
+    },
+    {
+      "name": "Restore cannot cross the selected shop boundary",
+      "passed": true
+    },
+    {
+      "name": "Cashier cannot read archived table management",
+      "passed": true
+    },
+    {
+      "name": "Manager restores original table id, name and seats with a fresh QR",
+      "passed": true
+    },
+    {
+      "name": "Restored table starts closed and moves out of deleted view",
+      "passed": true
+    },
+    {
+      "name": "Restoration alone cannot accept orders until staff opens the table",
+      "passed": true
+    },
+    {
+      "name": "Repeated restore is idempotent with one audit and unchanged QR",
+      "passed": true
+    },
+    {
+      "name": "Restore leaves original history, receipt and stocks unchanged",
+      "passed": true
+    },
+    {
+      "name": "Restored state persists across another database reopen",
+      "passed": true
+    },
+    {
+      "name": "Opening restored table makes only the new QR menu available",
+      "passed": true
+    },
+    {
+      "name": "All old QR codes remain invalid even after restore and reopening",
+      "passed": true
+    },
+    {
+      "name": "New QR submits a real pending order without deducting stock again",
+      "passed": true
+    },
+    {
+      "name": "After rejection table can be deleted and rejected receipt survives",
+      "passed": true
+    },
+    {
+      "name": "Restore refuses to exceed 200 tables and leaves archived state intact",
+      "passed": true
+    },
+    {
+      "name": "Independent process reads committed archive and original sale from disk",
+      "passed": true
+    }
+  ]
+}
