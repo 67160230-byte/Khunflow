@@ -1,0 +1,98 @@
+{
+  "checks": 23,
+  "passed": 23,
+  "results": [
+    {
+      "name": "New shop defaults to THB",
+      "passed": true
+    },
+    {
+      "name": "Shop A displays baht",
+      "passed": true
+    },
+    {
+      "name": "Shop B displays dollars",
+      "passed": true
+    },
+    {
+      "name": "Shop B input unit is USD",
+      "passed": true
+    },
+    {
+      "name": "Switch B to A restores baht",
+      "passed": true
+    },
+    {
+      "name": "Shop A timezone remains Bangkok",
+      "passed": true
+    },
+    {
+      "name": "Switch A to B restores USD",
+      "passed": true
+    },
+    {
+      "name": "Module reload retains selected shop currency",
+      "passed": true
+    },
+    {
+      "name": "Selecting A after simulated sign-in retains THB",
+      "passed": true
+    },
+    {
+      "name": "Demo uses THB independently",
+      "passed": true
+    },
+    {
+      "name": "Leaving demo restores USD without overwriting shop",
+      "passed": true
+    },
+    {
+      "name": "Saving new currency emits refresh event",
+      "passed": true
+    },
+    {
+      "name": "Repeated identical settings do not emit refresh loop",
+      "passed": true
+    },
+    {
+      "name": "Saving B does not change A",
+      "passed": true
+    },
+    {
+      "name": "THB uses Intl currency formatting",
+      "passed": true
+    },
+    {
+      "name": "USD uses Intl currency formatting",
+      "passed": true
+    },
+    {
+      "name": "EUR uses Intl currency formatting",
+      "passed": true
+    },
+    {
+      "name": "JPY uses Intl currency formatting",
+      "passed": true
+    },
+    {
+      "name": "CNY uses Intl currency formatting",
+      "passed": true
+    },
+    {
+      "name": "GBP uses Intl currency formatting",
+      "passed": true
+    },
+    {
+      "name": "SGD uses Intl currency formatting",
+      "passed": true
+    },
+    {
+      "name": "Damaged cache falls back to THB",
+      "passed": true
+    },
+    {
+      "name": "Unsupported cached currency does not crash formatting",
+      "passed": true
+    }
+  ]
+}

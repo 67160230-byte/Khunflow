@@ -1,0 +1,59 @@
+# ตรวจสกุลเงินแยกร้าน
+
+วันที่ 23 ตุลาคม 2026 ตรวจโค้ดแอป `5ca7a7f`
+
+## ขอบเขต
+
+Docker Desktop เปิดไม่สำเร็จ โดยรายงาน Inference manager / dockerInference socket error จึงไม่ได้รัน PostgreSQL จำลองในรอบนี้ ไม่กด factory reset และไม่แก้ข้อมูลร้านจริง
+
+ใช้ Frontend ปัจจุบันและ FastAPI routers/การยืนยันตัวตนจริง โดย override เฉพาะ session ไปยัง SQLite แบบไฟล์ `.venv/currency-check.sqlite` ใช้ร้านและบัญชีสมมติบนเครื่อง ไม่เชื่อมฐาน deployment การสร้าง schema ตอนเริ่มระบบและ SQL aggregate เฉพาะ PostgreSQL อยู่นอกขอบเขตนี้
+
+## ผลตรวจอัตโนมัติ
+
+- `frontend/tests/currency.test.mjs`: **23/23 ผ่าน** ครอบคลุม THB/USD/EUR/JPY/CNY/GBP/SGD, การแยกร้าน, โหลดโมดูลใหม่, demo isolation, event หลังบันทึก และ cache เสีย
+- `backend/tests/test_currency_persistence.py`: **27/27 ผ่าน** ใช้ endpoint/auth จริงกับฐานไฟล์แยก ครอบคลุมบันทึกและอ่านผ่าน session ใหม่ สลับร้าน ออกจากระบบ/เข้าใหม่ reconnect ฐานข้อมูล HTTP client ใหม่ ตรวจสิทธิ์และสกุลเงินที่ไม่รองรับ รวมถึงเลือกเงินตอนสร้างร้าน
+- `frontend/tests/requestPool.test.mjs`: ผ่านการแยกคำขอตามบัญชี ร้าน โหมดเดโม และการยกเลิกคำขอ
+
+ผลดิบ: [formatting](currency-formatting-tests.json), [API](currency-api-tests.json)
+
+## ผลกดใช้งานในเบราว์เซอร์
+
+1. เปิดร้าน A เห็นราคาสินค้า `฿1,250.00`, ต้นทุน `฿250.00` และกำไร `฿1,000.00`
+2. เลือกร้าน B จากเมนูสลับธุรกิจ ราคากลายเป็น `US$1,250.00`, ต้นทุน `US$250.00` และกำไร `US$1,000.00`
+3. เปิดหน้าตั้งค่าร้าน B เลือก EUR และกดบันทึก เห็นข้อความสำเร็จ รหัสเงินด้านบนและข้อมูลร้านเปลี่ยนเป็น EUR
+4. รีเฟรชหน้าตั้งค่า ร้าน B ยังเป็น EUR และตัวอย่างราคาเป็น `€1,250.00`
+5. เปิดหน้าสินค้า เห็นราคา `€1,250.00`, ต้นทุน `€250.00` และกำไร `€1,000.00`
+6. สลับกลับร้าน A ยังเป็น THB และราคาเดิมเป็นบาท
+7. ออกจากระบบและเข้าสู่ระบบใหม่ ปิดแล้วเปิดกระบวนการ API ใหม่โดยใช้ไฟล์ฐานเดิม เลือกร้าน B แล้วยังเป็น EUR และราคาสินค้าเป็นยูโร
+
+ไม่พบข้อผิดพลาดการสลับ/บันทึกสกุลเงินในขอบเขตที่ตรวจ ไม่ได้แปลงอัตราแลกเปลี่ยนหรือเปลี่ยนตัวเลขราคา
+
+## วิธีทำซ้ำ
+
+จาก root ของโครงการ ใช้ virtual environment สำหรับการทดสอบ:
+
+```powershell
+python -m pip --python .venv/Scripts/python.exe install -r backend/tests/requirements-currency.txt
+node frontend/tests/currency.test.mjs
+.venv/Scripts/python.exe backend/tests/test_currency_persistence.py
+```
+
+สำหรับเปิดเว็บตรวจด้วยตนเอง เปิด API ในหน้าต่างแยก:
+
+```powershell
+$env:PYTHONPATH='backend;backend/tests'
+.venv/Scripts/python.exe -m uvicorn currency_harness:app --host 127.0.0.1 --port 18043
+```
+
+แล้วเปิด Frontend อีกหน้าต่าง:
+
+```powershell
+$env:VITE_PROXY_TARGET='http://127.0.0.1:18043'
+npm run dev --prefix frontend -- --host 127.0.0.1 --port 5173
+```
+
+บัญชีใน fixture: `currency-owner@example.com` รหัส `CurrencyFixture123!` เป็นบัญชีสมมติที่ใช้ได้เฉพาะฐานทดสอบนี้ ค่าเริ่มต้นร้าน A เป็น THB และร้าน B เป็น USD แต่การกดบันทึกใน UI จะคงไว้ในไฟล์ฐานทดสอบ การรันชุด API ซ้ำจะตั้งค่าร้าน A/B กลับสู่ baseline ของการทดสอบ
+
+## ข้อจำกัด
+
+ผลนี้ยืนยันพฤติกรรม Frontend และการบันทึกผ่าน API บนฐานไฟล์ทดสอบ ไม่ใช่ผลทดสอบเขียนข้อมูลบน PostgreSQL/Render จริงในรอบนี้ หน้า Dashboard บน fixture ใช้ SQL `timezone()` ที่ SQLite ไม่รองรับ จึงไม่ใช้ผลจากหน้านั้นตัดสินบัคของระบบจริง การตรวจด้วยเบราว์เซอร์ใช้หน้าสินค้าและตั้งค่าร้าน
