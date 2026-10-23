@@ -1,7 +1,7 @@
 import { homeForRole } from '@/services/permissions'
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, UserPlus, LogIn, KeyRound, X, RefreshCw } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Eye, EyeOff, UserPlus, LogIn, KeyRound, X, RefreshCw, ShieldCheck, Store } from 'lucide-react'
 import { BrandMark } from '@/components/BrandLogo'
 
 // Google "G" logo SVG component
@@ -261,7 +261,10 @@ export default function LoginPage() {
           <BrandMark size={64} className="mx-auto mb-3 shadow-md shadow-green-100"/>
           <h1 className="text-2xl font-bold text-[#172D25]">Khun<span className="text-[#087F46]">Flow</span></h1>
           <p className="text-gray-500 text-sm mt-1">ระบบบริหารจัดการต้นทุนและสต็อกร้านอาหาร</p>
+          <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-900"><Store size={15}/>สำหรับเจ้าของร้านและพนักงาน</p>
         </div>
+
+        <nav aria-label="เลือกส่วนที่ต้องการเข้าใช้งาน" className="mb-4 grid grid-cols-2 gap-3"><Link to="/login" aria-current="page" className="rounded-2xl border-2 border-green-600 bg-green-50 p-3 text-green-950"><Store size={21}/><span className="mt-2 block text-sm font-bold">ระบบร้าน</span><span className="mt-1 block text-xs text-green-800">เจ้าของร้าน / พนักงาน</span></Link><Link to="/platform/login" className="rounded-2xl border border-indigo-300 bg-indigo-50 p-3 text-indigo-950 hover:border-indigo-500"><ShieldCheck size={21}/><span className="mt-2 block text-sm font-bold">ผู้ดูแลเว็บไซต์ →</span><span className="mt-1 block text-xs text-indigo-700">หลังบ้านส่วนกลาง</span></Link></nav>
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -319,7 +322,7 @@ export default function LoginPage() {
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">อีเมล</label>
               <input
-                type="email"
+                id="shop-login-email" type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -414,10 +417,11 @@ export default function LoginPage() {
 
           {!isRegister && (
             <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs text-gray-600">
-              <p className="font-semibold text-gray-700 mb-2">เลือกบัญชีตัวอย่างเพื่อเติมอีเมลและรหัสผ่าน</p>
+              <p className="font-semibold text-gray-700 mb-2">บัญชีสำหรับระบบร้าน</p>
+              <button type="button" onClick={()=>{setEmail('');setPassword('');setError('');document.getElementById('shop-login-email')?.focus()}} className="mb-2 w-full rounded-xl border border-green-200 bg-green-50 p-3 text-left"><span className="block font-semibold text-green-900">เจ้าของร้าน</span><span className="block mt-1 text-xs text-green-800">ใช้อีเมลและรหัสผ่านที่สมัครร้านไว้</span></button>
+              <p className="mb-2 text-[11px] text-gray-500">บัญชีพนักงานตัวอย่าง (กดเพื่อเติมข้อมูล)</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {[
-                  { label: 'เจ้าของร้าน', email: 'admin@khumflow.app', password: 'admin1234' },
                   { label: 'ผู้จัดการ', email: 'manager@khumflow.app', password: 'manager1234' },
                   { label: 'พนักงานคลัง', email: 'stock@khumflow.app', password: 'stock1234' },
                   { label: 'แคชเชียร์', email: 'cashier@khumflow.app', password: 'cashier1234' },
@@ -432,6 +436,8 @@ export default function LoginPage() {
             </div>
           )}
         </div>
+
+
 
         <p className="text-center text-xs text-gray-400 mt-4">
           © 2026 KhunFlow

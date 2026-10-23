@@ -3,6 +3,8 @@ import { Component, Suspense, lazy, useLayoutEffect, type ReactNode } from 'reac
 import { LoadingSpinner } from '@/components/ui'
 import { resetApiRequests } from '@/services'
 import { AppLayout } from '@/components/layout/AppLayout'
+import PlatformLayout from '@/components/layout/PlatformLayout'
+const PlatformLoginPage = lazy(() => import('@/pages/platformAdmin/PlatformLoginPage'))
 const LandingPage = lazy(() => import('@/pages/LandingPage'))
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'))
@@ -37,6 +39,11 @@ export default function AppRouter() {
         {/* Public */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/platform/login" element={<PlatformLoginPage />} />
+        <Route path="/platform" element={<PlatformLayout />}>
+          <Route index element={<PlatformAdminPage />} />
+        </Route>
+        <Route path="/app/platform-admin" element={<Navigate to="/platform" replace />} />
         <Route path="/table/:token" element={<GuestMenuPage />} />
 
         {/* Protected App — AppLayout renders <Outlet /> inside */}
@@ -65,7 +72,6 @@ export default function AppRouter() {
           <Route path="settings/roles" element={<RolesPage />} />
           <Route path="settings/business" element={<BusinessInfoPage />} />
           <Route path="settings/audit" element={<AuditPage />} />
-          <Route path="platform-admin" element={<PlatformAdminPage />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Route>
 

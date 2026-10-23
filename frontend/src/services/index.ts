@@ -1,5 +1,6 @@
 import { shopTimezone } from './formatting'
 import { defaultPermissions } from './permissions'
+import { platformApi } from './platformSession'
 import { scopedGet, resetApiRequests } from './requestPool'
 export { resetApiRequests } from './requestPool'
 // ============================================================
@@ -324,14 +325,14 @@ export const businessService = {
 }
 
 export const platformAdminService = {
-  getMe: () => api<{ is_admin: boolean }>('/platform-admin/me'),
-  getAccounts: () => api<Array<{
+  getMe: () => platformApi<{ is_admin: boolean }>('/me'),
+  getAccounts: () => platformApi<Array<{
     id: number; name: string; email: string; created_at: string; is_active: boolean; can_access: boolean; access_reason: string | null;
     businesses: string[]; plan: string; subscription_status: string; subscription_expired: boolean;
     period_ends_at: string | null; note: string | null
-  }>>('/platform-admin/accounts'),
-  updateSubscription: (id: number, data: { plan: string; status: string; period_ends_at: string | null; note: string }) => api<{ message: string }>(`/platform-admin/accounts/${id}/subscription`, { method: 'PUT', body: JSON.stringify(data) }),
-  setAccountAccess: (id: number, isActive: boolean) => api<{ message: string }>(`/platform-admin/accounts/${id}/access`, { method: 'PATCH', body: JSON.stringify({ is_active: isActive }) }),
+  }>>('/accounts'),
+  updateSubscription: (id: number, data: { plan: string; status: string; period_ends_at: string | null; note: string }) => platformApi<{ message: string }>(`/accounts/${id}/subscription`, { method: 'PUT', body: JSON.stringify(data) }),
+  setAccountAccess: (id: number, isActive: boolean) => platformApi<{ message: string }>(`/accounts/${id}/access`, { method: 'PATCH', body: JSON.stringify({ is_active: isActive }) }),
 }
 
 // ── Forecast ──────────────────────────────────────────────────

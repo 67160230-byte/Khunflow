@@ -12,6 +12,7 @@ from app.schemas import (
 from app.services.auth_service import (
     verify_password, get_password_hash, create_access_token, get_current_user,
     ensure_business_subscription,
+    is_platform_admin_email,
 )
 from app.config import settings
 from app.services.auth_service import log_activity
@@ -38,17 +39,30 @@ async def login(req: LoginRequest, session: AsyncSession = Depends(get_session))
             detail="บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ"
         )
 
-    platform_admins = {value.strip().lower() for value in settings.PLATFORM_ADMIN_EMAILS.split(",") if value.strip()}
-    if user.email.lower() not in platform_admins and user.business_id is not None:
+    if is_platform_admin_email(user.email):
+        raise HTTPException(403, 'บัญชีนี้เป็นผู้ดูแลเว็บไซต์ กรุณาใช้ปุ่มผู้ดูแลเว็บไซต์ ไม่ใช่ทางเข้าร้าน')
+    if user.business_id is not None:
         await ensure_business_subscription(session, user.business_id)
 
-    token = create_access_token({"sub": user.email, "role": str(user.role.value if hasattr(user.role, 'value') else user.role)})
+    token = create_access_token({"sub": user.email, "role": str(user.role.value if hasattr(user.role, 'value') else user.role), 'portal':'shop'})
     return Token(
         access_token=token,
         token_type="bearer",
         user_name=user.full_name,
         role=str(user.role.value if hasattr(user.role, 'value') else user.role)
     )
+
+@router.post('/platform-login', response_model=Token, summary='เข้าสู่ระบบผู้ดูแลเว็บไซต์')
+async def platform_login(req: LoginRequest, session: AsyncSession = Depends(get_session)):
+    user = (await session.execute(select(User).where(User.email == str(req.email).strip().lower()))).scalar_one_or_none()
+    if not user or not verify_password(req.password, user.hashed_password):
+        raise HTTPException(400, 'อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+    if not user.is_active:
+        raise HTTPException(403, 'บัญชีนี้ถูกระงับการใช้งาน')
+    if not is_platform_admin_email(user.email):
+        raise HTTPException(403, 'บัญชีนี้เป็นบัญชีร้าน กรุณาใช้ทางเข้าเจ้าของร้านและพนักงาน')
+    token = create_access_token({'sub':user.email, 'role':'platform_admin', 'portal':'platform'})
+    return Token(access_token=token, token_type='bearer', user_name=user.full_name, role='platform_admin')
 
 
 # ── POST /auth/logout ─────────────────────────────────────────────
@@ -69,6 +83,8 @@ async def logout(current_user: User = Depends(get_current_user)):
 @router.post("/register", response_model=UserResponse, summary="สมัครสมาชิก")
 async def register(req: UserCreate, session: AsyncSession = Depends(get_session)):
     email_clean = str(req.email).strip().lower()
+    if is_platform_admin_email(email_clean):
+        raise HTTPException(403, 'อีเมลนี้สงวนสำหรับผู้ดูแลเว็บไซต์ กรุณาใช้อีเมลร้าน')
     stmt = select(User).where(User.email == email_clean)
     res = await session.execute(stmt)
     if res.scalar_one_or_none():
@@ -528,6 +544,8 @@ async def google_callback(
         raise HTTPException(status_code=400, detail="ไม่สามารถดึง email จาก Google ได้")
     if userinfo.get("email_verified") is not True:
         raise HTTPException(status_code=403, detail="Google account email is not verified")
+    if is_platform_admin_email(google_email):
+        return RedirectResponse(url=f'{FRONTEND_URL}/platform/login?error=platform_account')
 
     # Step 3: หา user ในระบบ หรือสร้างใหม่
     user = (await session.execute(
@@ -560,7 +578,7 @@ async def google_callback(
 
     # Step 4: สร้าง JWT token แล้ว redirect กลับ frontend ที่หน้า /login
     role_val = str(user.role.value if hasattr(user.role, 'value') else user.role)
-    jwt_token = create_access_token({"sub": user.email, "role": role_val})
+    jwt_token = create_access_token({"sub": user.email, "role": role_val, 'portal':'shop'})
 
     from urllib.parse import quote
     redirect_url = (

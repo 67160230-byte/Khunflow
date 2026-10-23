@@ -4,7 +4,7 @@ import { currentPermissions, featureForRoute, homeForRole } from '@/services/per
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { businessService, isDemoMode, platformAdminService, resetApiRequests, permissionsService } from '@/services'
+import { businessService, isDemoMode, resetApiRequests, permissionsService } from '@/services'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -114,7 +114,7 @@ function getRoleLabel(roleStr: string): string {
   return 'พนักงาน'
 }
 
-function SidebarContent({ onClose, isPlatformAdmin = false }: { onClose?: () => void; isPlatformAdmin?: boolean }) {
+function SidebarContent({ onClose }: { onClose?: () => void }) {
   const location = useLocation()
   const [collapsed, setCollapsed] = useState<string[]>([])
 
@@ -196,7 +196,6 @@ function SidebarContent({ onClose, isPlatformAdmin = false }: { onClose?: () => 
             </div>
           )
         })}
-        {isPlatformAdmin && <div className="mt-4 border-t border-gray-800 pt-3"><p className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-amber-400">แพลตฟอร์ม</p><Link to="/app/platform-admin" onClick={onClose} className={clsx('flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors', location.pathname === '/app/platform-admin' ? 'bg-amber-600 text-white font-medium' : 'text-gray-300 hover:bg-gray-800 hover:text-white')}><ShieldAlert size={18} /><span>จัดการสมาชิก KhumFlow</span></Link></div>}
       </nav>
 
       {/* Logged in User Profile Footer */}
@@ -308,21 +307,7 @@ export function AppLayout() {
   const [, refreshPermissions] = useState(0)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [demoMode, setDemoMode] = useState(isDemoMode)
-  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
-  const [platformAdminChecked, setPlatformAdminChecked] = useState(false)
   const location = useLocation()
-
-  useEffect(() => {
-    if (demoMode) { setIsPlatformAdmin(false); setPlatformAdminChecked(true); return }
-    platformAdminService.getMe().then(({ is_admin }) => {
-      setIsPlatformAdmin(is_admin)
-      setPlatformAdminChecked(true)
-      const stored = localStorage.getItem('khumflow_user')
-      if (stored) {
-        try { localStorage.setItem('khumflow_user', JSON.stringify({ ...JSON.parse(stored), is_platform_admin: is_admin })) } catch { /* Ignore stale cached user data. */ }
-      }
-    }).catch(() => { setIsPlatformAdmin(false); setPlatformAdminChecked(true) })
-  }, [demoMode])
 
   const currentUser = (() => {
     try {
@@ -337,7 +322,6 @@ export function AppLayout() {
 
   // Check if current route is allowed for this role
   const isRouteAllowed = () => {
-    if (location.pathname === '/app/platform-admin') return isPlatformAdmin && !demoMode
     if (location.pathname === '/app/settings/roles') return userRole === 'owner'
     return !!currentPermissions(userRole)[featureForRoute(location.pathname) || '']
   }
@@ -373,7 +357,7 @@ export function AppLayout() {
   }
 
   if (!localStorage.getItem('khumflow_token') || !currentUser) return <Navigate to="/login" replace state={{ from: location.pathname }} />
-  if (location.pathname === '/app/platform-admin' && !platformAdminChecked) return <div className="p-8 text-sm text-gray-500">กำลังตรวจสอบสิทธิ์ผู้ดูแลแพลตฟอร์ม…</div>
+  if (!demoMode && (currentUser.is_platform_admin || userRole === 'platform_admin')) return <Navigate to="/platform/login" replace />
 
   if (!permissionsReady) return <div className="p-8">กำลังโหลดสิทธิ์การใช้งาน…</div>
   if (!allowed && location.pathname === '/app/dashboard') {
@@ -384,7 +368,7 @@ export function AppLayout() {
     <div className={location.pathname.startsWith('/app/reports') ? 'print-report-layout' : undefined} style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f9fafb' }}>
       {/* Desktop Sidebar */}
       <aside className="hidden lg:block flex-shrink-0">
-        <SidebarContent isPlatformAdmin={isPlatformAdmin && !demoMode} />
+        <SidebarContent />
       </aside>
 
       {/* Mobile overlay */}
@@ -401,7 +385,7 @@ export function AppLayout() {
         className="fixed inset-y-0 left-0 z-50 lg:hidden transition-transform duration-300"
         style={{ transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)' }}
       >
-        <SidebarContent isPlatformAdmin={isPlatformAdmin && !demoMode} onClose={() => setMobileOpen(false)} />
+        <SidebarContent onClose={() => setMobileOpen(false)} />
       </aside>
 
       {/* Main Content */}

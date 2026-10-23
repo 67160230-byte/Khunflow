@@ -75,7 +75,7 @@ export default function PlatformAdminPage() {
   }
 
   return <div className="space-y-6">
-    <SectionHeader title="หลังบ้านผู้ดูแลแพลตฟอร์ม" subtitle="ตรวจสอบบัญชีเจ้าของธุรกิจ แพ็กเกจ รอบชำระ และสถานะการเข้าถึง KhumFlow" />
+    <SectionHeader title="จัดการสมาชิกเว็บไซต์" subtitle="ตรวจสอบบัญชีเจ้าของธุรกิจ แพ็กเกจ รอบชำระ และสถานะการเข้าถึง KhunFlow" />
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
     <div className="grid gap-4 sm:grid-cols-3">
       <Summary icon={<Users size={18} />} label="บัญชีสมาชิก" value={`${accounts.length} บัญชี`} />

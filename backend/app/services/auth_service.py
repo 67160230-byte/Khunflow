@@ -13,6 +13,31 @@ from app.services.permissions import permissions_for, feature_for
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
+def is_platform_admin_email(email: str) -> bool:
+    return email.strip().lower() in {value.strip().lower() for value in settings.PLATFORM_ADMIN_EMAILS.split(',') if value.strip()}
+
+
+async def get_platform_account(token: str = Depends(oauth2_scheme), session: AsyncSession = Depends(get_session)):
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        email = payload.get('sub')
+        if not email:
+            raise JWTError('Missing subject')
+    except JWTError:
+        raise HTTPException(401, 'กรุณาเข้าสู่ระบบผู้ดูแลเว็บไซต์ใหม่', headers={'WWW-Authenticate': 'Bearer'})
+    user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(401, 'บัญชีผู้ดูแลเว็บไซต์ไม่พร้อมใช้งาน')
+    return user, payload.get('portal')
+
+
+async def get_platform_admin(identity=Depends(get_platform_account)) -> User:
+    user, portal = identity
+    # Platform access requires a fresh login through the dedicated portal.
+    if not is_platform_admin_email(user.email) or portal != 'platform':
+        raise HTTPException(403, 'บัญชีนี้ไม่มีสิทธิ์เข้าหลังบ้านผู้ดูแลเว็บไซต์')
+    return user
+
 def require_role(user: User, *roles: UserRole, strict: bool = False) -> None:
     feature = getattr(user, 'permission_feature', None)
     if not strict and feature and hasattr(user, 'permissions'):
@@ -104,11 +129,16 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
+    if payload.get('portal') == 'platform':
+        raise HTTPException(403, 'เซสชันผู้ดูแลเว็บไซต์ใช้เฉพาะหลังบ้าน กรุณาเข้าสู่ระบบด้วยบัญชีร้าน')
+
     stmt = select(User).where(User.email == email)
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
     if user is None or not user.is_active:
         raise credentials_exception
+    if is_platform_admin_email(user.email):
+        raise HTTPException(403, 'บัญชีผู้ดูแลเว็บไซต์แยกจากบัญชีร้าน กรุณาเข้าทางหน้าผู้ดูแลเว็บไซต์')
     requested_business = request.headers.get("x-business-id")
     try:
         active_business_id = int(requested_business) if requested_business else user.business_id
@@ -125,12 +155,9 @@ async def get_current_user(
     if membership is None:
         raise HTTPException(status_code=403, detail="คุณไม่มีสิทธิ์เข้าถึงธุรกิจนี้")
 
-    # Subscription belongs to the business owner account. Staff access is
-    # blocked with the shop when its owner's paid period expires; platform
-    # administrators are exempt so they can restore access from the console.
-    platform_admins = {value.strip().lower() for value in settings.PLATFORM_ADMIN_EMAILS.split(",") if value.strip()}
-    if user.email.lower() not in platform_admins:
-        await ensure_business_subscription(session, active_business_id)
+    # Store sessions follow the shop owner's subscription. Platform sessions
+    # use their own dependency and never enter tenant authorization.
+    await ensure_business_subscription(session, active_business_id)
 
     # Return a request-scoped identity rather than changing User.business_id in
     # the ORM session; that column remains the user's default business.

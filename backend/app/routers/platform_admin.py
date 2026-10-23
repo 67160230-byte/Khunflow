@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func
 from sqlmodel import select
 
 from app.config import settings
@@ -9,7 +10,7 @@ from app.models import (
     Business, BusinessMembership, PlatformAuditLog, PlatformSubscription, User, UserRole,
 )
 from app.schemas import PlatformAccessUpdate, PlatformSubscriptionUpdate
-from app.services.auth_service import get_current_user, subscription_block_reason
+from app.services.auth_service import get_platform_admin, get_platform_account, is_platform_admin_email, subscription_block_reason
 
 router = APIRouter(prefix="/platform-admin", tags=["Platform administration"])
 
@@ -39,20 +40,21 @@ def subscription_expired(subscription: PlatformSubscription | None) -> bool:
 
 
 @router.get("/me")
-async def platform_admin_status(current_user: User = Depends(get_current_user)):
-    return {"is_admin": current_user.email.lower() in platform_admin_emails()}
+async def platform_admin_status(identity=Depends(get_platform_account)):
+    user, portal = identity
+    return {"is_admin": is_platform_admin_email(user.email) and portal == 'platform'}
 
 
 @router.get("/accounts")
 async def list_platform_accounts(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_platform_admin),
     session: AsyncSession = Depends(get_session),
 ):
     require_platform_admin(current_user)
     rows = (await session.execute(
         select(User, PlatformSubscription)
         .join(BusinessMembership, BusinessMembership.user_id == User.id)
-        .where(BusinessMembership.role == UserRole.OWNER)
+        .where(BusinessMembership.role == UserRole.OWNER, func.lower(User.email).notin_(platform_admin_emails()))
         .outerjoin(PlatformSubscription, PlatformSubscription.user_id == User.id)
         .distinct()
         .order_by(User.created_at.desc(), User.id.desc())
@@ -108,7 +110,7 @@ async def list_platform_accounts(
 async def update_platform_subscription(
     user_id: int,
     req: PlatformSubscriptionUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_platform_admin),
     session: AsyncSession = Depends(get_session),
 ):
     require_platform_admin(current_user)
@@ -143,7 +145,7 @@ async def update_platform_subscription(
 async def update_platform_account_access(
     user_id: int,
     req: PlatformAccessUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_platform_admin),
     session: AsyncSession = Depends(get_session),
 ):
     require_platform_admin(current_user)
@@ -166,7 +168,7 @@ async def update_platform_account_access(
 
 @router.get("/audit-logs")
 async def list_platform_audit_logs(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_platform_admin),
     session: AsyncSession = Depends(get_session),
 ):
     require_platform_admin(current_user)
