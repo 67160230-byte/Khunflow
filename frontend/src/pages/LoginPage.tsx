@@ -19,7 +19,7 @@ type ForgotStep = 'email' | 'demo-reset' | 'token' | 'done'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const [isRegister, setIsRegister] = useState(false)
+  const [isRegister, setIsRegister] = useState(() => new URLSearchParams(window.location.search).get('mode') === 'register')
   const [fullName, setFullName] = useState('')
   const [storeName, setStoreName] = useState('')
   const [email, setEmail] = useState('')
