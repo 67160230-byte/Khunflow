@@ -99,11 +99,12 @@ class IngredientUpdate(BaseModel):
     expiration_date: Optional[date] = None
 
 class GoodsReceivingCreate(BaseModel):
-    supplier_id: int
-    purchase_order_id: Optional[int] = None
-    ingredient_id: int
-    quantity: float
-    unit_cost: float
+    supplier_id: Optional[int] = Field(default=None, gt=0)
+    purchase_place: Optional[str] = Field(default=None, max_length=200)
+    purchase_order_id: Optional[int] = Field(default=None, gt=0)
+    ingredient_id: int = Field(gt=0)
+    quantity: float = Field(gt=0, allow_inf_nan=False)
+    unit_cost: float = Field(ge=0, allow_inf_nan=False)
     lot_number: str
     expiration_date: Optional[date] = None
 

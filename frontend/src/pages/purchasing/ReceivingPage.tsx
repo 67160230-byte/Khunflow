@@ -15,6 +15,8 @@ interface ReceiveHistory {
   id: string
   date: string
   supplierName: string
+  sourceType?: string
+  purchasePlace?: string
   ingredientName: string
   quantity: number
   unit: string
@@ -39,6 +41,8 @@ export default function ReceivingPage() {
   const historyPage = usePagedHistory(purchaseOrdersService.getReceivingPaged)
   const { items: history } = historyPage
   const [supplierId, setSupplierId] = useState('')
+  const [source, setSource] = useState<'self_purchase' | 'supplier'>('self_purchase')
+  const [purchasePlace, setPurchasePlace] = useState('')
   const [ingredientId, setIngredientId] = useState('')
   const [quantity, setQuantity] = useState<number | ''>('')
   const [lotNo, setLotNo] = useState('')
@@ -74,25 +78,26 @@ export default function ReceivingPage() {
     event.preventDefault()
     setFormError('')
     setSuccessMsg('')
-    if (!suppliers.length) { setFormError('ยังไม่มีซัพพลายเออร์ กรุณาเพิ่มซัพพลายเออร์ก่อนรับสินค้า'); return }
-    if (!supplierId) { setFormError('กรุณาเลือกผู้ขาย / ซัพพลายเออร์'); return }
+    if (source === 'supplier' && !supplierId) { setFormError('กรุณาเลือกผู้ขาย หรือเปลี่ยนเป็นซื้อมาเติมเอง'); return }
     if (!ingredientId) { setFormError('กรุณาเลือกวัตถุดิบ'); return }
-    if (quantity === '' || Number(quantity) <= 0) { setFormError('จำนวนที่รับต้องมากกว่า 0'); return }
-    if (unitCost === '' || Number(unitCost) < 0) { setFormError('กรุณากรอกราคาซื้อต่อหน่วยให้ถูกต้อง'); return }
+    if (quantity === '' || !Number.isFinite(Number(quantity)) || Number(quantity) <= 0) { setFormError('จำนวนที่รับต้องมากกว่า 0'); return }
+    if (unitCost === '' || !Number.isFinite(Number(unitCost)) || Number(unitCost) < 0) { setFormError('กรุณากรอกราคาซื้อต่อหน่วยให้ถูกต้อง'); return }
     const ingredient = ingredients.find((item) => item.id === ingredientId)
     if (!ingredient) { setFormError('ไม่พบวัตถุดิบที่เลือก กรุณาเลือกใหม่'); return }
     setSaving(true)
     try {
       await purchaseOrdersService.receive({
-        supplierId,
+        supplierId: source === 'supplier' ? supplierId : undefined,
+        purchasePlace: source === 'self_purchase' ? purchasePlace.trim() : undefined,
         ingredientId,
         quantity: Number(quantity),
         unitCost: Number(unitCost),
         lotNumber: lotNo.trim() || `LOT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
         expirationDate,
-        purchaseOrderId: purchaseOrderId || undefined,
+        purchaseOrderId: source === 'supplier' ? purchaseOrderId || undefined : undefined,
       })
-      await historyPage.refresh().catch(() => {})
+      if (historyPage.page !== 1) historyPage.setPage(1)
+      else await historyPage.refresh().catch(() => {})
       try { setIngredients(await inventoryService.getAll()) } catch { setLoadError('รับสินค้าแล้ว แต่โหลดสต็อกล่าสุดไม่สำเร็จ กรุณาลองโหลดหน้าอีกครั้ง') }
       if (purchaseOrderId) {
         try { setPurchaseOrders(await purchaseOrdersService.getOutstanding()) } catch { setLoadError('รับสินค้าแล้ว แต่โหลดใบสั่งซื้อล่าสุดไม่สำเร็จ') }
@@ -116,10 +121,10 @@ export default function ReceivingPage() {
   const previewTotal = Number(quantity || 0) * Number(unitCost || 0)
 
   return <div className="space-y-5">
-    <SectionHeader title="รับสินค้าเข้าคลัง" subtitle="บันทึกวัตถุดิบที่มาส่ง เพื่อเพิ่มสต็อกและปรับต้นทุนเฉลี่ย" />
+    <SectionHeader title="รับสินค้าเข้าคลัง" subtitle="ซื้อมาเติมเองหรือรับจากซัพพลายเออร์ เพื่อเพิ่มสต็อกและปรับต้นทุนเฉลี่ย" />
     <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
       <p className="font-semibold">ทำตาม 3 ขั้นตอน</p>
-      <p className="mt-1 text-xs leading-5 text-blue-800">เลือกผู้ขายและวัตถุดิบ → ใส่จำนวนกับราคาซื้อ → ตรวจยอดแล้วกดยืนยัน ระบบจะเพิ่มสต็อกให้อัตโนมัติ</p>
+      <p className="mt-1 text-xs leading-5 text-blue-800">เลือกวิธีรับของและวัตถุดิบ → ใส่จำนวนกับราคาซื้อ → ตรวจยอดแล้วกดยืนยัน ระบบจะเพิ่มสต็อกให้อัตโนมัติ</p>
     </div>
     <HistoryControls history={historyPage} />
     {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError} <button onClick={() => window.location.reload()} className="font-semibold underline">ลองอีกครั้ง</button></p>}
@@ -133,11 +138,14 @@ export default function ReceivingPage() {
     </div>
 
     <Card className="p-5 sm:p-6">
-      <h3 className="mb-1 flex items-center gap-2 text-base font-bold text-gray-900"><PackageCheck size={19} className="text-green-700" />บันทึกรับของที่มาส่ง</h3>
+      <h3 className="mb-1 flex items-center gap-2 text-base font-bold text-gray-900"><PackageCheck size={19} className="text-green-700" />บันทึกวัตถุดิบเข้าคลัง</h3>
       <p className="mb-5 text-xs text-gray-500">ช่องที่มี * จำเป็นต้องกรอก ส่วนเลขล็อตและวันหมดอายุกรอกเมื่อมีข้อมูล</p>
-      {!suppliers.length && <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><p className="font-semibold">ยังไม่มีซัพพลายเออร์ จึงยังบันทึกรับสินค้าไม่ได้</p><p className="mt-1 text-xs">เพิ่มชื่อผู้ขายก่อน แล้วกลับมาหน้านี้เพื่อรับสินค้า</p><Link to="/app/suppliers" className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-amber-700 px-4 text-sm font-semibold text-white hover:bg-amber-800">ไปเพิ่มซัพพลายเออร์</Link></div>}
+      {source === 'supplier' && !suppliers.length && <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><p className="font-semibold">ยังไม่มีซัพพลายเออร์ในร้านนี้</p><p className="mt-1 text-xs">ซื้อของมาเองได้โดยเลือก “ซื้อมาเติมเอง” หรือเพิ่มซัพพลายเออร์เพื่อบันทึกของที่มาส่ง</p><Link to="/app/suppliers" className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-amber-700 px-4 text-sm font-semibold text-white hover:bg-amber-800">ไปเพิ่มซัพพลายเออร์</Link></div>}
       {!ingredients.length && <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"><p className="font-semibold">ยังไม่มีวัตถุดิบในคลัง</p><p className="mt-1 text-xs">เพิ่มวัตถุดิบก่อน จึงจะรับสินค้าเข้าสต็อกได้</p><Link to="/app/inventory" className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-amber-700 px-4 text-sm font-semibold text-white hover:bg-amber-800">ไปเพิ่มวัตถุดิบ</Link></div>}
       <form onSubmit={handleReceive} className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+        <fieldset className="md:col-span-2"><legend className="mb-2 text-sm font-semibold text-gray-800">วิธีรับวัตถุดิบเข้าคลัง</legend><div className="grid gap-3 sm:grid-cols-2">{([{value:'self_purchase',title:'ซื้อมาเติมเอง',description:'ซื้อจากตลาด ร้านค้า หรือห้าง ไม่ต้องเพิ่มซัพพลายเออร์'},{value:'supplier',title:'รับจากซัพพลายเออร์',description:'เลือกผู้ขายที่บันทึกไว้ และอ้างอิงใบสั่งซื้อได้'}] as const).map(option=><label key={option.value} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${source===option.value?'border-green-600 bg-green-50':'border-gray-200 bg-white'}`}><input type="radio" name="receiving-source" value={option.value} checked={source===option.value} disabled={saving} onChange={()=>{setSource(option.value);setPurchaseOrderId('');setFormError('');setSuccessMsg('')}} className="mt-1 accent-green-700"/><span><span className="block text-sm font-bold text-gray-900">{option.title}</span><span className="mt-1 block text-xs leading-5 text-gray-500">{option.description}</span></span></label>)}</div></fieldset>
+        {source === 'self_purchase' && <div className="md:col-span-2"><Field label="ซื้อจากที่ไหน (ไม่บังคับ)" help="เว้นว่างได้ ไม่จำเป็นต้องมีรายชื่อซัพพลายเออร์ ระบบบันทึกว่าเป็นการซื้อมาเติมเอง"><input maxLength={200} value={purchasePlace} onChange={event=>setPurchasePlace(event.target.value)} placeholder="เช่น แม็คโคร ตลาดสด หรือร้านขายวัตถุดิบ" className={inputClass}/></Field></div>}
+        {source === 'supplier' && <>
         <Field label="ใบสั่งซื้อ (ไม่บังคับ)" help={purchaseOrders.length ? 'เลือกใบสั่งซื้อเพื่อเติมผู้ขายและวัตถุดิบให้อัตโนมัติ' : 'ไม่มีใบสั่งซื้อที่รอรับ สามารถรับของโดยไม่อ้างอิงใบสั่งซื้อได้'}>
           <select value={purchaseOrderId} onChange={(event) => { const order = purchaseOrders.find((item) => item.id === event.target.value); setPurchaseOrderId(event.target.value); const line = order?.items.find(item => (item.remainingQuantity ?? item.quantity) > 0); if (order && line) { setSupplierId(order.supplierId); setIngredientId(line.ingredientId); setQuantity(line.remainingQuantity ?? line.quantity); setUnitCost(line.unitCost) } }} className={inputClass}>
             <option value="">รับของโดยไม่ใช้ใบสั่งซื้อ</option>{purchaseOrders.map((order) => <option key={order.id} value={order.id}>ใบสั่งซื้อ #{order.id} · {order.supplierName}</option>)}
@@ -148,6 +156,7 @@ export default function ReceivingPage() {
             <option value="">เลือกผู้ขาย</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
           </select>
         </Field>
+        </>}
         <Field label="วัตถุดิบที่รับ *" help="ยอดคงเหลือปัจจุบันแสดงไว้ในรายการ">
           <select required value={ingredientId} onChange={(event) => handleIngredientSelect(event.target.value)} className={inputClass} disabled={!ingredients.length}>
             <option value="">เลือกวัตถุดิบ</option>{ingredients.filter(ingredient => !purchaseOrderId || purchaseOrders.find(order => order.id === purchaseOrderId)?.items.some(line => line.ingredientId === ingredient.id && (line.remainingQuantity ?? line.quantity) > 0)).map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} · เหลือ {ingredient.currentStock} {ingredient.unit}</option>)}
@@ -168,15 +177,15 @@ export default function ReceivingPage() {
           <input type="date" value={expirationDate} onChange={(event) => setExpirationDate(event.target.value)} className={inputClass} />
         </Field>
         {selectedIngredient && quantity !== '' && unitCost !== '' && <div className="rounded-xl border border-green-200 bg-green-50 p-4 md:col-span-2"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs text-green-800">ยอดรับเข้ารอบนี้</p><p className="text-lg font-bold text-green-800">{formatBaht(previewTotal)}</p></div><p className="text-xs text-green-800">สต็อกหลังรับ: {(selectedIngredient.currentStock + Number(quantity)).toLocaleString('th-TH')} {selectedIngredient.unit}</p></div></div>}
-        <div className="md:col-span-2"><Button type="submit" className="w-full sm:w-auto" loading={saving} disabled={!suppliers.length || !ingredients.length}>{saving ? 'กำลังบันทึก…' : 'ยืนยันรับสินค้าเข้าคลัง'}</Button></div>
+        <div className="md:col-span-2"><Button type="submit" className="w-full sm:w-auto" loading={saving} disabled={!ingredients.length || (source === 'supplier' && !supplierId)}>{saving ? 'กำลังบันทึก…' : 'ยืนยันรับสินค้าเข้าคลัง'}</Button></div>
       </form>
     </Card>
 
     <Card className="overflow-hidden">
       <div className="p-5 pb-3"><h3 className="text-base font-bold text-gray-900">ประวัติรับสินค้า</h3><p className="mt-1 text-xs text-gray-500">รายการที่บันทึกแล้ว พร้อมจำนวนและมูลค่า</p></div>
       {!history.length ? <div className="px-4 py-12 text-center"><PackageCheck size={30} className="mx-auto text-gray-300" /><p className="mt-3 text-sm font-medium text-gray-600">ยังไม่มีรายการรับสินค้า</p><p className="mt-1 text-xs text-gray-500">เมื่อบันทึกรับของแล้ว ประวัติจะแสดงที่นี่</p></div> : <div className="overflow-x-auto">
-        <table className="w-full min-w-[700px] text-xs"><thead><tr className="border-y border-gray-100 bg-gray-50 text-left text-gray-500"><th className="px-3 py-3">วันรับ</th><th className="px-3 py-3">วัตถุดิบ</th><th className="px-3 py-3">ผู้ขาย / เลขล็อต</th><th className="px-3 py-3 text-right">จำนวน</th><th className="px-3 py-3 text-right">ยอดรวม</th><th className="px-3 py-3">วันหมดอายุ</th></tr></thead>
-          <tbody className="divide-y divide-gray-50">{history.map((item) => <tr key={item.id} className="hover:bg-gray-50"><td className="whitespace-nowrap px-3 py-3 text-gray-600">{new Date(item.date).toLocaleDateString('th-TH', { timeZone: shopTimezone(), day: 'numeric', month: 'short', year: 'numeric' })}</td><td className="px-3 py-3 font-medium text-gray-900">{item.ingredientName}</td><td className="px-3 py-3"><p className="font-medium text-gray-800">{item.supplierName || '—'}</p><p className="font-mono text-[10px] text-gray-400">{item.lotNo}</p></td><td className="px-3 py-3 text-right font-semibold tabular-nums">{item.quantity} {item.unit}</td><td className="px-3 py-3 text-right font-bold text-green-700 tabular-nums">{formatBaht(item.totalCost)}</td><td className="px-3 py-3 text-gray-600">{item.expirationDate || '—'}</td></tr>)}</tbody>
+        <table className="w-full min-w-[700px] text-xs"><thead><tr className="border-y border-gray-100 bg-gray-50 text-left text-gray-500"><th className="px-3 py-3">วันรับ</th><th className="px-3 py-3">วัตถุดิบ</th><th className="px-3 py-3">ที่มา / เลขล็อต</th><th className="px-3 py-3 text-right">จำนวน</th><th className="px-3 py-3 text-right">ยอดรวม</th><th className="px-3 py-3">วันหมดอายุ</th></tr></thead>
+          <tbody className="divide-y divide-gray-50">{history.map((item) => <tr key={item.id} className="hover:bg-gray-50"><td className="whitespace-nowrap px-3 py-3 text-gray-600">{new Date(item.date).toLocaleDateString('th-TH', { timeZone: shopTimezone(), day: 'numeric', month: 'short', year: 'numeric' })}</td><td className="px-3 py-3 font-medium text-gray-900">{item.ingredientName}</td><td className="px-3 py-3"><p className="font-medium text-gray-800">{item.sourceType === 'self_purchase' ? 'ซื้อมาเติมเอง' : item.supplierName || '—'}</p>{item.purchasePlace && <p className="mt-0.5 text-gray-500">{item.purchasePlace}</p>}<p className="font-mono text-[10px] text-gray-400">{item.lotNo}</p></td><td className="px-3 py-3 text-right font-semibold tabular-nums">{item.quantity} {item.unit}</td><td className="px-3 py-3 text-right font-bold text-green-700 tabular-nums">{formatBaht(item.totalCost)}</td><td className="px-3 py-3 text-gray-600">{item.expirationDate || '—'}</td></tr>)}</tbody>
         </table>
       </div>}
     </Card>

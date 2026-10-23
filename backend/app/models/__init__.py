@@ -297,7 +297,8 @@ class PurchaseOrderItem(SQLModel, table=True):
 class GoodsReceiving(BusinessRecord, table=True):
     __tablename__ = "goods_receivings"
     id: Optional[int] = Field(default=None, primary_key=True)
-    supplier_id: int = Field(foreign_key="suppliers.id")
+    supplier_id: Optional[int] = Field(default=None, foreign_key="suppliers.id")
+    purchase_place: Optional[str] = Field(default=None, max_length=200)
     ingredient_id: int = Field(foreign_key="ingredients.id")
     purchase_order_id: Optional[int] = Field(default=None, foreign_key="purchase_orders.id")
     quantity: float

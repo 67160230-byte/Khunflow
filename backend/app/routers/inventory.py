@@ -194,14 +194,20 @@ async def receive_goods(req: GoodsReceivingCreate, current_user: User = Depends(
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.INVENTORY_STAFF)
     if req.quantity <= 0 or req.unit_cost < 0:
         raise HTTPException(status_code=422, detail="จำนวนต้องมากกว่า 0 และต้นทุนห้ามติดลบ")
+    if req.purchase_order_id is not None and req.supplier_id is None:
+        raise HTTPException(status_code=422, detail="การรับตามใบสั่งซื้อต้องระบุซัพพลายเออร์ การซื้อมาเติมเองไม่ใช้ใบสั่งซื้อ")
     ing = (await session.execute(select(Ingredient).where(Ingredient.id == req.ingredient_id, Ingredient.business_id == current_user.business_id).with_for_update())).scalar_one_or_none()
-    supplier = (await session.execute(select(Supplier).where(Supplier.id == req.supplier_id, Supplier.business_id == current_user.business_id))).scalar_one_or_none()
-    if not ing or not supplier:
-        raise HTTPException(status_code=404, detail="ไม่พบวัตถุดิบหรือซัพพลายเออร์ในร้านนี้")
+    if not ing:
+        raise HTTPException(status_code=404, detail="ไม่พบวัตถุดิบในร้านนี้")
+    supplier = None
+    if req.supplier_id is not None:
+        supplier = (await session.execute(select(Supplier).where(Supplier.id == req.supplier_id, Supplier.business_id == current_user.business_id))).scalar_one_or_none()
+        if not supplier:
+            raise HTTPException(status_code=404, detail="ไม่พบซัพพลายเออร์ในร้านนี้")
     purchase_order = None
     if req.purchase_order_id is not None:
         purchase_order = (await session.execute(select(PurchaseOrder).where(PurchaseOrder.id == req.purchase_order_id, PurchaseOrder.business_id == current_user.business_id).with_for_update())).scalar_one_or_none()
-        if not purchase_order or purchase_order.status != POStatus.ORDERED or purchase_order.supplier_id != supplier.id:
+        if not purchase_order or purchase_order.status != POStatus.ORDERED or purchase_order.supplier_id != req.supplier_id:
             raise HTTPException(status_code=409, detail="ใบสั่งซื้อไม่อยู่ในสถานะรับสินค้า หรือซัพพลายเออร์ไม่ตรงกัน")
         ordered_qty = (await session.execute(select(func.sum(PurchaseOrderItem.quantity)).where(PurchaseOrderItem.po_id == purchase_order.id, PurchaseOrderItem.ingredient_id == ing.id))).scalar_one()
         received_qty = (await session.execute(select(func.coalesce(func.sum(GoodsReceiving.quantity), 0)).where(GoodsReceiving.purchase_order_id == purchase_order.id, GoodsReceiving.ingredient_id == ing.id, GoodsReceiving.business_id == current_user.business_id))).scalar_one()
@@ -209,6 +215,7 @@ async def receive_goods(req: GoodsReceivingCreate, current_user: User = Depends(
             raise HTTPException(status_code=422, detail="จำนวนรับต้องไม่เกินจำนวนคงเหลือในใบสั่งซื้อ")
     rc = GoodsReceiving(
         supplier_id=req.supplier_id,
+        purchase_place=((req.purchase_place or '').strip() or None) if req.supplier_id is None else None,
         ingredient_id=req.ingredient_id,
         purchase_order_id=req.purchase_order_id,
         quantity=req.quantity,
@@ -239,7 +246,8 @@ async def receive_goods(req: GoodsReceivingCreate, current_user: User = Depends(
         received = dict((await session.execute(select(GoodsReceiving.ingredient_id, func.sum(GoodsReceiving.quantity)).where(GoodsReceiving.purchase_order_id == purchase_order.id, GoodsReceiving.business_id == current_user.business_id).group_by(GoodsReceiving.ingredient_id))).all())
         if all(received.get(key, 0) + 1e-9 >= qty for key, qty in ordered.items()):
             purchase_order.status = POStatus.RECEIVED
-    log_activity(session, current_user, "receive", "goods", rc.id, f"{req.quantity} {ing.unit}; มูลค่า {rc.total_cost:.2f}")
+    source = f"ซัพพลายเออร์: {supplier.name}" if supplier else "ซื้อมาเติมเอง" + (f" จาก {rc.purchase_place}" if rc.purchase_place else "")
+    log_activity(session, current_user, "receive", "goods", rc.id, f"{source}; {req.quantity} {ing.unit}; มูลค่า {rc.total_cost:.2f}")
         
     await session.commit()
     return {"message": "รับสินค้าเข้าคลังและปรับปรุงสต็อกสำเร็จ", "current_stock": ing.current_stock}

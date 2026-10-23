@@ -285,10 +285,11 @@ export const purchaseOrdersService = {
     return (await api<any[]>('/purchase-orders')).map(purchaseFromApi)
   },
   create: async (supplierId: string, items: Array<{ ingredientId: string; quantity: number; unitCost: number; unit?: Ingredient['unit'] }>) => api('/purchase-orders', { method: 'POST', body: JSON.stringify({ supplier_id: Number(supplierId), items: items.map((i) => ({ ingredient_id: Number(i.ingredientId), quantity: i.quantity, unit_cost: i.unitCost, unit: i.unit })) }) }),
-  receive: async (data: { supplierId: string; ingredientId: string; quantity: number; unitCost: number; lotNumber: string; expirationDate?: string; purchaseOrderId?: string }) => api('/receiving', { method: 'POST', body: JSON.stringify({ supplier_id: Number(data.supplierId), ingredient_id: Number(data.ingredientId), purchase_order_id: data.purchaseOrderId ? Number(data.purchaseOrderId) : null, quantity: data.quantity, unit_cost: data.unitCost, lot_number: data.lotNumber, expiration_date: data.expirationDate || null }) }),
+  receive: async (data: { supplierId?: string; purchasePlace?: string; ingredientId: string; quantity: number; unitCost: number; lotNumber: string; expirationDate?: string; purchaseOrderId?: string }) => api('/receiving', { method: 'POST', body: JSON.stringify({ supplier_id: data.supplierId ? Number(data.supplierId) : null, purchase_place: data.supplierId ? null : data.purchasePlace?.trim() || null, ingredient_id: Number(data.ingredientId), purchase_order_id: data.purchaseOrderId ? Number(data.purchaseOrderId) : null, quantity: data.quantity, unit_cost: data.unitCost, lot_number: data.lotNumber, expiration_date: data.expirationDate || null }) }),
   getReceiving: async () => isDemoMode() ? demoCopy([
-    { id: 'gr1', date: '2026-08-28T09:30:00', supplierName: 'บริษัท กาแฟไทย จำกัด', ingredientName: 'เมล็ดกาแฟ Arabica', quantity: 5, unit: 'kg', lotNo: 'LOT-260828', expirationDate: '2027-02-28', unitCost: 800, totalCost: 4000 },
-    { id: 'gr2', date: '2026-08-27T14:15:00', supplierName: 'ฟาร์มนมสด ชนบท', ingredientName: 'นมสด', quantity: 20, unit: 'l', lotNo: 'MILK-260827', expirationDate: '2026-09-03', unitCost: 45, totalCost: 900 },
+    { id: 'gr1', date: '2026-08-28T09:30:00', supplierName: 'บริษัท กาแฟไทย จำกัด', sourceType: 'supplier', purchasePlace: '', ingredientName: 'เมล็ดกาแฟ Arabica', quantity: 5, unit: 'kg', lotNo: 'LOT-260828', expirationDate: '2027-02-28', unitCost: 800, totalCost: 4000 },
+    { id: 'gr3', date: '2026-08-28T12:00:00', supplierName: 'ซื้อมาเติมเอง', sourceType: 'self_purchase', purchasePlace: 'ตลาดใกล้ร้าน (ตัวอย่าง)', ingredientName: 'นมสด', quantity: 2, unit: 'l', lotNo: 'SELF-260828', expirationDate: '2026-09-03', unitCost: 50, totalCost: 100 },
+    { id: 'gr2', date: '2026-08-27T14:15:00', supplierName: 'ฟาร์มนมสด ชนบท', sourceType: 'supplier', purchasePlace: '', ingredientName: 'นมสด', quantity: 20, unit: 'l', lotNo: 'MILK-260827', expirationDate: '2026-09-03', unitCost: 45, totalCost: 900 },
   ]) : (await api<any[]>('/receiving')).map(receivingFromApi),
 }
 
@@ -357,7 +358,7 @@ const wasteFromApi = (w: any): WasteRecord => ({ id: toId(w.id), ingredientId: t
 
 const purchaseFromApi = (p: any): PurchaseOrder => ({ id: toId(p.id), supplierId: toId(p.supplier_id), supplierName: p.supplier_name || `ซัพพลายเออร์ #${p.supplier_id}`, items: (p.items || []).map((i: any) => ({ ingredientId: toId(i.ingredient_id), ingredientName: i.ingredient_name, quantity: i.quantity, remainingQuantity: i.remaining_quantity, unit: i.unit, unitCost: i.unit_cost, totalCost: i.total_cost })), totalCost: p.total_cost, status: p.status, canReopen: p.can_reopen, orderDate: p.order_date })
 
-const receivingFromApi = (r: any) => ({ id: toId(r.id), date: r.created_at, supplierName: r.supplier_name, ingredientName: r.ingredient_name, quantity: r.quantity, unit: r.unit, lotNo: r.lot_number, expirationDate: r.expiration_date || '—', unitCost: r.unit_cost, totalCost: r.total_cost })
+const receivingFromApi = (r: any) => ({ id: toId(r.id), date: r.created_at, supplierName: r.supplier_name, sourceType: r.source_type || 'supplier', purchasePlace: r.purchase_place || '', ingredientName: r.ingredient_name, quantity: r.quantity, unit: r.unit, lotNo: r.lot_number, expirationDate: r.expiration_date || '—', unitCost: r.unit_cost, totalCost: r.total_cost })
 
 const auditFromApi = (log: any) => ({ id: toId(log.id), ts: log.created_at, user: log.user, action: (({ create: 'สร้าง', receive: 'รับเข้า' } as Record<string, string>)[log.action] || log.action) + ` ${log.type} #${log.entity_id || ''}`, type: log.type, detail: log.detail })
 

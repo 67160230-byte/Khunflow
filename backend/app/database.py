@@ -51,6 +51,10 @@ async def init_db():
             ON CONFLICT (user_id, business_id) DO NOTHING
         """))
         await conn.execute(text('ALTER TABLE goods_receivings ADD COLUMN IF NOT EXISTS purchase_order_id INTEGER REFERENCES purchase_orders(id)'))
+        # Self-purchased stock does not require creating a fictitious supplier.
+        # Keep existing receipts and their supplier foreign keys intact.
+        await conn.execute(text('ALTER TABLE goods_receivings ALTER COLUMN supplier_id DROP NOT NULL'))
+        await conn.execute(text('ALTER TABLE goods_receivings ADD COLUMN IF NOT EXISTS purchase_place VARCHAR(200)'))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS timezone VARCHAR NOT NULL DEFAULT 'Asia/Bangkok'"))
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

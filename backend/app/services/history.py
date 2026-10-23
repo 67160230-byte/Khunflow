@@ -63,8 +63,9 @@ async def waste_payload(session, rows, business_id):
 async def receiving_payload(session, rows, business_id):
     if not rows: return []
     ingredients = {i.id: i for i in (await session.execute(select(Ingredient).where(Ingredient.business_id == business_id, Ingredient.id.in_({r.ingredient_id for r in rows})))).scalars().all()}
-    suppliers = dict((await session.execute(select(Supplier.id, Supplier.name).where(Supplier.business_id == business_id, Supplier.id.in_({r.supplier_id for r in rows})))).all())
-    return [{'id': r.id, 'created_at': r.received_at, 'supplier_name': suppliers.get(r.supplier_id, ''), 'ingredient_name': ingredients[r.ingredient_id].name if r.ingredient_id in ingredients else '', 'quantity': r.quantity, 'unit': ingredients[r.ingredient_id].unit if r.ingredient_id in ingredients else '', 'lot_number': r.lot_number, 'expiration_date': r.expiration_date, 'unit_cost': r.unit_cost, 'total_cost': r.total_cost} for r in rows]
+    supplier_ids = {r.supplier_id for r in rows if r.supplier_id is not None}
+    suppliers = dict((await session.execute(select(Supplier.id, Supplier.name).where(Supplier.business_id == business_id, Supplier.id.in_(supplier_ids)))).all()) if supplier_ids else {}
+    return [{'id': r.id, 'created_at': r.received_at, 'supplier_name': suppliers.get(r.supplier_id, '') if r.supplier_id is not None else 'ซื้อมาเติมเอง', 'source_type': 'supplier' if r.supplier_id is not None else 'self_purchase', 'purchase_place': r.purchase_place, 'ingredient_name': ingredients[r.ingredient_id].name if r.ingredient_id in ingredients else '', 'quantity': r.quantity, 'unit': ingredients[r.ingredient_id].unit if r.ingredient_id in ingredients else '', 'lot_number': r.lot_number, 'expiration_date': r.expiration_date, 'unit_cost': r.unit_cost, 'total_cost': r.total_cost} for r in rows]
 
 
 async def purchase_payload(session, rows, business_id):
