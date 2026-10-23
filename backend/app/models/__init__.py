@@ -4,6 +4,8 @@ from typing import Optional, List
 from enum import Enum
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column, JSON
+from sqlalchemy import Index, UniqueConstraint
+import secrets
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -200,6 +202,39 @@ class OrderStockUsage(SQLModel, table=True):
     order_id: int = Field(foreign_key="orders.id", index=True)
     ingredient_id: int = Field(foreign_key="ingredients.id")
     quantity: float  # exact amount deducted, in the ingredient's stock unit
+
+class DiningTable(BusinessRecord, table=True):
+    __tablename__ = 'dining_tables'
+    business_id: int = Field(foreign_key='businesses.id', index=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    seats: int = 4
+    qr_token: str = Field(default_factory=lambda: secrets.token_urlsafe(32), unique=True, index=True)
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
+
+class TableOrderRequest(BusinessRecord, table=True):
+    __tablename__ = 'table_order_requests'
+    __table_args__ = (
+        UniqueConstraint('table_id', 'request_key', name='uq_table_order_request_key'),
+        Index('ix_table_order_queue', 'business_id', 'status', 'created_at', 'id'),
+        Index('ix_table_order_recent', 'table_id', 'created_at'),
+    )
+    business_id: int = Field(foreign_key='businesses.id', index=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    table_id: int = Field(foreign_key='dining_tables.id', index=True)
+    table_name: str
+    request_key: str
+    receipt_token: str = Field(default_factory=lambda: secrets.token_urlsafe(32), unique=True, index=True)
+    items: list = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    total_amount: float
+    currency: str = 'THB'
+    note: str = ''
+    status: str = Field(default='pending', index=True)
+    rejection_reason: Optional[str] = None
+    confirmed_order_id: Optional[int] = Field(default=None, foreign_key='orders.id', unique=True, index=True)
+    created_at: datetime = Field(default_factory=utc_now, sa_type=UTCNaiveDateTime)
+    processed_at: Optional[datetime] = Field(default=None, sa_type=UTCNaiveDateTime)
 
 # ── Waste & Stock Count ───────────────────────────────────────
 class WasteRecord(BusinessRecord, table=True):

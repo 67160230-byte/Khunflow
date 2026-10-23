@@ -2,6 +2,7 @@ import { shopTimezone } from '@/services/formatting'
 import { formatMoney } from '@/services/formatting'
 import { usePagedHistory } from '@/hooks/usePagedHistory'
 import HistoryControls from '@/components/HistoryControls'
+import TableOrderInbox from '@/components/TableOrderInbox'
 import { useState, useEffect } from 'react'
 import { ordersService, productsService } from '@/services'
 import type { Order, Product, ProductCategory } from '@/types'
@@ -185,6 +186,7 @@ export default function OrdersPage() {
           </Button>
         }
       />
+      <TableOrderInbox onAccepted={() => { setToastMessage('รับออเดอร์จากโต๊ะแล้ว บันทึกยอดขายและตัดสต็อกแล้ว'); void history.refresh().catch(() => setActionError('รับออเดอร์แล้ว แต่โหลดประวัติไม่สำเร็จ กรุณากดโหลดใหม่')) }} />
       <HistoryControls history={history} />
     {loadError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError} <button onClick={() => window.location.reload()} className="font-semibold underline">ลองอีกครั้ง</button></p>}
       {actionError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{actionError}</p>}
@@ -236,7 +238,7 @@ export default function OrdersPage() {
               <tbody className="divide-y divide-gray-50">
                 {orders.map((ord) => (
                   <tr key={ord.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-green-800">#{ord.id}</td>
+                    <td className="px-4 py-3 font-semibold text-green-800">#{ord.id}{ord.tableName && <span className="mt-1 block text-xs font-normal text-gray-500">{ord.tableName} · QR</span>}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
                       {new Date(ord.date).toLocaleTimeString('th-TH', { timeZone: shopTimezone(), hour: '2-digit', minute: '2-digit' })} น.
                     </td>
@@ -246,6 +248,7 @@ export default function OrdersPage() {
                           {it.productName} × {it.quantity}
                         </span>
                       ))}
+                      {ord.customerNote && <p className="mt-1 max-w-xs whitespace-pre-wrap break-words text-xs text-gray-500">หมายเหตุ: {ord.customerNote}</p>}
                     </td>
                     <td className={`px-4 py-3 text-right font-bold tabular-nums ${ord.status === 'cancelled' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                       {formatBaht(ord.total)}

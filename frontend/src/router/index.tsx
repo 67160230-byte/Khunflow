@@ -12,6 +12,8 @@ const InventoryPage = lazy(() => import('@/pages/inventory/InventoryPage'))
 const StockCountPage = lazy(() => import('@/pages/stockCount/StockCountPage'))
 const WastePage = lazy(() => import('@/pages/waste/WastePage'))
 const OrdersPage = lazy(() => import('@/pages/orders/OrdersPage'))
+const TablesPage = lazy(() => import('@/pages/tables/TablesPage'))
+const GuestMenuPage = lazy(() => import('@/pages/tables/GuestMenuPage'))
 const ReceivingPage = lazy(() => import('@/pages/purchasing/ReceivingPage'))
 const SuppliersPage = lazy(() => import('@/pages/purchasing/PurchasingPages').then((module) => ({ default: module.SuppliersPage })))
 const PurchaseOrdersPage = lazy(() => import('@/pages/purchasing/PurchasingPages').then((module) => ({ default: module.PurchaseOrdersPage })))
@@ -34,12 +36,14 @@ export default function AppRouter() {
         {/* Public */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/table/:token" element={<GuestMenuPage />} />
 
         {/* Protected App — AppLayout renders <Outlet /> inside */}
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="orders" element={<OrdersPage />} />
+          <Route path="tables" element={<TablesPage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="recipes" element={<RecipesPage />} />
           <Route path="inventory" element={<InventoryPage />} />

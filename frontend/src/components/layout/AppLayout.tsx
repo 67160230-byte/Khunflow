@@ -7,6 +7,7 @@ import { businessService, isDemoMode, platformAdminService, resetApiRequests, pe
 import {
   LayoutDashboard,
   ShoppingCart,
+  QrCode,
   Package,
   BookOpen,
   Warehouse,
@@ -56,6 +57,7 @@ const allNavSections: NavSection[] = [
     section: 'การดำเนินงาน',
     items: [
       { label: 'คำสั่งซื้อ (POS)', path: '/app/orders', icon: <ShoppingCart size={18} />, roles: ['owner', 'manager', 'cashier', 'admin'] },
+      { label: 'โต๊ะ & QR สั่งอาหาร', path: '/app/tables', icon: <QrCode size={18} /> },
       { label: 'สินค้า', path: '/app/products', icon: <Package size={18} />, roles: ['owner', 'manager', 'admin'] },
       { label: 'สูตรอาหาร', path: '/app/recipes', icon: <BookOpen size={18} />, roles: ['owner', 'manager', 'admin'] },
       { label: 'คลังวัตถุดิบ', path: '/app/inventory', icon: <Warehouse size={18} />, roles: ['owner', 'manager', 'inventory_staff', 'stock', 'admin'] },

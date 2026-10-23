@@ -32,7 +32,7 @@ import {
 const API_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || '')
 export const isDemoMode = () => localStorage.getItem('khumflow_demo_mode') === 'true'
 const demoCopy = <T,>(data: T): T => structuredClone(data)
-async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const method = (init.method || 'GET').toUpperCase()
   if (method === 'GET' && !init.signal) {
     const scope = JSON.stringify([localStorage.getItem('khumflow_token'), localStorage.getItem('khumflow_business_id'), isDemoMode()])
@@ -350,7 +350,7 @@ export const recommendationsService = {
   },
 }
 
-const orderFromApi = (o: any): Order => ({ id: toId(o.id), date: o.created_at, items: o.items.map((i: any) => ({ productId: toId(i.product_id), productName: i.product_name, quantity: i.quantity, unitPrice: i.unit_price, subtotal: i.subtotal })), total: o.total_amount, status: o.status, staffId: toId(o.staff_id), staffName: '' })
+const orderFromApi = (o: any): Order => ({ id: toId(o.id), date: o.created_at, items: o.items.map((i: any) => ({ productId: toId(i.product_id), productName: i.product_name, quantity: i.quantity, unitPrice: i.unit_price, subtotal: i.subtotal })), total: o.total_amount, status: o.status, staffId: toId(o.staff_id), staffName: '', tableName: o.table_name, customerNote: o.customer_note })
 
 const wasteFromApi = (w: any): WasteRecord => ({ id: toId(w.id), ingredientId: toId(w.ingredient_id), ingredientName: w.ingredient_name, quantity: w.quantity, unit: w.unit, reason: w.reason, cost: w.cost, note: w.note, date: w.created_at, staffId: toId(w.staff_id), staffName: w.staff_name })
 

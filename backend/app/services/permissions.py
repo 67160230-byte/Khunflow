@@ -23,4 +23,5 @@ def feature_for(path):
         'waste': 'waste', 'suppliers': 'purchasing', 'purchase-orders': 'purchasing',
         'purchase-recommendations': 'purchasing', 'analytics': 'analytics', 'forecast': 'forecast',
         'business': 'settings',
+        'tables': 'orders', 'table-orders': 'orders',
     }.get(path)

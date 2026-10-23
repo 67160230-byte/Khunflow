@@ -1,3 +1,4 @@
+from app.services.sales_orders import build_sales_order
 from app.services.analytics import sold_quantities, dashboard_data
 from app.services.history import business_timezone
 from app.services.history import history_rows, orders_payload, waste_payload, receiving_payload, purchase_payload, audit_payload
@@ -100,59 +101,9 @@ async def stock_variance(current_user: User = Depends(get_current_user), session
 @router.post("/orders")
 async def create_order(req: OrderCreate, current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     require_role(current_user, UserRole.OWNER, UserRole.MANAGER, UserRole.CASHIER)
-    if not req.items:
-        raise HTTPException(status_code=422, detail="กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ")
-    total_amount = 0.0
-    order = Order(business_id=current_user.business_id, staff_id=current_user.id)
-    session.add(order)
-    await session.flush()
-    
-    for item in req.items:
-        if item.quantity <= 0: raise HTTPException(status_code=422, detail="จำนวนสินค้าต้องมากกว่า 0")
-        stmt = select(Product).where(Product.id == item.product_id, Product.business_id == current_user.business_id, Product.is_active == True)
-        res = await session.execute(stmt)
-        prod = res.scalar_one_or_none()
-        if not prod:
-            raise HTTPException(status_code=404, detail="ไม่พบสินค้าในร้านนี้")
-            
-        subtotal = prod.selling_price * item.quantity
-        total_amount += subtotal
-        
-        ord_item = OrderItem(
-            order_id=order.id,
-            product_id=prod.id,
-            quantity=item.quantity,
-            unit_price=prod.selling_price,
-            subtotal=subtotal
-        )
-        session.add(ord_item)
-        
-        # Expected Usage Stock Deduction
-        r_stmt = select(Recipe).where(Recipe.product_id == prod.id)
-        r_res = await session.execute(r_stmt)
-        recipe = r_res.scalar_one_or_none()
-        if recipe:
-            items_stmt = select(RecipeItem).where(RecipeItem.recipe_id == recipe.id)
-            items_res = await session.execute(items_stmt)
-            recipe_items = items_res.scalars().all()
-            for ri in recipe_items:
-                ing_stmt = select(Ingredient).where(Ingredient.id == ri.ingredient_id, Ingredient.business_id == current_user.business_id)
-                ing_res = await session.execute(ing_stmt)
-                ing = ing_res.scalar_one_or_none()
-                if ing:
-                    # Deduct stock based on recipe (convert grams to kg if needed)
-                    used_qty = convert_quantity(ri.quantity, ri.unit, ing.unit) * item.quantity
-                    if ing.current_stock < used_qty:
-                        raise HTTPException(status_code=409, detail=f"วัตถุดิบ {ing.name} มีไม่พอสำหรับออเดอร์นี้")
-                    ing.current_stock -= used_qty
-                    session.add(ing)
-                    session.add(OrderStockUsage(order_id=order.id, ingredient_id=ing.id, quantity=used_qty))
-
-    order.total_amount = total_amount
-    session.add(order)
-    log_activity(session, current_user, "create", "order", order.id, f"ยอดรวม {total_amount:.2f}")
+    order = await build_sales_order(session, current_user, req.items)
     await session.commit()
-    return {"message": "บันทึกออเดอร์และตัดสต็อกตามสูตรอาหารสำเร็จ", "order_id": order.id, "total": total_amount}
+    return {"message": "บันทึกออเดอร์และตัดสต็อกตามสูตรอาหารสำเร็จ", "order_id": order.id, "total": order.total_amount}
 
 @router.get("/orders")
 async def list_orders(current_user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
@@ -177,7 +128,7 @@ async def cancel_order(order_id: int, req: OrderCancelRequest, current_user: Use
         raise HTTPException(status_code=409, detail="ยกเลิกได้เฉพาะออเดอร์ที่เสร็จสมบูรณ์")
 
     usage_rows = (await session.execute(
-        select(OrderStockUsage).where(OrderStockUsage.order_id == order.id)
+        select(OrderStockUsage).where(OrderStockUsage.order_id == order.id).order_by(OrderStockUsage.ingredient_id)
     )).scalars().all()
     if not usage_rows:
         # Older orders did not snapshot the quantities deducted at sale time.
@@ -189,7 +140,7 @@ async def cancel_order(order_id: int, req: OrderCancelRequest, current_user: Use
 
     for usage in usage_rows:
         ingredient = (await session.execute(
-            select(Ingredient).where(Ingredient.id == usage.ingredient_id, Ingredient.business_id == current_user.business_id)
+            select(Ingredient).where(Ingredient.id == usage.ingredient_id, Ingredient.business_id == current_user.business_id).with_for_update()
         )).scalar_one_or_none()
         if not ingredient:
             raise HTTPException(status_code=409, detail="ไม่พบวัตถุดิบที่ต้องคืนสต็อก กรุณาตรวจสอบคลังวัตถุดิบก่อน")
@@ -214,7 +165,7 @@ async def restore_order(order_id: int, current_user: User = Depends(get_current_
         raise HTTPException(status_code=409, detail="รีเซ็ตกลับได้เฉพาะออเดอร์ที่ยกเลิกแล้ว")
 
     usage_rows = (await session.execute(
-        select(OrderStockUsage).where(OrderStockUsage.order_id == order.id)
+        select(OrderStockUsage).where(OrderStockUsage.order_id == order.id).order_by(OrderStockUsage.ingredient_id)
     )).scalars().all()
     quantities_by_ingredient: dict[int, float] = {}
     for usage in usage_rows:

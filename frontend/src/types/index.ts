@@ -104,6 +104,8 @@ export interface Order {
   status: OrderStatus
   staffId: string
   staffName: string
+  tableName?: string
+  customerNote?: string
 }
 
 // ── Inventory Transaction ─────────────────────────────────────

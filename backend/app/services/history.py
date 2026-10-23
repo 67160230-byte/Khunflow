@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlmodel import select
 from app.models import (Business, Order, OrderItem, Product, Ingredient, User,
-    WasteRecord, GoodsReceiving, Supplier, PurchaseOrder, PurchaseOrderItem, AuditLog, POStatus)
+    WasteRecord, GoodsReceiving, Supplier, PurchaseOrder, PurchaseOrderItem, AuditLog, POStatus, TableOrderRequest)
 
 
 async def business_timezone(session, business_id):
@@ -44,11 +44,13 @@ async def history_rows(session, model, business_id, timestamp, page=None, limit=
 async def orders_payload(session, rows, business_id):
     ids = [row.id for row in rows]
     items = defaultdict(list)
+    table_orders = {}
     if ids:
+        table_orders = {r.confirmed_order_id:r for r in (await session.execute(select(TableOrderRequest).where(TableOrderRequest.business_id == business_id,TableOrderRequest.confirmed_order_id.in_(ids)))).scalars().all()}
         lines = (await session.execute(select(OrderItem, Product.name).outerjoin(Product, (Product.id == OrderItem.product_id) & (Product.business_id == business_id)).where(OrderItem.order_id.in_(ids)).order_by(OrderItem.id))).all()
         for line, name in lines:
             items[line.order_id].append({'product_id': line.product_id, 'product_name': name or 'สินค้า', 'quantity': line.quantity, 'unit_price': line.unit_price, 'subtotal': line.subtotal})
-    return [{'id': o.id, 'created_at': o.created_at, 'total_amount': o.total_amount, 'status': o.status, 'staff_id': o.staff_id, 'items': items[o.id]} for o in rows]
+    return [{'id': o.id, 'created_at': o.created_at, 'total_amount': o.total_amount, 'status': o.status, 'staff_id': o.staff_id, 'items': items[o.id], 'table_name':table_orders[o.id].table_name if o.id in table_orders else None, 'customer_note':table_orders[o.id].note if o.id in table_orders else None} for o in rows]
 
 
 async def waste_payload(session, rows, business_id):
