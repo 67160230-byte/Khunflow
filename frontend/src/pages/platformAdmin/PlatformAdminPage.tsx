@@ -78,7 +78,7 @@ export default function PlatformAdminPage({ demo = false }: { demo?: boolean }) 
   }
 
   return <div className="space-y-6">
-    {demo && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4"><div><p className="font-bold text-indigo-900">โหมดทดลองผู้ดูแลเว็บไซต์</p><p className="mt-1 text-sm text-indigo-800">ลองค้นหา แก้แพ็กเกจ และเปิด/ระงับบัญชีสมมติได้ การเปลี่ยนแปลงจะหายเมื่อรีเฟรชหรือออกจากหน้านี้</p></div><Button variant="outline" onClick={() => { demoService.reset(); setEditing(null); setSearch(''); void refresh() }}>เริ่มทดลองใหม่</Button></div>}
+    {demo && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 p-4"><div><p className="font-bold text-green-900">โหมดทดลองผู้ดูแลเว็บไซต์</p><p className="mt-1 text-sm text-green-800">ลองค้นหา แก้แพ็กเกจ และเปิด/ระงับบัญชีสมมติได้ การเปลี่ยนแปลงจะหายเมื่อรีเฟรชหรือออกจากหน้านี้</p></div><Button variant="outline" onClick={() => { demoService.reset(); setEditing(null); setSearch(''); void refresh() }}>เริ่มทดลองใหม่</Button></div>}
     <SectionHeader title="จัดการสมาชิกเว็บไซต์" subtitle="ตรวจสอบบัญชีเจ้าของธุรกิจ แพ็กเกจ รอบชำระ และสถานะการเข้าถึง KhunFlow" />
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
     <div className="grid gap-4 sm:grid-cols-3">

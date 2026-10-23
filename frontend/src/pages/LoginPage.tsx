@@ -266,7 +266,7 @@ export default function LoginPage() {
           <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-900"><Store size={15}/>สำหรับเจ้าของร้านและพนักงาน</p>
         </div>
 
-        <nav aria-label="เลือกส่วนที่ต้องการเข้าใช้งาน" className="mb-4 grid grid-cols-2 gap-3"><Link to="/login" aria-current="page" className="rounded-2xl border-2 border-green-600 bg-green-50 p-3 text-green-950"><Store size={21}/><span className="mt-2 block text-sm font-bold">ระบบร้าน</span><span className="mt-1 block text-xs text-green-800">เจ้าของร้าน / พนักงาน</span></Link><Link to="/platform/login" className="rounded-2xl border border-indigo-300 bg-indigo-50 p-3 text-indigo-950 hover:border-indigo-500"><ShieldCheck size={21}/><span className="mt-2 block text-sm font-bold">ผู้ดูแลเว็บไซต์ →</span><span className="mt-1 block text-xs text-indigo-700">หลังบ้านส่วนกลาง</span></Link></nav>
+        <nav aria-label="เลือกส่วนที่ต้องการเข้าใช้งาน" className="mb-4 grid grid-cols-2 gap-3"><Link to="/login" aria-current="page" className="rounded-2xl border-2 border-green-600 bg-green-50 p-3 text-green-950"><Store size={21}/><span className="mt-2 block text-sm font-bold">ระบบร้าน</span><span className="mt-1 block text-xs text-green-800">เจ้าของร้าน / พนักงาน</span></Link><Link to="/platform/login" className="rounded-2xl border border-slate-300 bg-slate-50 p-3 text-slate-900 hover:border-green-600"><ShieldCheck size={21}/><span className="mt-2 block text-sm font-bold">ผู้ดูแลเว็บไซต์ →</span><span className="mt-1 block text-xs text-slate-600">หลังบ้านส่วนกลาง</span></Link></nav>
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
