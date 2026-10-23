@@ -1,4 +1,4 @@
-import { storeShopPreferences } from '@/services/formatting'
+import { shopPreferences, shopPreferencesEvent, storeShopPreferences } from '@/services/formatting'
 import { currentPermissions, featureForRoute, homeForRole } from '@/services/permissions'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom'
@@ -219,6 +219,17 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
   const navigate = useNavigate()
   const [businesses, setBusinesses] = useState<Array<{ id: string; name: string; role: string; currency: string; timezone: string }>>([])
   const [activeBusinessId, setActiveBusinessId] = useState(localStorage.getItem('khumflow_business_id') || '')
+  const [activeCurrency, setActiveCurrency] = useState(() => shopPreferences().currency)
+
+  useEffect(() => {
+    const update = () => {
+      const currency = shopPreferences().currency
+      setActiveCurrency(currency)
+      setBusinesses(items => items.map(item => item.id === localStorage.getItem('khumflow_business_id') ? { ...item, currency } : item))
+    }
+    window.addEventListener(shopPreferencesEvent, update)
+    return () => window.removeEventListener(shopPreferencesEvent, update)
+  }, [])
 
   useEffect(() => {
     if (demoMode) { setBusinesses([]); return }
@@ -230,6 +241,7 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
 
       localStorage.setItem('khumflow_business_id', activeBusiness.id)
       storeShopPreferences(activeBusiness.currency, activeBusiness.timezone)
+      setActiveCurrency(activeBusiness.currency)
       setActiveBusinessId(activeBusiness.id)
       // A user's role belongs to a business membership. Keep the cached UI role
       // aligned with the selected business so owners are not shown staff-only
@@ -273,7 +285,8 @@ function Topbar({ onMenuClick, demoMode, onToggleDemo }: { onMenuClick: () => vo
       </button>
       <h2 className="font-semibold text-gray-800 text-sm md:text-base">{getTitle()}</h2>
       <div className="ml-auto flex items-center gap-2">
-        {!demoMode && businesses.length > 1 && <select aria-label="เลือกธุรกิจ" value={activeBusinessId} onChange={(event) => { resetApiRequests(); const selected = businesses.find((business) => business.id === event.target.value); localStorage.setItem('khumflow_business_id', event.target.value); if (selected) { const storedUser = localStorage.getItem('khumflow_user'); if (storedUser) { try { localStorage.setItem('khumflow_user', JSON.stringify({ ...JSON.parse(storedUser), role: selected.role })) } catch { /* Ignore stale cached user data. */ } } } setActiveBusinessId(event.target.value); window.location.reload() }} className="max-w-48 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700"><option value="" disabled>เลือกธุรกิจ</option>{businesses.map((business) => <option key={business.id} value={business.id}>{business.name}</option>)}</select>}
+        <span title="สกุลเงินของร้านที่กำลังใช้งาน" className="hidden rounded-lg bg-gray-100 px-2 py-1.5 text-xs font-semibold text-gray-700 sm:inline-flex">{demoMode ? 'THB' : activeCurrency}</span>
+        {!demoMode && businesses.length > 1 && <select aria-label="เลือกธุรกิจ" value={activeBusinessId} onChange={(event) => { resetApiRequests(); const selected = businesses.find((business) => business.id === event.target.value); localStorage.setItem('khumflow_business_id', event.target.value); if (selected) { storeShopPreferences(selected.currency, selected.timezone); const storedUser = localStorage.getItem('khumflow_user'); if (storedUser) { try { localStorage.setItem('khumflow_user', JSON.stringify({ ...JSON.parse(storedUser), role: selected.role })) } catch { /* Ignore stale cached user data. */ } } } setActiveBusinessId(event.target.value); window.location.reload() }} className="max-w-48 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-700"><option value="" disabled>เลือกธุรกิจ</option>{businesses.map((business) => <option key={business.id} value={business.id}>{business.name} ({business.currency})</option>)}</select>}
         <button onClick={onToggleDemo} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${demoMode ? 'bg-amber-100 text-amber-900 hover:bg-amber-200' : 'bg-green-50 text-green-800 hover:bg-green-100'}`}>
           {demoMode ? 'กลับข้อมูลร้าน' : 'ดูข้อมูลตัวอย่าง'}
         </button>

@@ -1,4 +1,4 @@
-import { storeShopPreferences } from '@/services/formatting'
+import { shopPreferences, storeShopPreferences, supportedCurrencies } from '@/services/formatting'
 import { useState } from 'react'
 import { useEffect } from 'react'
 import { usersService, businessService, isDemoMode } from '@/services'
@@ -194,17 +194,20 @@ export function UsersPage() {
 export function BusinessInfoPage() {
   const [storeName, setStoreName] = useState(() => localStorage.getItem('khumflow_store_name') || 'KhumFlow Cafe & Bakery')
   const [businessType, setBusinessType] = useState(() => localStorage.getItem('khumflow_business_type') || 'cafe')
-  const [currency, setCurrency] = useState(() => localStorage.getItem('khumflow_currency') || 'THB')
-  const [timezone, setTimezone] = useState(() => localStorage.getItem('khumflow_timezone') || 'Asia/Bangkok')
+  const [currency, setCurrency] = useState(() => shopPreferences().currency)
+  const [timezone, setTimezone] = useState(() => shopPreferences().timezone)
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
-  const [businesses, setBusinesses] = useState<Array<{ id: string; name: string }>>([])
+  const [businesses, setBusinesses] = useState<Array<{ id: string; name: string; currency: string }>>([])
   const [newBusinessName, setNewBusinessName] = useState('')
+  const [newBusinessCurrency, setNewBusinessCurrency] = useState('THB')
   const [creatingBusiness, setCreatingBusiness] = useState(false)
 
   useEffect(() => {
     Promise.all([businessService.get(), businessService.getAll()]).then(([business, list]) => {
-      setStoreName(business.name); setBusinessType(business.business_type); setCurrency(business.currency); setTimezone(business.timezone || 'Asia/Bangkok'); setBusinesses(list)
+      setStoreName(business.name); setBusinessType(business.business_type); setCurrency(business.currency); setTimezone(business.timezone || 'Asia/Bangkok'); setBusinesses(list); setLoaded(true)
     }).catch((e) => setError(e instanceof Error ? e.message : 'โหลดข้อมูลร้านไม่สำเร็จ'))
   }, [])
 
@@ -214,8 +217,9 @@ export function BusinessInfoPage() {
     if (!name || creatingBusiness) return
     setCreatingBusiness(true); setError('')
     try {
-      const created = await businessService.create(name)
+      const created = await businessService.create(name, newBusinessCurrency)
       localStorage.setItem('khumflow_business_id', String(created.id))
+      storeShopPreferences(created.currency, created.timezone || 'Asia/Bangkok')
       window.location.assign('/app/dashboard')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'สร้างธุรกิจไม่สำเร็จ')
@@ -225,12 +229,18 @@ export function BusinessInfoPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!loaded || saving || isDemoMode()) return
+    setSaving(true)
     setError('')
-    try { await businessService.update({ name: storeName, businessType, currency, timezone }) }
-    catch (e) { setError(e instanceof Error ? e.message : 'บันทึกข้อมูลร้านไม่สำเร็จ'); return }
-    storeShopPreferences(currency, timezone)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    setSaved(false)
+    try {
+      const updated = await businessService.update({ name: storeName, businessType, currency, timezone }) as { id: number; currency: string; timezone: string }
+      storeShopPreferences(updated.currency, updated.timezone)
+      setBusinesses(items => items.map(item => item.id === String(updated.id) ? { ...item, name: storeName, currency: updated.currency } : item))
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (e) { setError(e instanceof Error ? e.message : 'บันทึกข้อมูลร้านไม่สำเร็จ') }
+    finally { setSaving(false) }
   }
 
   return (
@@ -243,7 +253,7 @@ export function BusinessInfoPage() {
       <Card className="p-6 max-w-2xl">
         <div className="mb-4">
           <h3 className="font-semibold text-gray-900">ธุรกิจของฉัน ({businesses.length})</h3>
-          <p className="mt-1 text-xs text-gray-500">แต่ละธุรกิจมีสินค้า คลัง คำสั่งซื้อ และแดชบอร์ดแยกกัน ธุรกิจใหม่จะเริ่มต้นด้วยข้อมูลว่าง</p>
+          <p className="mt-1 text-xs text-gray-500">แต่ละร้านแยกสินค้า คลัง คำสั่งซื้อ และสกุลเงินของตัวเอง เช่น ร้านแรกใช้บาท ร้านที่สองใช้ดอลลาร์ ธุรกิจใหม่เริ่มด้วยข้อมูลว่าง</p>
         </div>
         <div className="space-y-2">
           {businesses.map((business) => {
@@ -254,13 +264,16 @@ export function BusinessInfoPage() {
               : <button key={business.id} type="button" aria-label={`เปิดธุรกิจ ${business.name}`} onClick={() => { if (!isDemoMode()) localStorage.setItem('khumflow_business_id', business.id); window.location.assign('/app/dashboard') }} className="group flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 text-left transition hover:border-green-400 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 sm:px-4"><span className="text-sm font-medium text-gray-800">{business.name}</span><span className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-green-700 px-4 text-sm font-semibold text-white shadow-sm transition group-hover:bg-green-800">เปิดธุรกิจ</span></button>
           })}
         </div>
+        <ul className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600" aria-label="สกุลเงินของแต่ละร้าน">{businesses.map(business => <li key={business.id} className="rounded-lg border border-gray-200 px-3 py-2">{business.name}: <strong>{business.currency}</strong></li>)}</ul>
         {!isDemoMode() ? <form onSubmit={handleCreateBusiness} className="mt-4 flex flex-col gap-2 sm:flex-row">
           <input aria-label="ชื่อธุรกิจใหม่" required maxLength={120} value={newBusinessName} onChange={(e) => setNewBusinessName(e.target.value)} placeholder="ชื่อธุรกิจใหม่ เช่น สาขาสยาม" className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+          <select aria-label="สกุลเงินของร้านใหม่" value={newBusinessCurrency} onChange={event => setNewBusinessCurrency(event.target.value)} className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm">{supportedCurrencies.map(item => <option key={item.code} value={item.code}>{item.code} ({item.symbol})</option>)}</select>
           <Button type="submit" size="sm" disabled={creatingBusiness}><Plus size={16} /> {creatingBusiness ? 'กำลังสร้าง…' : 'เพิ่มธุรกิจ'}</Button>
         </form> : <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">กลับไปข้อมูลร้านจริงก่อน จึงจะเพิ่มธุรกิจใหม่ได้</p>}
       </Card>
       <Card className="p-6 max-w-2xl">
         <form onSubmit={handleSave} className="space-y-4 text-sm">
+          <fieldset disabled={!loaded || saving || isDemoMode()} className="space-y-4 disabled:opacity-60">
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">ชื่อร้านอาหาร / คาเฟ่</label>
             <input
@@ -284,21 +297,20 @@ export function BusinessInfoPage() {
               <option value="bakery">ร้านขนม & เบเกอรี่ (Bakery Shop)</option>
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">สกุลเงินหลัก (Currency)</label>
+              <label htmlFor="shop-currency" className="block text-xs font-semibold text-gray-700 mb-1">สกุลเงินของร้านนี้</label>
               <select
+                id="shop-currency"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none bg-white text-xs"
               >
-                <option value="THB">THB (฿) — บาทไทย</option>
-                <option value="USD">USD ($) — ดอลลาร์สหรัฐ</option>
-                <option value="JPY">JPY (¥) — เยนญี่ปุ่น</option>
-                <option value="EUR">EUR (€) — ยูโร</option>
-                <option value="SGD">SGD (S$) — ดอลลาร์สิงคโปร์</option>
+                {supportedCurrencies.map(item => <option key={item.code} value={item.code}>{item.code} ({item.symbol}) — {item.label}</option>)}
               </select>
-              <p className="mt-1 text-xs text-gray-500">การเปลี่ยนสกุลเงินไม่แปลงตัวเลขราคาหรือยอดย้อนหลัง</p>
+              <p className="mt-1 text-xs text-gray-500">ใช้กับยอดขาย ต้นทุน สต็อก และรายงานของร้านนี้เท่านั้น ร้านอื่นไม่เปลี่ยนตาม</p>
+              <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">เปลี่ยนหน่วยเงินที่แสดง ไม่ได้แปลงอัตราแลกเปลี่ยนหรือราคาเดิม กรุณาตรวจราคาสินค้าและต้นทุนให้ตรงกับสกุลเงินที่เลือก</p>
+              <p className="mt-2 text-xs text-gray-600">ตัวอย่างการแสดงผล: {new Intl.NumberFormat('th-TH', { style: 'currency', currency }).format(1250)}</p>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">เขตเวลา (Timezone)</label>
@@ -316,7 +328,7 @@ export function BusinessInfoPage() {
           </div>
           <div className="pt-2 flex items-center justify-between">
             <Button type="submit" size="sm" className="flex items-center gap-1.5">
-              <Save size={16} /> บันทึกข้อมูล
+              <Save size={16} /> {saving ? 'กำลังบันทึก…' : loaded ? 'บันทึกข้อมูลร้านนี้' : 'กำลังโหลดข้อมูลร้าน…'}
             </Button>
             {saved && (
               <span className="text-xs text-green-700 font-semibold flex items-center gap-1">
@@ -324,6 +336,8 @@ export function BusinessInfoPage() {
               </span>
             )}
           </div>
+          </fieldset>
+          {isDemoMode() && <p className="text-xs text-amber-800">ตัวอย่างใช้เงินบาท กลับข้อมูลร้านจริงเพื่อเลือกและบันทึกสกุลเงินของร้าน</p>}
         </form>
       </Card>
     </div>

@@ -320,7 +320,7 @@ export const businessService = {
   get: async () => isDemoMode() ? demoCopy({ name: 'KhumFlow Cafe & Bakery (ตัวอย่าง)', business_type: 'cafe', currency: 'THB', timezone: 'Asia/Bangkok' }) : api<any>('/business'),
   update: (business: { name: string; businessType: string; currency: string; timezone: string }) => api('/business', { method: 'PUT', body: JSON.stringify({ name: business.name, business_type: business.businessType, currency: business.currency, timezone: business.timezone }) }),
   getAll: async (): Promise<Array<{ id: string; name: string; business_type: string; currency: string; timezone: string; role: string }>> => isDemoMode() ? demoCopy([{ id: 'demo', name: 'KhumFlow Cafe & Bakery (ตัวอย่าง)', business_type: 'cafe', currency: 'THB', timezone: 'Asia/Bangkok', role: 'owner' }]) : (await api<any[]>('/businesses')).map((business) => ({ ...business, id: toId(business.id) })),
-  create: (name: string) => api<any>('/businesses', { method: 'POST', body: JSON.stringify({ name }) }),
+  create: (name: string, currency = 'THB') => api<any>('/businesses', { method: 'POST', body: JSON.stringify({ name, currency }) }),
 }
 
 export const platformAdminService = {

@@ -5,9 +5,9 @@ import { homeForRole } from '@/services/permissions'
 import './LandingPage.css'
 
 const previews = [
-  { label: 'รายงานธุรกิจ', image: 'reports', icon: TrendingUp, title: 'เห็นยอดขาย ต้นทุน และกำไรในหน้าเดียว', description: 'เลือกช่วงเวลาเพื่อดูภาพรวม และตรวจรายละเอียดรายวันประกอบการตัดสินใจ', alt: 'ตัวอย่างรายงาน KhunFlow แสดงยอดขาย ต้นทุน กำไรขั้นต้นและของเสียจากข้อมูลเดโม' },
-  { label: 'คลังวัตถุดิบ', image: 'inventory', icon: Warehouse, title: 'รู้ว่าอะไรเหลือ อะไรใกล้หมด', description: 'ดูยอดคงเหลือ จุดสั่งซื้อ และวันหมดอายุ พร้อมคำเตือนเมื่อต้นทุนยังไม่ครบ', alt: 'ตัวอย่างคลัง KhunFlow แสดงจำนวนวัตถุดิบและคำเตือนต้นทุนของบัญชีตัวอย่าง' },
-  { label: 'ออเดอร์', image: 'orders', icon: ShoppingCart, title: 'ย้อนดูรายการขายได้เป็นช่วงเวลา', description: 'กรองวันที่และเปลี่ยนหน้าประวัติ โดยยอดรวมยังครอบคลุมทั้งช่วงที่เลือก', alt: 'ตัวอย่างประวัติออเดอร์ KhunFlow แสดงตัวกรองวันที่ ยอดรวม และปุ่มแบ่งหน้าบนข้อมูลทดสอบ' },
+  { label: 'รายงานธุรกิจ', image: 'reports-thb.png', icon: TrendingUp, title: 'เห็นยอดขาย ต้นทุน และกำไรในหน้าเดียว', description: 'เลือกช่วงเวลาเพื่อดูภาพรวม และตรวจรายละเอียดรายวันประกอบการตัดสินใจ', alt: 'ตัวอย่างรายงาน KhunFlow แสดงยอดขาย ต้นทุน กำไรขั้นต้นและของเสียจากข้อมูลเดโม' },
+  { label: 'คลังวัตถุดิบ', image: 'inventory.jpg', icon: Warehouse, title: 'รู้ว่าอะไรเหลือ อะไรใกล้หมด', description: 'ดูยอดคงเหลือ จุดสั่งซื้อ และวันหมดอายุ พร้อมคำเตือนเมื่อต้นทุนยังไม่ครบ', alt: 'ตัวอย่างคลัง KhunFlow แสดงจำนวนวัตถุดิบและคำเตือนต้นทุนของบัญชีตัวอย่าง' },
+  { label: 'ออเดอร์', image: 'orders.jpg', icon: ShoppingCart, title: 'ย้อนดูรายการขายได้เป็นช่วงเวลา', description: 'กรองวันที่และเปลี่ยนหน้าประวัติ โดยยอดรวมยังครอบคลุมทั้งช่วงที่เลือก', alt: 'ตัวอย่างประวัติออเดอร์ KhunFlow แสดงตัวกรองวันที่ ยอดรวม และปุ่มแบ่งหน้าบนข้อมูลทดสอบ' },
 ]
 const features = [
   { icon: ShoppingCart, title: 'การขายที่เชื่อมกับสต็อก', copy: 'บันทึกออเดอร์ แล้วตัดวัตถุดิบตามสูตรที่ร้านกำหนด ลดการจดยอดซ้ำ' },
@@ -19,6 +19,7 @@ const faqs = [
   { question: 'เริ่มใช้งานต้องเตรียมอะไรบ้าง?', answer: 'สมัครร้านด้วยอีเมล จากนั้นเพิ่มวัตถุดิบและต้นทุน เพิ่มสินค้าและสูตรอาหาร แล้วจึงเริ่มบันทึกยอดขายได้ หากต้นทุนยังไม่ครบ ระบบจะแสดงคำเตือนเพื่อให้ตรวจข้อมูลก่อนใช้ยอดกำไร' },
   { question: 'ดูตัวอย่างก่อนสมัครได้ไหม?', answer: 'ได้ เลือกดูภาพรายงาน คลังวัตถุดิบ และออเดอร์ด้านบนโดยไม่ต้องสมัคร ภาพเหล่านี้ใช้ข้อมูลตัวอย่าง หากต้องการลองใช้งาน สามารถเข้าสู่ระบบด้วยบัญชีตัวอย่างที่แสดงในหน้าเข้าสู่ระบบได้' },
   { question: 'ให้พนักงานใช้งานด้วยได้ไหม?', answer: 'ได้ เจ้าของร้านเพิ่มสมาชิกและกำหนดบทบาทเป็นผู้จัดการ พนักงานคลัง หรือแคชเชียร์ได้ พร้อมปรับสิทธิ์แต่ละส่วนตามงานของร้าน' },
+  { question: 'แต่ละร้านเลือกสกุลเงินต่างกันได้ไหม?', answer: 'ได้ ร้านใหม่เริ่มต้นที่เงินบาท (THB) และเจ้าของเลือกสกุลเงินตอนสร้างร้านหรือในเมนูข้อมูลธุรกิจและสกุลเงินได้ แต่ละร้านแยกการตั้งค่าเป็นของตัวเอง การเปลี่ยนสกุลเงินเป็นการเปลี่ยนหน่วยที่แสดง ไม่ได้แปลงราคาเดิมตามอัตราแลกเปลี่ยน' },
   { question: 'การคาดการณ์ยอดขายทำงานอย่างไร?', answer: 'ระบบใช้ค่าเฉลี่ยยอดขายย้อนหลัง 30 วันประกอบคำแนะนำสั่งซื้อ จึงควรมีข้อมูลขายเพียงพอและตรวจคำแนะนำเทียบกับสถานการณ์จริงของร้านก่อนสั่งซื้อ' },
 ]
 
@@ -66,7 +67,7 @@ export default function LandingPage() {
             </div>
             <div className="kf-hero-visual">
               <div className="kf-image-heading"><Leaf size={18} aria-hidden="true" /><span>ภาพรวมร้านใน KhunFlow</span><span className="kf-demo-label">ข้อมูลเดโม</span></div>
-              <img src="/images/landing/reports.jpg" alt={previews[0].alt} width="1280" height="720" fetchPriority="high" />
+              <img src="/images/landing/reports-thb.png" alt={previews[0].alt} width="1916" height="854" fetchPriority="high" />
               <p className="kf-visual-caption">ยอดขาย ต้นทุน กำไรขั้นต้น และของเสีย ตามช่วงเวลาที่เลือก</p>
             </div>
           </div>
@@ -78,7 +79,7 @@ export default function LandingPage() {
           <div className="kf-preview-switch" role="group" aria-label="เลือกภาพตัวอย่างหน้าจอ">{previews.map((item, i) => <button type="button" key={item.image} aria-pressed={preview === i} onClick={() => setPreview(i)}><item.icon size={18} aria-hidden="true" />{item.label}</button>)}</div>
           <div className="kf-product-preview">
             <div className="kf-preview-copy" aria-live="polite"><span className="kf-preview-number">0{preview + 1}</span><h3>{active.title}</h3><p>{active.description}</p><span className="kf-preview-disclosure">ภาพหน้าจอจากระบบ ใช้ข้อมูลตัวอย่าง</span></div>
-            <img src={`/images/landing/${active.image}.jpg`} alt={active.alt} width="1280" height="720" loading="lazy" decoding="async" />
+            <img src={`/images/landing/${active.image}`} alt={active.alt} width={preview === 0 ? 1916 : 1280} height={preview === 0 ? 854 : 720} loading="lazy" decoding="async" />
           </div>
         </section>
 

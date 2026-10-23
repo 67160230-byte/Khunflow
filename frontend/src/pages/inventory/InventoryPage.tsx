@@ -1,4 +1,4 @@
-import { formatMoney } from '@/services/formatting'
+import { currencyUnit, formatMoney } from '@/services/formatting'
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Search, X, Warehouse, Check, ChevronDown } from 'lucide-react'
@@ -333,7 +333,7 @@ export default function InventoryPage() {
                       <input type="number" min="0" step="0.1" placeholder="ไม่ตั้งค่า" value={minimumStock} onChange={(e) => setMinimumStock(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">ต้นทุนต่อหน่วย (บาท)</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">ต้นทุนต่อหน่วย ({currencyUnit()})</label>
                       <input type="number" min="0" step="0.1" placeholder="ยังไม่ทราบ ข้ามได้" value={averageCost} onChange={(e) => setAverageCost(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-green-500 focus:outline-none" />
                     </div>
                   </div>

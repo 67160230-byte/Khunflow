@@ -2,7 +2,7 @@
 
 ภาพจากระบบของโครงการ ใช้ข้อมูลเดโม/ข้อมูลทดสอบ ไม่ใช่ข้อมูลการขายของลูกค้า
 
-- `reports.jpg`: จาก `docs/performance/audit-fixed-ui.jpg` รายงานบนข้อมูลจำลองที่ใช้แสดงสกุลเงิน USD
+- `reports-thb.png`: ภาพรายงานข้อมูลเดโมที่ใช้เงินบาท จากไฟล์ `KhunFlow_Progress.pptx` ที่ผู้ใช้แนบ ใช้บนหน้าแนะนำแทนภาพรายงาน USD เดิม
 - `inventory.jpg`: จาก `docs/performance/audit-live-fixed.jpg` บัญชีตัวอย่างพนักงานคลังบนเว็บจริง
 - `orders.jpg`: จาก `docs/performance/orders-filtered.jpg` ประวัติแบ่งหน้าบนฐานทดสอบแยก
 

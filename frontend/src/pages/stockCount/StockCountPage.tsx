@@ -199,7 +199,7 @@ export default function StockCountPage() {
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900">{row.ingredient.name}</p>
                       <p className="text-xs text-gray-400">
-                        ต้นทุนเฉลี่ย ฿{row.ingredient.averageCost}/{row.ingredient.unit}
+                        ต้นทุนเฉลี่ย {formatMoney(row.ingredient.averageCost)}/{row.ingredient.unit}
                       </p>
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600 font-medium">
@@ -237,7 +237,7 @@ export default function StockCountPage() {
                           {formatBaht(row.varianceCost)}
                         </span>
                       ) : (
-                        <span className="text-gray-400">฿0.00</span>
+                        <span className="text-gray-400">{formatMoney(0)}</span>
                       )}
                     </td>
                     <td className="px-4 py-3">

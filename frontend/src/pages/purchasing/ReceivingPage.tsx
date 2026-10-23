@@ -1,5 +1,5 @@
 import { shopTimezone } from '@/services/formatting'
-import { formatMoney } from '@/services/formatting'
+import { currencyUnit, formatMoney } from '@/services/formatting'
 import { usePagedHistory } from '@/hooks/usePagedHistory'
 import HistoryControls from '@/components/HistoryControls'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
@@ -158,7 +158,7 @@ export default function ReceivingPage() {
             <input type="number" min="0.01" step="0.01" max={remainingQuantity} required placeholder="เช่น 5" value={quantity} onChange={(event) => setQuantity(event.target.value === '' ? '' : parseFloat(event.target.value))} className={inputClass} />
           </Field>
           <Field label="ราคาซื้อต่อหน่วย *" help="ระบบจะใช้คำนวณต้นทุนเฉลี่ยใหม่">
-            <div className="relative"><input type="number" min="0" step="0.01" required placeholder="เช่น 120" value={unitCost} onChange={(event) => setUnitCost(event.target.value === '' ? '' : parseFloat(event.target.value))} className={`${inputClass} pr-12`} /><span className="absolute right-3 top-3 text-xs text-gray-500">บาท</span></div>
+            <div className="relative"><input type="number" min="0" step="0.01" required placeholder="เช่น 120" value={unitCost} onChange={(event) => setUnitCost(event.target.value === '' ? '' : parseFloat(event.target.value))} className={`${inputClass} pr-12`} /><span className="absolute right-3 top-3 text-xs text-gray-500">{currencyUnit()}</span></div>
           </Field>
         </div>
         <Field label="เลขล็อต (ไม่บังคับ)" help="ดูเลขล็อตบนบรรจุภัณฑ์ ถ้าเว้นว่างระบบสร้างเลขให้">
