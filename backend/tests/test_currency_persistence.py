@@ -1,12 +1,13 @@
-"""Real currency endpoints/authentication against a disposable SQLite file.
+"""Real currency endpoints/authentication against an isolated test database.
 Run from repo root: .venv/Scripts/python.exe backend/tests/test_currency_persistence.py
 Requires backend requirements plus aiosqlite in that venv.
+Optional CURRENCY_TEST_DATABASE_URL selects dedicated local PostgreSQL (see harness).
 """
 import asyncio
 import json
 import httpx
 from sqlmodel import select
-from currency_harness import app, initialize, engine, sessions, ROOT, EMAIL, PASSWORD, Business
+from currency_harness import app, initialize, engine, sessions, ROOT, EMAIL, PASSWORD, Business, DATABASE_KIND
 
 async def main():
     await initialize()
@@ -54,9 +55,10 @@ async def main():
         created = await request('POST','/businesses',token,data={'name':'Currency Created EUR','currency':'EUR'})
         check('New shop uses selected EUR',(await request('GET','/business',token,created['id']))['currency'],'EUR')
     await engine.dispose()
-    result={'database':'isolated SQLite file; production PostgreSQL not exercised','checks':len(checks),'passed':len(checks),'results':checks}
-    (ROOT/'docs/performance/currency-api-tests.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
-    print(json.dumps({'checks':len(checks),'passed':len(checks),'database':'isolated SQLite file'}))
+    result={'database':DATABASE_KIND,'production_database_modified':False,'checks':len(checks),'passed':len(checks),'results':checks}
+    output = 'currency-api-postgres-tests.json' if DATABASE_KIND == 'isolated PostgreSQL 16' else 'currency-api-tests.json'
+    (ROOT/'docs/performance'/output).write_text(json.dumps(result,indent=2),encoding='utf-8')
+    print(json.dumps({'checks':len(checks),'passed':len(checks),'database':DATABASE_KIND}))
 
 async def sessions_check(bid):
     async with sessions() as session:

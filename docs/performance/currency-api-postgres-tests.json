@@ -1,0 +1,116 @@
+{
+  "database": "isolated PostgreSQL 16",
+  "production_database_modified": false,
+  "checks": 27,
+  "passed": 27,
+  "results": [
+    {
+      "name": "Shop A is THB",
+      "passed": true
+    },
+    {
+      "name": "Switch to shop B gives USD",
+      "passed": true
+    },
+    {
+      "name": "Switch back to A retains THB",
+      "passed": true
+    },
+    {
+      "name": "THB persists through a fresh GET session",
+      "passed": true
+    },
+    {
+      "name": "THB on B does not change A",
+      "passed": true
+    },
+    {
+      "name": "USD persists through a fresh GET session",
+      "passed": true
+    },
+    {
+      "name": "USD on B does not change A",
+      "passed": true
+    },
+    {
+      "name": "EUR persists through a fresh GET session",
+      "passed": true
+    },
+    {
+      "name": "EUR on B does not change A",
+      "passed": true
+    },
+    {
+      "name": "JPY persists through a fresh GET session",
+      "passed": true
+    },
+    {
+      "name": "JPY on B does not change A",
+      "passed": true
+    },
+    {
+      "name": "CNY persists through a fresh GET session",
+      "passed": true
+    },
+    {
+      "name": "CNY on B does not change A",
+      "passed": true
+    },
+    {
+      "name": "GBP persists through a fresh GET session",
+      "passed": true
+    },
+    {
+      "name": "GBP on B does not change A",
+      "passed": true
+    },
+    {
+      "name": "SGD persists through a fresh GET session",
+      "passed": true
+    },
+    {
+      "name": "SGD on B does not change A",
+      "passed": true
+    },
+    {
+      "name": "Invalid save leaves B unchanged",
+      "passed": true
+    },
+    {
+      "name": "Cashier cannot change currency",
+      "passed": true
+    },
+    {
+      "name": "Other shop remains EUR",
+      "passed": true
+    },
+    {
+      "name": "Login again retains A",
+      "passed": true
+    },
+    {
+      "name": "Login again retains B",
+      "passed": true
+    },
+    {
+      "name": "Reconnect to database retains A",
+      "passed": true
+    },
+    {
+      "name": "Reconnect to database retains B",
+      "passed": true
+    },
+    {
+      "name": "Fresh HTTP client reads B from database",
+      "passed": true
+    },
+    {
+      "name": "Shop selector metadata includes both currencies",
+      "passed": true
+    },
+    {
+      "name": "New shop uses selected EUR",
+      "passed": true
+    }
+  ]
+}

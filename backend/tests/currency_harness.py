@@ -1,8 +1,9 @@
 """Local-only currency fixture. Run from backend: uvicorn tests.currency_harness:app.
 
-Uses the real routers/authentication with a dedicated SQLite FILE session override.
-PostgreSQL startup DDL/report aggregation is intentionally outside this fixture.
-Requires aiosqlite in the test environment. Never connects to a deployment database.
+Uses real routers/authentication with a dedicated session override. Defaults to a
+SQLite FILE; CURRENCY_TEST_DATABASE_URL accepts only PostgreSQL on loopback:55439
+with database name khunflow_currency_test. Deployment startup DDL is not exercised.
+Requires aiosqlite for the default fixture. Never connects to a deployment database.
 """
 import os
 import sys
@@ -26,7 +27,15 @@ from app.services.auth_service import get_password_hash
 
 DB = ROOT / '.venv' / 'currency-check.sqlite'
 assert DB.parent == ROOT / '.venv' and DB.name == 'currency-check.sqlite'
-engine = create_async_engine('sqlite+aiosqlite:///' + DB.as_posix())
+test_url = os.environ.get('CURRENCY_TEST_DATABASE_URL')
+if test_url:
+    from sqlalchemy.engine import make_url
+    target = make_url(test_url)
+    assert target.database == 'khunflow_currency_test', 'Dedicated test DB required'
+    assert target.host in ('127.0.0.1', 'localhost') and target.port == 55439, 'Local test port required'
+    assert target.drivername == 'postgresql+asyncpg'
+DATABASE_KIND = 'isolated PostgreSQL 16' if test_url else 'isolated SQLite file'
+engine = create_async_engine(test_url or 'sqlite+aiosqlite:///' + DB.as_posix())
 sessions = async_sessionmaker(engine, expire_on_commit=False)
 EMAIL = 'currency-owner@example.com'
 PASSWORD = 'CurrencyFixture123!'
