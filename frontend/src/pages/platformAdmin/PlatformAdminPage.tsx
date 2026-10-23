@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { Badge, Button, Card, SectionHeader } from '@/components/ui'
 import { platformAdminService } from '@/services'
+import { createPlatformDemoService } from '@/services/platformDemo'
 import { Building2, CreditCard, Search, ShieldAlert, Users } from 'lucide-react'
 
 type Account = Awaited<ReturnType<typeof platformAdminService.getAccounts>>[number]
@@ -12,7 +13,9 @@ function toDateInput(value: string | null) {
   return value ? value.slice(0, 10) : ''
 }
 
-export default function PlatformAdminPage() {
+export default function PlatformAdminPage({ demo = false }: { demo?: boolean }) {
+  const demoService = useMemo(() => createPlatformDemoService(), [])
+  const service = demo ? demoService : platformAdminService
   const [accounts, setAccounts] = useState<Account[]>([])
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
@@ -26,11 +29,11 @@ export default function PlatformAdminPage() {
 
   const refresh = async () => {
     setLoading(true)
-    try { setAccounts(await platformAdminService.getAccounts()); setError('') }
+    try { setAccounts(await service.getAccounts()); setError('') }
     catch (e) { setError(e instanceof Error ? e.message : 'โหลดข้อมูลสมาชิกไม่สำเร็จ') }
     finally { setLoading(false) }
   }
-  useEffect(() => { void refresh() }, [])
+  useEffect(() => { void refresh() }, [service])
 
   const visibleAccounts = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -52,7 +55,7 @@ export default function PlatformAdminPage() {
     if (!editing) return
     setSavingId(editing.id)
     try {
-      await platformAdminService.updateSubscription(editing.id, {
+      await service.updateSubscription(editing.id, {
         plan, status,
         period_ends_at: periodEnd ? new Date(`${periodEnd}T23:59:59+07:00`).toISOString() : null,
         note,
@@ -69,12 +72,13 @@ export default function PlatformAdminPage() {
       : `ระงับการเข้าถึงของ ${account.email} หรือไม่?\nบัญชีและข้อมูลร้านจะยังเก็บไว้ แต่ผู้ใช้จะเข้าสู่ระบบไม่ได้`
     if (!window.confirm(prompt)) return
     setSavingId(account.id)
-    try { await platformAdminService.setAccountAccess(account.id, nextActive); await refresh() }
+    try { await service.setAccountAccess(account.id, nextActive); await refresh() }
     catch (e) { setError(e instanceof Error ? e.message : 'เปลี่ยนสถานะบัญชีไม่สำเร็จ') }
     finally { setSavingId(null) }
   }
 
   return <div className="space-y-6">
+    {demo && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4"><div><p className="font-bold text-indigo-900">โหมดทดลองผู้ดูแลเว็บไซต์</p><p className="mt-1 text-sm text-indigo-800">ลองค้นหา แก้แพ็กเกจ และเปิด/ระงับบัญชีสมมติได้ การเปลี่ยนแปลงจะหายเมื่อรีเฟรชหรือออกจากหน้านี้</p></div><Button variant="outline" onClick={() => { demoService.reset(); setEditing(null); setSearch(''); void refresh() }}>เริ่มทดลองใหม่</Button></div>}
     <SectionHeader title="จัดการสมาชิกเว็บไซต์" subtitle="ตรวจสอบบัญชีเจ้าของธุรกิจ แพ็กเกจ รอบชำระ และสถานะการเข้าถึง KhunFlow" />
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
     <div className="grid gap-4 sm:grid-cols-3">

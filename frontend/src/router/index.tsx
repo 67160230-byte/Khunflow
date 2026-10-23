@@ -40,6 +40,9 @@ export default function AppRouter() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/platform/login" element={<PlatformLoginPage />} />
+        <Route path="/platform/demo" element={<PlatformLayout demo />}>
+          <Route index element={<PlatformAdminPage demo />} />
+        </Route>
         <Route path="/platform" element={<PlatformLayout />}>
           <Route index element={<PlatformAdminPage />} />
         </Route>
