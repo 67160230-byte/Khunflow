@@ -258,8 +258,10 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-6">
-          <BrandMark size={64} className="mx-auto mb-3 shadow-md shadow-green-100"/>
-          <h1 className="text-2xl font-bold text-[#172D25]">Khun<span className="text-[#087F46]">Flow</span></h1>
+          <Link to="/" aria-label="KhunFlow กลับหน้าแรก" title="กลับหน้าแรก KhunFlow" className="inline-flex flex-col items-center rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-green-700">
+            <BrandMark size={64} className="mb-3 shadow-md shadow-green-100"/>
+            <h1 className="text-2xl font-bold text-[#172D25]">Khun<span className="text-[#087F46]">Flow</span></h1>
+          </Link>
           <p className="text-gray-500 text-sm mt-1">ระบบบริหารจัดการต้นทุนและสต็อกร้านอาหาร</p>
           <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-900"><Store size={15}/>สำหรับเจ้าของร้านและพนักงาน</p>
         </div>
