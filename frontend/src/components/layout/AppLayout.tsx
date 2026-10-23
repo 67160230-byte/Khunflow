@@ -391,7 +391,7 @@ export function AppLayout() {
       {/* Main Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
         <Topbar onMenuClick={() => setMobileOpen(true)} demoMode={demoMode} onToggleDemo={toggleDemoMode} />
-        {demoMode && <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900"><span><strong>โหมดข้อมูลตัวอย่าง</strong> — ใช้ข้อมูลจำลองเพื่อเรียนรู้ ข้อมูลร้านจริงไม่ถูกแก้ไข และบันทึกรายการไม่ได้</span><button onClick={toggleDemoMode} className="font-semibold underline">กลับไปข้อมูลร้านจริง</button></div>}
+        {demoMode && <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900"><span><strong>โหมดข้อมูลตัวอย่าง</strong> — ใช้ข้อมูลจำลองเพื่อเรียนรู้ โต๊ะ QR และรูปเมนูทดลองแก้ได้บนเบราว์เซอร์นี้ ส่วนอื่นอ่านอย่างเดียว ข้อมูลร้านจริงไม่ถูกแก้ไข</span><button onClick={toggleDemoMode} className="font-semibold underline">กลับไปข้อมูลร้านจริง</button></div>}
         <main style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
           {allowed ? (
             <Outlet />

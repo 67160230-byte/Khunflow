@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { CheckCircle2, Clock3, Minus, Plus, RefreshCw, Search, ShoppingBag, UtensilsCrossed, XCircle } from 'lucide-react'
 import MenuPhoto from '@/components/MenuPhoto'
+import { demoGuestService } from '@/services/shopDemo'
 import { BrandMark } from '@/components/BrandLogo'
 import { guestMoney, guestService, type GuestMenu, type TableOrder } from '@/services/tableOrdering'
 
@@ -27,13 +28,14 @@ function readDraft(key:string):Draft {
   } catch { return {cart:{},note:'',receipts:[]} }
 }
 
-export default function GuestMenuPage(){
+export default function GuestMenuPage({demo=false}:{demo?:boolean}){
   const {token=''}=useParams()
-  return <GuestMenuContent key={token} token={token}/>
+  return <GuestMenuContent key={`${demo}:${token}`} token={token} demo={demo}/>
 }
 
-function GuestMenuContent({token}:{token:string}){
-  const storageKey=`khunflow_guest_${token}`
+function GuestMenuContent({token,demo}:{token:string;demo:boolean}){
+  const service=demo?demoGuestService:guestService
+  const storageKey=`khunflow_guest_${demo?'demo_':''}${token}`
   const [initial]=useState(()=>readDraft(storageKey))
   const [menu,setMenu]=useState<GuestMenu|null>(null)
   const [cart,setCart]=useState<Cart>(initial.cart)
@@ -65,14 +67,14 @@ function GuestMenuContent({token}:{token:string}){
   useEffect(()=>{persist({cart,note,receipts,attempt:attempt.current})},[cart,note,receipts])
   useEffect(()=>{
     const controller=new AbortController();setLoading(true);setError('')
-    guestService.menu(token,controller.signal).then(value=>{
+    service.menu(token,controller.signal).then(value=>{
       if(controller.signal.aborted)return
       setMenu(value)
       // Remove unavailable menu items rather than submitting stale product IDs.
       setCart(previous=>Object.fromEntries(Object.entries(previous).filter(([id])=>value.products.some(p=>p.id===Number(id)))))
     }).catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:'โหลดเมนูไม่สำเร็จ')}).finally(()=>{if(!controller.signal.aborted)setLoading(false)})
     return()=>controller.abort()
-  },[token,reload])
+  },[token,reload,service])
   useEffect(()=>{
     if(!selectedReceipt){setOrder(null);return}
     const controller=new AbortController();let running=false
@@ -80,7 +82,7 @@ function GuestMenuContent({token}:{token:string}){
     async function update(){
       if(running||controller.signal.aborted)return
       running=true
-      try{const value=await guestService.status(selectedReceipt,controller.signal);if(!controller.signal.aborted){setOrder(value);setStatusError('')}}
+      try{const value=await service.status(selectedReceipt,controller.signal);if(!controller.signal.aborted){setOrder(value);setStatusError('')}}
       catch(e){if(!controller.signal.aborted)setStatusError(e instanceof Error?e.message:'อัปเดตสถานะไม่สำเร็จ')}
       finally{running=false}
     }
@@ -88,7 +90,7 @@ function GuestMenuContent({token}:{token:string}){
     const timer=setInterval(()=>{if(!document.hidden)void update()},10000)
     const visible=()=>{if(!document.hidden)void update()};document.addEventListener('visibilitychange',visible)
     return()=>{controller.abort();clearInterval(timer);document.removeEventListener('visibilitychange',visible)}
-  },[selectedReceipt,statusReload])
+  },[selectedReceipt,statusReload,service])
 
   const products=menu?.products||[]
   const lines=products.filter(p=>cart[p.id]).map(p=>({...p,quantity:cart[p.id]}))
@@ -116,7 +118,7 @@ function GuestMenuContent({token}:{token:string}){
     if(attempt.current?.fingerprint!==fingerprint)attempt.current={fingerprint,key:requestKey()}
     persist({...draft.current,cart,note,receipts,attempt:attempt.current})
     try{
-      const result=await guestService.submit(token,{...payload,request_key:attempt.current!.key})
+      const result=await service.submit(token,{...payload,request_key:attempt.current!.key})
       const receipt=result.receipt_token!
       const nextReceipts=[receipt,...receipts.filter(r=>r!==receipt)].slice(0,10)
       attempt.current=undefined
@@ -128,14 +130,15 @@ function GuestMenuContent({token}:{token:string}){
     finally{sendingRef.current=false;setSending(false)}
   }
   const cancelled=order?.order_status==='cancelled'
-  const statusTitle=cancelled?'ร้านยกเลิกออเดอร์นี้แล้ว':order?.status==='accepted'?'ร้านรับออเดอร์แล้ว':order?.status==='rejected'?'ร้านไม่สามารถรับออเดอร์นี้ได้':'ส่งออเดอร์แล้ว รอพนักงานยืนยัน'
+  const statusTitle=cancelled?'ร้านยกเลิกออเดอร์นี้แล้ว':order?.status==='accepted'?(demo?'ยืนยันออเดอร์ตัวอย่างแล้ว':'ร้านรับออเดอร์แล้ว'):order?.status==='rejected'?'ร้านไม่สามารถรับออเดอร์นี้ได้':'ส่งออเดอร์แล้ว รอพนักงานยืนยัน'
 
   return <main className="min-h-screen bg-[#f6f8f5] pb-28 text-gray-900">
     <header className="border-b border-green-100 bg-white"><div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6"><div className="flex min-w-0 items-center gap-3"><BrandMark size={40}/><div className="min-w-0"><p className="truncate font-bold">{menu?.business_name||'KhunFlow'}</p><p className="text-xs text-gray-500">สั่งอาหารที่โต๊ะ · ไม่ต้องสมัครสมาชิก</p></div></div>{menu&&<span className="shrink-0 rounded-full border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">{menu.table_name}</span>}</div></header>
     <div className="mx-auto max-w-5xl space-y-6 px-4 pt-6 sm:px-6 sm:pt-9">
+      {demo&&<div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>เมนูตัวอย่าง — ไม่ใช่ออเดอร์จริง</strong><p className="mt-1">เลือกเมนูและส่งรายการได้ ลองให้พนักงานยืนยันใน POS โหมดตัวอย่างบนเบราว์เซอร์เดียวกัน ข้อมูลนี้ไม่ส่งเข้าครัวและไม่ตัดสต็อกจริง</p><a href="/app/orders" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-semibold underline">เปิด POS เพื่อดูรายการรอยืนยัน</a><p className="mt-2 text-xs">เปิดจากโทรศัพท์ดูเมนูตัวอย่างได้ แต่รายการทดลองจะแชร์เฉพาะแท็บในเบราว์เซอร์เดียวกัน ใช้ QR ของร้านจริงเพื่อรับออเดอร์ข้ามเครื่อง</p></div>}
       {storageError&&<p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">เบราว์เซอร์ไม่อนุญาตให้บันทึกข้อมูล กรุณาเปิดหน้านี้ไว้เพื่อติดตามออเดอร์</p>}
       {selectedReceipt&&<section ref={statusSection} className="scroll-mt-4 rounded-2xl border border-green-200 bg-white p-5 shadow-sm" aria-live="polite"><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex gap-3">{order?.status==='accepted'&&!cancelled?<CheckCircle2 className="mt-1 shrink-0 text-green-700"/>:order?.status==='rejected'||cancelled?<XCircle className="mt-1 shrink-0 text-red-600"/>:<Clock3 className="mt-1 shrink-0 text-amber-600"/>}<div><h2 className="font-bold">{order?statusTitle:'กำลังโหลดสถานะออเดอร์…'}</h2><p className="mt-1 text-xs text-gray-500">{order?`${order.table_name} · คำขอ #${order.id}${order.order_id?` · ออเดอร์ #${order.order_id}`:''}`:'สถานะอัปเดตทุก 10 วินาที'}</p></div></div><button type="button" onClick={()=>setStatusReload(k=>k+1)} aria-label="อัปเดตสถานะออเดอร์" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><RefreshCw size={18}/></button></div>
-        {order&&<><div className="mt-4 space-y-2 border-t border-gray-100 pt-3 text-sm">{order.items.map(p=><div key={p.product_id} className="flex justify-between gap-3"><span>{p.name} × {p.quantity}</span><span className="shrink-0 tabular-nums">{guestMoney(p.subtotal,order.currency)}</span></div>)}<div className="flex justify-between border-t border-dashed border-gray-200 pt-3 font-bold"><span>รวม</span><span>{guestMoney(order.total,order.currency)}</span></div></div>{order.note&&<p className="mt-3 whitespace-pre-wrap break-words text-sm text-gray-600">หมายเหตุ: {order.note}</p>}{order.rejection_reason&&<p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">เหตุผล: {order.rejection_reason}</p>}<p className="mt-3 text-xs text-gray-500">{order.status==='pending'?'ยังไม่ยืนยันรายการ หากต้องการแก้ไขหรือลบรายการ กรุณาแจ้งพนักงาน':order.status==='accepted'&&!cancelled?'ชำระเงินกับพนักงานที่ร้าน หน้านี้ไม่ใช่หลักฐานการชำระเงิน':'หากมีข้อสงสัย กรุณาติดต่อพนักงาน'}</p></>}
+        {order&&<><div className="mt-4 space-y-2 border-t border-gray-100 pt-3 text-sm">{order.items.map(p=><div key={p.product_id} className="flex justify-between gap-3"><span>{p.name} × {p.quantity}</span><span className="shrink-0 tabular-nums">{guestMoney(p.subtotal,order.currency)}</span></div>)}<div className="flex justify-between border-t border-dashed border-gray-200 pt-3 font-bold"><span>รวม</span><span>{guestMoney(order.total,order.currency)}</span></div></div>{order.note&&<p className="mt-3 whitespace-pre-wrap break-words text-sm text-gray-600">หมายเหตุ: {order.note}</p>}{order.rejection_reason&&<p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">เหตุผล: {order.rejection_reason}</p>}<p className="mt-3 text-xs text-gray-500">{order.status==='pending'?'ยังไม่ยืนยันรายการ หากต้องการแก้ไขหรือลบรายการ กรุณาแจ้งพนักงาน':order.status==='accepted'&&!cancelled?(demo?'ยืนยันรายการตัวอย่างแล้ว ไม่มีการเรียกเก็บเงินจริง':'ชำระเงินกับพนักงานที่ร้าน หน้านี้ไม่ใช่หลักฐานการชำระเงิน'):'หากมีข้อสงสัย กรุณาติดต่อพนักงาน'}</p></>}
         {statusError&&<p role="alert" className="mt-3 text-sm text-red-700">{statusError}</p>}
         {receipts.length>1&&<label className="mt-4 block text-xs text-gray-500">คำสั่งซื้อจากเครื่องนี้ (เก็บ 10 รายการล่าสุด)<select className={`${inputClass} mt-1`} value={selectedReceipt} onChange={e=>{setStatusError('');setSelectedReceipt(e.target.value)}}>{receipts.map((r,i)=><option key={r} value={r}>{i===0?'รายการล่าสุด':`ก่อนหน้า ${i} รายการ`}</option>)}</select></label>}
       </section>}

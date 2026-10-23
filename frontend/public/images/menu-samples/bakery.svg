@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-label="ภาพประกอบเบเกอรี่ตัวอย่าง">
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#fff5dd"/><stop offset="1" stop-color="#f3d9b4"/></linearGradient></defs><path fill="url(#bg)" d="M0 0h640v480H0z"/><ellipse cx="320" cy="356" rx="204" ry="39" fill="#996c3e" opacity=".1"/><ellipse cx="320" cy="326" rx="198" ry="47" fill="#fffdf5"/>
+<path d="M140 295c10-94 80-154 180-154s170 60 180 154c-61-8-78-54-83-69-59 38-135 38-194 0-5 15-22 61-83 69z" fill="#cd8233" stroke="#b16a24" stroke-width="5"/>
+<path d="M267 148c-34 38-34 94-17 115l40 12c-11-52-4-98 9-132m74 5c34 38 34 94 17 115l-40 12c11-52 4-98-9-132" fill="#f0b458" stroke="#db9640" stroke-width="4"/><path d="M299 143h42l16 132c-21 9-53 9-74 0z" fill="#ffcb70"/><path d="M190 185l41 44-20 29-47-32m286-41l-41 44 20 29 47-32" fill="#e6a14a"/>
+<text x="32" y="444" font-family="sans-serif" font-size="17" fill="#8b602f">KHUNFLOW · SAMPLE ILLUSTRATION</text></svg>

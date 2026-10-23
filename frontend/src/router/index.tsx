@@ -48,6 +48,7 @@ export default function AppRouter() {
         </Route>
         <Route path="/app/platform-admin" element={<Navigate to="/platform" replace />} />
         <Route path="/table/:token" element={<GuestMenuPage />} />
+        <Route path="/demo/table/:token" element={<GuestMenuPage demo />} />
 
         {/* Protected App — AppLayout renders <Outlet /> inside */}
         <Route path="/app" element={<AppLayout />}>
